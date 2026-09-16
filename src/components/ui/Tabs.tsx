@@ -1,0 +1,1 @@
+export function Tabs({ active, onChange }: { active: string; onChange: (tab: string) => void }) { return <nav className="tabs">{["Aujourd'hui", "Jalons", "Focus"].map((tab) => <button key={tab} className={active === tab ? "active" : ""} onClick={() => onChange(tab)}>{tab}</button>)}</nav>; }

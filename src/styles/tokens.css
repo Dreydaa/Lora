@@ -1,0 +1,2 @@
+:root { --bg: #10110f; --surface: #1b1d18; --line: #3e4433; --text: #f4f6eb; --muted: #a4aa99; --accent: #d7ff36; --danger: #ff5c45; --radius: 3px; }
+:root[data-degraded="true"] { --accent: #aaad9d; --surface: #161714; }

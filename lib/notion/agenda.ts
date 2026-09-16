@@ -1,0 +1,5 @@
+import { notion } from "./client";
+import type { AgendaItem, SozaMode } from "../types";
+const db = () => { if (!process.env.NOTION_AGENDA_DATABASE_ID) throw new Error("NOTION_AGENDA_DATABASE_ID is missing"); return process.env.NOTION_AGENDA_DATABASE_ID; };
+export async function getUpcomingAgenda(): Promise<AgendaItem[]> { const data = await notion().databases.query({ database_id: db(), sorts: [{ property: "Date", direction: "ascending" }], page_size: 10 }); return data.results.map((page: any) => ({ id: page.id, title: page.properties.Titre?.title?.[0]?.plain_text ?? "Sans titre", date: page.properties.Date?.date?.start ?? null, status: page.properties.Statut?.select?.name ?? "À faire", mode: page.properties.Mode?.select?.name === "PAUSE" ? "PAUSE" : "ACTIF" })); }
+export async function addAgendaItem(title: string, date: string, mode: SozaMode) { return notion().pages.create({ parent: { database_id: db() }, properties: { Titre: { title: [{ text: { content: title } }] }, Date: { date: { start: date } }, Statut: { select: { name: "À faire" } }, Mode: { select: { name: mode } } } }); }
