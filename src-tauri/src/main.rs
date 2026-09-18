@@ -1,5 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use tauri::{Manager, WebviewWindowEvent};
+use tauri::{Manager, WindowEvent};
 
 fn main() {
   tauri::Builder::default()
@@ -11,7 +11,7 @@ fn main() {
         .build(app)?;
       Ok(())
     })
-    .on_window_event(|window, event| if let WebviewWindowEvent::CloseRequested { api, .. } = event { api.prevent_close(); let _ = window.hide(); })
+    .on_window_event(|window, event| if let WindowEvent::CloseRequested { api, .. } = event { api.prevent_close(); let _ = window.hide(); })
     .run(tauri::generate_context!())
     .expect("error while running Soza");
 }

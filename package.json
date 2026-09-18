@@ -8,16 +8,17 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "notion:create": "tsx scripts/create-notion-databases.ts",
-    "seed": "tsx scripts/seed-dev-data.ts"
+    "notion:check": "tsx --env-file=.env scripts/check-notion-connection.ts",
+    "notion:create": "tsx --env-file=.env scripts/create-notion-databases.ts",
+    "seed": "tsx --env-file=.env scripts/seed-dev-data.ts"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
-    "@upstash/qstash": "^2.8.0",
-    "ai": "^4.3.16",
     "@tauri-apps/api": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2.2.6",
     "@tauri-apps/plugin-shell": "^2.2.1",
+    "@upstash/qstash": "^2.8.0",
+    "ai": "^4.3.16",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0",
@@ -25,7 +26,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.6.2",
-    "@types/node": "^22.15.3",
+    "@types/node": "^22.20.3",
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.6",
     "@types/three": "^0.169.0",
