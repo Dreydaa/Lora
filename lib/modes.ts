@@ -10,7 +10,7 @@ export const modeRules: Record<SozaMode, { maxTaskMinutes: number; tone: string 
 const SHIFT_START_HOUR = 4;
 const SHIFT_END_HOUR = 15;
 
-function scheduledModeFromTime(date = new Date()): SozaMode {
+export function scheduledModeFromTime(date = new Date()): SozaMode {
   const hour = date.getHours();
   return hour >= SHIFT_START_HOUR && hour < SHIFT_END_HOUR ? "PAUSE" : "ACTIF";
 }
