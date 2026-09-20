@@ -13,6 +13,7 @@
     "seed": "tsx --env-file=.env scripts/seed-dev-data.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "^1.2.19",
     "@notionhq/client": "^2.2.15",
     "@tauri-apps/api": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2.2.6",
