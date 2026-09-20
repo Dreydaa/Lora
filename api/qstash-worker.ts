@@ -28,7 +28,7 @@ export default async function handler(request: Request) {
     const parsed = workerJobSchema.safeParse(JSON.parse(rawBody));
     if (!parsed.success) return new Response("Invalid job", { status: 400 });
 
-    const result = await askSoza(parsed.data.text);
+    const result = await askSoza(parsed.data.chatId, parsed.data.text);
     await sendTelegram(parsed.data.chatId, result.text);
 
     return Response.json({ ok: true });
