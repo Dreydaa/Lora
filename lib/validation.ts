@@ -15,7 +15,6 @@ export const workerJobSchema = z.object({
   messageId: z.number(),
 });
 export function isAllowedChat(chatId: number) {
-    console.log("isAllowedChat", chatId, process.env.TELEGRAM_ALLOWED_CHAT_ID);
   return String(chatId) === process.env.TELEGRAM_ALLOWED_CHAT_ID;
 }
 export function assertCron(request: Request) {

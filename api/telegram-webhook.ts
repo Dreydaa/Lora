@@ -1,5 +1,11 @@
 import { isAllowedChat, telegramUpdateSchema } from "../lib/validation";
 import { publishWorkerJob } from "../lib/integrations/qstash";
+
+export const config = {
+  runtime: 'edge',
+};
+
+
 export default async function handler(request: Request) {
   if (request.method !== "POST")
     return new Response("Method not allowed", { status: 405 });

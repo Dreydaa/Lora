@@ -1,31 +1,30 @@
+import { generateText } from "ai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { detectMode } from "../modes";
 import { ikkakuPrompt } from "./prompts/ikkaku";
 import { jarvisPrompt } from "./prompts/jarvis";
 import { sozaTools } from "./tools";
-type GeminiResponse = { candidates?: Array<{ content?: { parts?: Array<{ text?: string; functionCall?: { name: string; args: Record<string, unknown> } }> } }> };
 
 export async function askSoza(input: string) {
+  if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is missing");
+
+  const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
   const mode = detectMode(input);
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
+  const modelName = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: mode === "ACTIF" ? ikkakuPrompt : jarvisPrompt }] },
-      contents: [{ role: "user", parts: [{ text: input }] }],
-      tools: [{ functionDeclarations: sozaTools.map((tool) => tool.function) }]
-    })
+  console.log("[askSoza] START input:", input, "| mode:", mode, "| model:", modelName);
+
+  const { text, steps } = await generateText({
+    model: google(modelName),
+    system: mode === "ACTIF" ? ikkakuPrompt : jarvisPrompt,
+    prompt: input,
+    tools: sozaTools,
+    maxSteps: 4,
   });
-  if (!response.ok) throw new Error(`Gemini error: ${await response.text()}`);
 
-  const data = await response.json() as GeminiResponse;
-  const parts = data.candidates?.[0]?.content?.parts ?? [];
-  return {
-    mode,
-    text: parts.map((part) => part.text).filter(Boolean).join("\n") || "Action enregistrée.",
-    toolCalls: parts.flatMap((part) => part.functionCall ? [{ function: { name: part.functionCall.name, arguments: JSON.stringify(part.functionCall.args) } }] : [])
-  };
+  console.log("[askSoza] steps:", JSON.stringify(steps, null, 2));
+  console.log("[askSoza] final text:", text);
+  console.log("[askSoza] END — about to return");
+
+  return { mode, text: text || "Action enregistrée." };
 }

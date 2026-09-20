@@ -1,1 +1,18 @@
-export async function getNews(): Promise<string[]> { const url = process.env.NEWS_RSS_URL; if (!url) return ["Aucune source d'actualités configurée."]; try { const response = await fetch(url, { signal: AbortSignal.timeout(4000) }); const xml = await response.text(); return [...xml.matchAll(/<title><!\[CDATA\[(.*?)\]\]><\/title>|<title>(.*?)<\/title>/g)].slice(1, 4).map((m) => m[1] || m[2]).filter(Boolean); } catch { return ["Actualités indisponibles."]; } }
+export async function getNews(): Promise<string[]> {
+  const url = process.env.NEWS_RSS_URL;
+  if (!url) return ["Aucune source d'actualités configurée."];
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    const xml = await response.text();
+    return [
+      ...xml.matchAll(
+        /<title><!\[CDATA\[(.*?)\]\]><\/title>|<title>(.*?)<\/title>/g,
+      ),
+    ]
+      .slice(1, 4)
+      .map((m) => m[1] || m[2])
+      .filter(Boolean);
+  } catch {
+    return ["Actualités indisponibles."];
+  }
+}
