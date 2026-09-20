@@ -1,7 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { addIdea, findIdeaByTitle, archiveIdea, getIdeasToPropose } from "../notion/idees";
-import { createMilestone, completeMilestoneForIdea } from "../notion/milestones";
+import { createMilestone, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
+import { addAgendaItem } from "../notion/agenda";
+import { getLatestProgress, saveProgress } from "../notion/progress";
+import { scheduledModeFromTime } from "../modes";
 
 export const sozaTools = {
   create_idea: tool({
@@ -51,6 +54,43 @@ export const sozaTools = {
     execute: async () => {
       const suggestions = await getIdeasToPropose();
       return { suggestions };
+    },
+  }),
+
+  add_agenda_item: tool({
+    description:
+      "Ajoute un item ponctuel à l'agenda Notion pour une date donnée — pas un jalon de plusieurs jours, plutôt une tâche ou un rendez-vous simple.",
+    parameters: z.object({
+      title: z.string(),
+      date: z.string().describe("Date ISO"),
+    }),
+    execute: async ({ title, date }) => {
+      await addAgendaItem(title, date, scheduledModeFromTime());
+      return { success: true, title, date };
+    },
+  }),
+
+  list_milestones: tool({
+    description: "Liste les jalons de projet à venir (non validés), triés par échéance, avec leur statut.",
+    parameters: z.object({}),
+    execute: async () => {
+      const milestones = await getMilestones();
+      return { milestones };
+    },
+  }),
+
+  record_progress: tool({
+    description:
+      "Enregistre le bilan du jour dans Notion. Incrémente le streak si l'utilisateur a fourni une preuve de travail concrète aujourd'hui, le remet à zéro sinon. À utiliser typiquement en réponse au bilan du soir, une fois par jour.",
+    parameters: z.object({
+      review: z.string().describe("Résumé court de ce qui a été fait ou non aujourd'hui"),
+      completed: z.boolean().describe("true si une preuve de travail concrète a été fournie aujourd'hui"),
+    }),
+    execute: async ({ review, completed }) => {
+      const previous = await getLatestProgress();
+      const newStreak = completed ? previous.streak + 1 : 0;
+      await saveProgress(newStreak, review, scheduledModeFromTime());
+      return { success: true, streak: newStreak };
     },
   }),
 };
