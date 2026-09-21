@@ -9,18 +9,17 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "notion:check": "tsx --env-file=.env scripts/check-notion-connection.ts",
-    "notion:create": "tsx --env-file=.env scripts/create-notion-databases.ts",
-    "seed": "tsx --env-file=.env scripts/seed-dev-data.ts"
+    "notion:create": "tsx --env-file=.env scripts/create-notion-databases.ts"
   },
   "dependencies": {
-    "@ai-sdk/google": "^1.2.19",
+    "@ai-sdk/google": "^4.0.76",
     "@notionhq/client": "^2.2.15",
     "@tauri-apps/api": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2.2.6",
     "@tauri-apps/plugin-shell": "^2.2.1",
     "@upstash/qstash": "^2.8.0",
-    "@upstash/redis": "^1.38.4",
-    "ai": "^4.3.16",
+    "@upstash/redis": "^1.39.0",
+    "ai": "^7.0.107",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0",
