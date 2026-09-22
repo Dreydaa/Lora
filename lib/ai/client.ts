@@ -1,5 +1,4 @@
-// lib/ai/client.ts
-import { generateText, type CoreMessage } from "ai";
+import { generateText, isStepCount, type ModelMessage } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { detectMode } from "../modes";
@@ -37,14 +36,14 @@ export async function askSoza(chatId: number, input: string) {
   const model = resolveModel();
 
   const history = await getHistory(chatId);
-  const messages: CoreMessage[] = [...history, { role: "user", content: input }];
+  const messages: ModelMessage[] = [...history, { role: "user", content: input }];
 
   const { text, steps } = await generateText({
     model,
     system: (mode === "ACTIF" ? ikkakuPrompt : jarvisPrompt) + DOUBT_INSTRUCTION,
     messages,
     tools: sozaTools,
-    maxSteps: 4,
+    stopWhen: isStepCount(4),
   });
 
   // 🔍 extrait tous les tool calls de tous les steps
