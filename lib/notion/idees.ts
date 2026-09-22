@@ -14,6 +14,7 @@ export async function addIdea(title: string, size: IdeaSize, notes = "") {
       Titre: { title: [{ text: { content: title } }] },
       Taille: { select: { name: size } },
       "Date d'entrée": { date: { start: new Date().toISOString().slice(0, 10) } },
+      Statut: { select: { name: "Brute" } },          // ← À AJOUTER
       Notes: { rich_text: notes ? [{ text: { content: notes } }] : [] },
     },
   });
