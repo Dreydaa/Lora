@@ -11,7 +11,7 @@ import { getHistory, appendToHistory } from "../memory";
 const DOUBT_INSTRUCTION = `
 Quand l'utilisateur mentionne quelque chose qui pourrait être une idée de projet ou un jalon, n'utilise create_idea ou create_milestone que si tu es raisonnablement sûr que c'est son intention. Si c'est ambigu, n'appelle pas l'outil — pose d'abord une question courte pour confirmer.`;
 
-function resolveModel() {
+export function resolveModel() {
   const provider = process.env.AI_PROVIDER ?? "gemini";
 
   if (provider === "groq") {
@@ -55,7 +55,12 @@ export async function askSoza(chatId: number, input: string) {
     }))
   );
 
-  const finalText = text || "Action enregistrée.";
+  const hadToolCall = steps.some((s) => s.toolCalls.length > 0);
+  const finalText = text?.trim()
+    ? text
+    : hadToolCall
+      ? "✅ Action enregistrée."
+      : "Je n'ai rien fait — peux-tu préciser ?";
 
   await appendToHistory(chatId, [
     { role: "user", content: input },
