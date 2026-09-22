@@ -1,5 +1,7 @@
+// lib/ai/client.ts
 import { generateText, type CoreMessage } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
 import { detectMode } from "../modes";
 import { ikkakuPrompt } from "./prompts/ikkaku";
 import { jarvisPrompt } from "./prompts/jarvis";
@@ -7,26 +9,51 @@ import { sozaTools } from "./tools";
 import { getHistory, appendToHistory } from "../memory";
 
 const DOUBT_INSTRUCTION = `
+Quand l'utilisateur mentionne quelque chose qui pourrait être une idée de projet ou un jalon, n'utilise create_idea ou create_milestone que si tu es raisonnablement sûr que c'est son intention. Si c'est ambigu, n'appelle pas l'outil — pose d'abord une question courte pour confirmer.`;
 
-Quand l'utilisateur mentionne quelque chose qui pourrait être une idée de projet ou un jalon, n'utilise create_idea ou create_milestone que si tu es raisonnablement sûr que c'est son intention. Si c'est ambigu (une réflexion en passant, une plainte, une question), n'appelle pas l'outil — pose d'abord une question courte pour confirmer. N'exécute l'action qu'après une confirmation claire dans un message suivant.`;
+function resolveModel() {
+  const provider = process.env.AI_PROVIDER ?? "gemini";
+
+  if (provider === "groq") {
+    if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing");
+    const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
+    return groq(process.env.GROQ_MODEL ?? "openai/gpt-oss-120b");
+  }
+
+  if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is missing");
+  const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
+  return google(process.env.GEMINI_MODEL ?? "gemini-3.6-flash");
+}
 
 export async function askSoza(chatId: number, input: string) {
-  if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is missing");
+  if (typeof chatId !== "number" || !Number.isFinite(chatId)) {
+    throw new Error(`askSoza: chatId must be a number, got ${typeof chatId}`);
+  }
+  if (typeof input !== "string" || input.trim().length === 0) {
+    throw new Error(`askSoza: input must be a non-empty string, got ${typeof input}`);
+  }
 
-  const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
   const mode = detectMode(input);
-  const modelName = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const model = resolveModel();
 
   const history = await getHistory(chatId);
   const messages: CoreMessage[] = [...history, { role: "user", content: input }];
 
-  const { text } = await generateText({
-    model: google(modelName),
+  const { text, steps } = await generateText({
+    model,
     system: (mode === "ACTIF" ? ikkakuPrompt : jarvisPrompt) + DOUBT_INSTRUCTION,
     messages,
     tools: sozaTools,
     maxSteps: 4,
   });
+
+  // 🔍 extrait tous les tool calls de tous les steps
+  const toolCalls = steps.flatMap((step) =>
+    step.toolCalls.map((tc) => ({
+      name: tc.toolName,
+      input: "input" in tc ? tc.input : undefined,
+    }))
+  );
 
   const finalText = text || "Action enregistrée.";
 
@@ -35,5 +62,5 @@ export async function askSoza(chatId: number, input: string) {
     { role: "assistant", content: finalText },
   ]);
 
-  return { mode, text: finalText };
+  return { mode, text: finalText, toolCalls };
 }

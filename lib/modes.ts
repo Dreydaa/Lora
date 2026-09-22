@@ -18,11 +18,12 @@ export function scheduledModeFromTime(date = new Date()): SozaMode {
 // Commande explicite pour forcer un mode ponctuellement, ex: "/mode pause".
 // Match exact et ancré (^...$) — ne peut jamais se déclencher par accident
 // dans une phrase normale, contrairement à un mot-clé cherché n'importe où.
-function parseModeCommand(input: string): SozaMode | null {
+function parseModeCommand(input?: string): SozaMode | null {
+  if (typeof input !== 'string') return null;
   const match = input.trim().match(/^\/mode (actif|pause)$/i);
   return match ? (match[1].toUpperCase() as SozaMode) : null;
 }
 
-export function detectMode(input: string): SozaMode {
+export function detectMode(input?: string): SozaMode {
   return parseModeCommand(input) ?? scheduledModeFromTime();
 }
