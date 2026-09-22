@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { resolveModel } from "./ai/client";
 import { getUpcomingAgenda } from "./notion/agenda";
 import { getLatestProgress } from "./notion/progress";
 import { getWeather } from "./integrations/weather";
@@ -30,15 +30,12 @@ export async function buildBriefing(): Promise<string> {
 
   const fallback = `SOZA — briefing\n${contextSummary}`;
 
-  if (!process.env.GEMINI_API_KEY) return fallback;
-
   try {
     const mode = scheduledModeFromTime();
-    const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
-    const modelName = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+    const model = resolveModel();
 
     const { text } = await generateText({
-      model: google(modelName),
+      model,
       system: (mode === "ACTIF" ? ikkakuPrompt : jarvisPrompt) + BRIEFING_INSTRUCTION,
       prompt: `Données du jour:\n${contextSummary}`,
     });

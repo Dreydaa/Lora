@@ -20,7 +20,7 @@ export function scheduledModeFromTime(date = new Date()): SozaMode {
 // dans une phrase normale, contrairement à un mot-clé cherché n'importe où.
 function parseModeCommand(input?: string): SozaMode | null {
   if (typeof input !== 'string') return null;
-  const match = input.trim().match(/^\/mode (actif|pause)$/i);
+  const match = input.trim().match(/^\/mode\s+(actif|pause)/i);
   return match ? (match[1].toUpperCase() as SozaMode) : null;
 }
 
