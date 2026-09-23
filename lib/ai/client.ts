@@ -32,7 +32,7 @@ export async function askSoza(chatId: number, input: string) {
     throw new Error(`askSoza: input must be a non-empty string, got ${typeof input}`);
   }
 
-  const mode = detectMode(input);
+  const mode = await detectMode(input);
   const model = resolveModel();
 
   const history = await getHistory(chatId);

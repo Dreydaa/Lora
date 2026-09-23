@@ -1,6 +1,6 @@
 import { buildBriefing } from "../lib/briefing";
 import { sendTelegram } from "../lib/integrations/telegram";
-import { assertCron } from "../lib/validation";
+import { assertCronOrQStash } from "../lib/validation";
 
 export const config = {
   runtime: "edge",
@@ -8,7 +8,7 @@ export const config = {
 
 export default async function handler(request: Request) {
   try {
-    assertCron(request);
+    await assertCronOrQStash(request, await request.text());
     await sendTelegram(
       Number(process.env.TELEGRAM_ALLOWED_CHAT_ID),
       await buildBriefing(),

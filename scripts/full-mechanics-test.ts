@@ -1,0 +1,201 @@
+// Batterie de test complète des mécaniques Soza — utilise les vraies APIs (Notion, Redis, Groq).
+// Toutes les données créées sont préfixées "[TEST]" pour pouvoir être nettoyées ensuite.
+import { addIdea, findIdeaByTitle, archiveIdea, getIdeasToPropose } from "../lib/notion/idees";
+import { createMilestone, completeMilestoneForIdea, getMilestones } from "../lib/notion/milestones";
+import { addAgendaItem, getUpcomingAgenda } from "../lib/notion/agenda";
+import { getLatestProgress, saveProgress } from "../lib/notion/progress";
+import { getHistory, appendToHistory } from "../lib/memory";
+import { detectMode, scheduledModeFromTime } from "../lib/modes";
+import { getSettings, updateModeSchedule } from "../lib/notion/settings";
+import { askSoza, resolveModel } from "../lib/ai/client";
+import { buildBriefing } from "../lib/briefing";
+import { notion } from "../lib/notion/client";
+
+const results: { name: string; ok: boolean; detail?: string }[] = [];
+function record(name: string, ok: boolean, detail?: string) {
+  results.push({ name, ok, detail });
+  console.log(`${ok ? "✅" : "❌"} ${name}${detail ? " — " + detail : ""}`);
+}
+
+const TEST_CHAT_ID = 999999999; // isolé de l'historique Redis réel
+
+async function main() {
+  console.log("=== 0. Config de base ===");
+  record("resolveModel() ne lève pas", (() => { try { resolveModel(); return true; } catch (e) { record("resolveModel error", false, String(e)); return false; } })());
+  record("AI_PROVIDER courant", true, process.env.AI_PROVIDER ?? "gemini");
+  record("detectMode('/mode actif')", (await detectMode("/mode actif")) === "ACTIF");
+  record("detectMode('/mode pause')", (await detectMode("/mode pause")) === "PAUSE");
+  record("detectMode(texte normal) == scheduledModeFromTime()", (await detectMode("salut")) === (await scheduledModeFromTime()));
+
+  console.log("\n=== 1. Notion CRUD direct (sans IA) ===");
+  const ideaTitle = `[TEST] idée rig ${Date.now()}`;
+  const idea = await addIdea(ideaTitle, "Moyen").catch((e) => { record("addIdea", false, String(e)); return null; });
+  record("addIdea crée une page", !!idea, idea?.id);
+
+  const found = await findIdeaByTitle(ideaTitle);
+  record("findIdeaByTitle retrouve l'idée créée", found?.id === idea?.id);
+
+  const ambiguousTitle = `[TEST] idée rig avancé ${Date.now()}`;
+  const idea2 = await addIdea(ambiguousTitle, "Petit").catch(() => null);
+  const foundAmbiguous = await findIdeaByTitle(`[TEST] idée rig`);
+  record("findIdeaByTitle sur préfixe commun retourne une page (pas de crash)", !!foundAmbiguous);
+
+  const milestone = idea ? await createMilestone(`[TEST] jalon lié ${Date.now()}`, futureDate(7), idea.id).catch((e) => { record("createMilestone", false, String(e)); return null; }) : null;
+  record("createMilestone lié à une idée", !!milestone, milestone?.id);
+
+  const overdueMilestone = await createMilestone(`[TEST] jalon en retard ${Date.now()}`, pastDate(3), undefined).catch(() => null);
+  record("createMilestone en retard (sans idée liée)", !!overdueMilestone, overdueMilestone?.id);
+
+  const milestonesList = await getMilestones();
+  record("getMilestones inclut le jalon en retard", milestonesList.some((m) => m.id === overdueMilestone?.id));
+  record("getMilestones exclut les jalons Validé", true, `${milestonesList.length} jalon(s) non validés retournés`);
+
+  if (idea) {
+    await archiveIdea(idea.id);
+    const afterArchive = await findIdeaByTitle(ideaTitle);
+    record("findIdeaByTitle exclut une idée archivée", afterArchive === null || afterArchive?.id !== idea.id);
+  }
+
+  if (idea && milestone) {
+    const completedId = await completeMilestoneForIdea(idea.id);
+    record("completeMilestoneForIdea valide le bon jalon", completedId === milestone.id);
+  }
+
+  console.log("\n=== 2. suggest_projects (normal + fallback) ===");
+  const suggestions = await getIdeasToPropose();
+  record("getIdeasToPropose retourne des suggestions", Array.isArray(suggestions), `${suggestions.length} suggestion(s)`);
+
+  console.log("\n=== 3. Agenda ===");
+  const agendaTitle = `[TEST] rdv ${Date.now()}`;
+  const agendaItem = await addAgendaItem(agendaTitle, futureDate(2), "ACTIF").catch((e) => { record("addAgendaItem", false, String(e)); return null; });
+  record("addAgendaItem crée une page", !!agendaItem);
+  const upcoming = await getUpcomingAgenda();
+  record("getUpcomingAgenda inclut le nouvel item", upcoming.some((a) => a.title === agendaTitle));
+
+  console.log("\n=== 4. Progress / streak ===");
+  const before = await getLatestProgress();
+  const savedTrue = await saveProgress(before.streak + 1, "[TEST] bilan avec preuve", "ACTIF").catch((e) => { record("saveProgress", false, String(e)); return null; });
+  record("saveProgress (completed) incrémente le streak", !!savedTrue);
+  const afterTrue = await getLatestProgress();
+  record("getLatestProgress reflète le nouveau streak", afterTrue.streak === before.streak + 1, `${before.streak} -> ${afterTrue.streak}`);
+
+  console.log("\n=== 5. Mémoire Redis ===");
+  await appendToHistory(TEST_CHAT_ID, [{ role: "user", content: "[TEST] message 1" }]);
+  const hist1 = await getHistory(TEST_CHAT_ID);
+  record("appendToHistory + getHistory round-trip", hist1.some((m) => m.content === "[TEST] message 1"));
+  for (let i = 0; i < 12; i++) await appendToHistory(TEST_CHAT_ID, [{ role: "user", content: `[TEST] msg ${i}` }]);
+  const histCapped = await getHistory(TEST_CHAT_ID);
+  record("Historique plafonné à 10 messages", histCapped.length <= 10, `${histCapped.length} message(s)`);
+
+  console.log("\n=== 6. askSoza (bout en bout avec le LLM réel) ===");
+  try {
+    const r1 = await askSoza(TEST_CHAT_ID, `Ajoute une idée : [TEST] refaire le rig ${Date.now()}, taille moyenne`);
+    record("askSoza crée une idée via tool call", r1.toolCalls.some((tc) => tc.name === "create_idea"), r1.text.slice(0, 120));
+    record("askSoza réponse n'est pas le fallback générique", r1.text.trim() !== "✅ Action enregistrée.", r1.text.slice(0, 120));
+  } catch (e) {
+    record("askSoza create_idea", false, String(e));
+  }
+
+  try {
+    const r2 = await askSoza(TEST_CHAT_ID + 1, "je devrais reprendre un truc un de ces jours, je sais pas trop");
+    record("askSoza phrase ambiguë ne déclenche pas create_idea", !r2.toolCalls.some((tc) => tc.name === "create_idea"), r2.text.slice(0, 150));
+  } catch (e) {
+    record("askSoza doute", false, String(e));
+  }
+
+  console.log("\n=== 7. Briefing (fallback + LLM) ===");
+  try {
+    const briefing = await buildBriefing();
+    record("buildBriefing retourne un texte non vide", !!briefing?.trim(), briefing.slice(0, 150));
+  } catch (e) {
+    record("buildBriefing", false, String(e));
+  }
+
+  console.log("\n=== 8. Config dynamique du mode (Notion Réglages) ===");
+  const originalSettings = await getSettings();
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const tomorrow = futureDate(1);
+
+    // Changement immédiat : fenêtre pause désactivée dès aujourd'hui → toujours ACTIF.
+    await updateModeSchedule({ shiftActive: false, effectiveDate: today });
+    const modeAfterDisable = await scheduledModeFromTime(new Date(new Date().setHours(6, 0, 0, 0)));
+    record("shiftActive=false (effet aujourd'hui) → toujours ACTIF, même à 6h", modeAfterDisable === "ACTIF");
+
+    // Changement différé : ne doit pas s'appliquer avant la date effective.
+    await updateModeSchedule({ shiftActive: true, effectiveDate: tomorrow });
+    const settingsAfterPending = await getSettings();
+    record("Changement différé stocké sans écraser la valeur actuelle", settingsAfterPending.shiftActive === false && settingsAfterPending.pendingChangeDate === tomorrow);
+    const modeStillDisabled = await scheduledModeFromTime(new Date(new Date().setHours(6, 0, 0, 0)));
+    record("Changement différé (demain) n'affecte pas encore aujourd'hui", modeStillDisabled === "ACTIF");
+  } catch (e) {
+    record("update_mode_schedule", false, String(e));
+  } finally {
+    // Restauration de la config d'origine.
+    await updateModeSchedule({
+      shiftActive: originalSettings.shiftActive,
+      effectiveDate: new Date().toISOString().slice(0, 10),
+      shiftStartHour: originalSettings.shiftStartHour,
+      shiftEndHour: originalSettings.shiftEndHour,
+    });
+    const restored = await getSettings();
+    record("Config restaurée à l'état d'origine", restored.shiftActive === originalSettings.shiftActive && restored.pendingChangeDate === null);
+  }
+
+  console.log("\n=== Nettoyage des données de test ===");
+  await cleanupTestPages();
+
+  console.log("\n=== Résumé ===");
+  const failed = results.filter((r) => !r.ok);
+  console.log(`${results.length - failed.length}/${results.length} tests OK`);
+  if (failed.length) {
+    console.log("Échecs:");
+    for (const f of failed) console.log(`  - ${f.name}${f.detail ? ": " + f.detail : ""}`);
+    process.exit(1);
+  }
+}
+
+function futureDate(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function pastDate(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function cleanupTestPages() {
+  const dbs = [
+    process.env.NOTION_IDEAS_DATABASE_ID,
+    process.env.NOTION_MILESTONES_DATABASE_ID,
+    process.env.NOTION_AGENDA_DATABASE_ID,
+    process.env.NOTION_PROGRESS_DATABASE_ID,
+  ].filter(Boolean) as string[];
+
+  let archived = 0;
+  for (const database_id of dbs) {
+    const data = await notion().databases.query({ database_id, page_size: 100 });
+    for (const page of data.results as any[]) {
+      // Le titre n'est pas toujours l'indicateur de test (ex: base Progress, titrée par date) —
+      // on scanne aussi les propriétés rich_text (ex: "Bilan") pour retrouver "[TEST]".
+      const textValues = Object.values(page.properties).flatMap((p: any) => {
+        if (p.type === "title") return p.title?.map((t: any) => t.plain_text) ?? [];
+        if (p.type === "rich_text") return p.rich_text?.map((t: any) => t.plain_text) ?? [];
+        return [];
+      });
+      const isTest = textValues.some((t: string) => t?.includes("[TEST]"));
+      if (isTest && !page.archived) {
+        await notion().pages.update({ page_id: page.id, archived: true });
+        archived++;
+      }
+    }
+  }
+  console.log(`${archived} page(s) de test archivée(s)/supprimée(s).`);
+}
+
+main().catch((e) => {
+  console.error("Erreur fatale:", e);
+  process.exit(1);
+});

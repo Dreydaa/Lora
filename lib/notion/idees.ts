@@ -7,6 +7,21 @@ function database() {
   return database_id;
 }
 
+// Notion limite chaque bloc rich_text à 2000 caractères : une synthèse un peu développée
+// doit donc être découpée en plusieurs blocs plutôt que tronquée.
+function toRichText(text: string) {
+  const chunks: string[] = [];
+  let remaining = text.trim();
+  while (remaining.length > 2000) {
+    let cut = remaining.lastIndexOf(" ", 2000);
+    if (cut <= 0) cut = 2000; // pas d'espace trouvé : on coupe quand même plutôt que de bloquer
+    chunks.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut).trimStart();
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks.map((content) => ({ text: { content } }));
+}
+
 export async function addIdea(title: string, size: IdeaSize, notes = "") {
   return notion().pages.create({
     parent: { database_id: database() },
@@ -14,8 +29,8 @@ export async function addIdea(title: string, size: IdeaSize, notes = "") {
       Titre: { title: [{ text: { content: title } }] },
       Taille: { select: { name: size } },
       "Date d'entrée": { date: { start: new Date().toISOString().slice(0, 10) } },
-      Statut: { select: { name: "Brute" } },          // ← À AJOUTER
-      Notes: { rich_text: notes ? [{ text: { content: notes } }] : [] },
+      Statut: { select: { name: "Brute" } },
+      Notes: { rich_text: notes ? toRichText(notes) : [] },
     },
   });
 }
@@ -23,7 +38,12 @@ export async function addIdea(title: string, size: IdeaSize, notes = "") {
 export async function findIdeaByTitle(title: string) {
   const result = await notion().databases.query({
     database_id: database(),
-    filter: { property: "Titre", title: { contains: title } },
+    filter: {
+      and: [
+        { property: "Titre", title: { contains: title } },
+        { property: "Statut", select: { does_not_equal: "Archivée" } },
+      ],
+    },
     page_size: 1,
   });
   return result.results[0] ?? null;

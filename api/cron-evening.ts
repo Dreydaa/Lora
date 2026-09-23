@@ -1,9 +1,13 @@
 import { sendTelegram } from "../lib/integrations/telegram";
-import { assertCron } from "../lib/validation";
+import { assertCronOrQStash } from "../lib/validation";
+
+export const config = {
+  runtime: "edge",
+};
 
 export default async function handler(request: Request) {
   try {
-    assertCron(request);
+    await assertCronOrQStash(request, await request.text());
     await sendTelegram(
       Number(process.env.TELEGRAM_ALLOWED_CHAT_ID),
       "SOZA — bilan du soir\nDis-moi ce que tu as accompli aujourd'hui, même en une phrase — je m'en servirai demain matin pour te relancer sur la suite."

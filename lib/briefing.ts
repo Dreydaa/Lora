@@ -31,7 +31,7 @@ export async function buildBriefing(): Promise<string> {
   const fallback = `SOZA — briefing\n${contextSummary}`;
 
   try {
-    const mode = scheduledModeFromTime();
+    const mode = await scheduledModeFromTime();
     const model = resolveModel();
 
     const { text } = await generateText({
