@@ -7,16 +7,9 @@ const database = () => {
 };
 
 export async function getMilestones(): Promise<Milestone[]> {
-  const today = new Date().toISOString().slice(0, 10);
-
   const data = await notion().databases.query({
     database_id: database(),
-    filter: {
-      and: [
-        { property: "Échéance", date: { on_or_after: today } },
-        { property: "Statut", select: { does_not_equal: "Validé" } },
-      ],
-    },
+    filter: { property: "Statut", select: { does_not_equal: "Validé" } },
     sorts: [{ property: "Échéance", direction: "ascending" }],
   });
 

@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "notion:check": "tsx --env-file=.env scripts/check-notion-connection.ts",
-    "notion:create": "tsx --env-file=.env scripts/create-notion-databases.ts"
+    "notion:create": "tsx --env-file=.env scripts/create-notion-databases.ts",
+    "notion:create-settings": "tsx --env-file=.env scripts/create-settings-database.ts",
+    "qstash:setup-schedules": "tsx --env-file=.env scripts/setup-qstash-schedules.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.76",

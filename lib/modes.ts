@@ -1,29 +1,40 @@
 import type { SozaMode } from "./types";
+import { getSettings } from "./notion/settings";
 
 export const modeRules: Record<SozaMode, { maxTaskMinutes: number; tone: string }> = {
   ACTIF: { maxTaskMinutes: 120, tone: "direct et exigeant" },
   PAUSE: { maxTaskMinutes: 30, tone: "calme, protecteur et concis" },
 };
 
-// Fenêtre couvrant le shift (4h-13h/14h) + une marge de fatigue post-shift.
-// Ajuste ces bornes si tes horaires réels de tri logistique changent.
-const SHIFT_START_HOUR = 4;
-const SHIFT_END_HOUR = 15;
+// La fenêtre pause (horaires de shift) est configurable dynamiquement via Notion —
+// voir lib/notion/settings.ts. Un changement annoncé pour une date future ("demain
+// je change de travail") reste en attente jusqu'à ce que cette date soit atteinte.
+export async function scheduledModeFromTime(date = new Date()): Promise<SozaMode> {
+  const settings = await getSettings();
+  const today = date.toISOString().slice(0, 10);
 
-export function scheduledModeFromTime(date = new Date()): SozaMode {
+  const shiftActive =
+    settings.pendingChangeDate && settings.pendingChangeDate <= today
+      ? (settings.pendingChangeValue ?? settings.shiftActive)
+      : settings.shiftActive;
+
+  if (!shiftActive) return "ACTIF";
+
   const hour = date.getHours();
-  return hour >= SHIFT_START_HOUR && hour < SHIFT_END_HOUR ? "PAUSE" : "ACTIF";
+  return hour >= settings.shiftStartHour && hour < settings.shiftEndHour ? "PAUSE" : "ACTIF";
 }
 
 // Commande explicite pour forcer un mode ponctuellement, ex: "/mode pause".
 // Match exact et ancré (^...$) — ne peut jamais se déclencher par accident
 // dans une phrase normale, contrairement à un mot-clé cherché n'importe où.
 function parseModeCommand(input?: string): SozaMode | null {
-  if (typeof input !== 'string') return null;
+  if (typeof input !== "string") return null;
   const match = input.trim().match(/^\/mode\s+(actif|pause)/i);
   return match ? (match[1].toUpperCase() as SozaMode) : null;
 }
 
-export function detectMode(input?: string): SozaMode {
-  return parseModeCommand(input) ?? scheduledModeFromTime();
+export async function detectMode(input?: string): Promise<SozaMode> {
+  const forced = parseModeCommand(input);
+  if (forced) return forced;
+  return scheduledModeFromTime();
 }
