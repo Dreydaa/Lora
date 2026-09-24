@@ -42,7 +42,7 @@ export async function buildBriefing(): Promise<string> {
 
     return text || fallback;
   } catch {
-    // Gemini indisponible (quota, panne réseau...) : on garde un briefing basique plutôt que de faire planter le cron.
+    // Modèle indisponible (quota, panne réseau...) : on garde un briefing basique plutôt que de faire planter le cron.
     return fallback;
   }
 }

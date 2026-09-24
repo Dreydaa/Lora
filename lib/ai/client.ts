@@ -1,5 +1,4 @@
 import { generateText, isStepCount, type ModelMessage } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { detectMode } from "../modes";
 import { ikkakuPrompt } from "./prompts/ikkaku";
@@ -11,17 +10,9 @@ const DOUBT_INSTRUCTION = `
 Quand l'utilisateur mentionne quelque chose qui pourrait être une idée de projet ou un jalon, n'utilise create_idea ou create_milestone que si tu es raisonnablement sûr que c'est son intention. Si c'est ambigu, n'appelle pas l'outil — pose d'abord une question courte pour confirmer.`;
 
 export function resolveModel() {
-  const provider = process.env.AI_PROVIDER ?? "gemini";
-
-  if (provider === "groq") {
-    if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing");
-    const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
-    return groq(process.env.GROQ_MODEL ?? "openai/gpt-oss-120b");
-  }
-
-  if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is missing");
-  const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
-  return google(process.env.GEMINI_MODEL ?? "gemini-3.6-flash");
+  if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing");
+  const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
+  return groq(process.env.GROQ_MODEL ?? "openai/gpt-oss-120b");
 }
 
 export async function askSoza(chatId: number, input: string) {

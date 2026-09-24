@@ -1,5 +1,6 @@
 import { notion } from "./client";
 import type { SozaMode } from "../types";
+import { todayInParis } from "../date";
 export async function getLatestProgress() {
   const database_id = process.env.NOTION_PROGRESS_DATABASE_ID;
   if (!database_id) throw new Error("NOTION_PROGRESS_DATABASE_ID is missing");
@@ -22,7 +23,7 @@ export async function saveProgress(
 ) {
   const database_id = process.env.NOTION_PROGRESS_DATABASE_ID;
   if (!database_id) throw new Error("NOTION_PROGRESS_DATABASE_ID is missing");
-  const date = new Date().toISOString().slice(0, 10);
+  const date = todayInParis();
   return notion().pages.create({
     parent: { database_id },
     properties: {

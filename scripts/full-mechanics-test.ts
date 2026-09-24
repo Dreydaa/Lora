@@ -1,8 +1,8 @@
 // Batterie de test complète des mécaniques Soza — utilise les vraies APIs (Notion, Redis, Groq).
 // Toutes les données créées sont préfixées "[TEST]" pour pouvoir être nettoyées ensuite.
-import { addIdea, findIdeaByTitle, archiveIdea, getIdeasToPropose } from "../lib/notion/idees";
+import { addIdea, findIdeaByTitle, archiveIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose } from "../lib/notion/idees";
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../lib/notion/milestones";
-import { addAgendaItem, getUpcomingAgenda } from "../lib/notion/agenda";
+import { addAgendaItem, addShiftSchedule, getUpcomingAgenda } from "../lib/notion/agenda";
 import { getLatestProgress, saveProgress } from "../lib/notion/progress";
 import { getHistory, appendToHistory } from "../lib/memory";
 import { detectMode, scheduledModeFromTime } from "../lib/modes";
@@ -22,7 +22,7 @@ const TEST_CHAT_ID = 999999999; // isolé de l'historique Redis réel
 async function main() {
   console.log("=== 0. Config de base ===");
   record("resolveModel() ne lève pas", (() => { try { resolveModel(); return true; } catch (e) { record("resolveModel error", false, String(e)); return false; } })());
-  record("AI_PROVIDER courant", true, process.env.AI_PROVIDER ?? "gemini");
+  record("GROQ_MODEL configuré", true, process.env.GROQ_MODEL ?? "openai/gpt-oss-120b");
   record("detectMode('/mode actif')", (await detectMode("/mode actif")) === "ACTIF");
   record("detectMode('/mode pause')", (await detectMode("/mode pause")) === "PAUSE");
   record("detectMode(texte normal) == scheduledModeFromTime()", (await detectMode("salut")) === (await scheduledModeFromTime()));
@@ -34,6 +34,19 @@ async function main() {
 
   const found = await findIdeaByTitle(ideaTitle);
   record("findIdeaByTitle retrouve l'idée créée", found?.id === idea?.id);
+
+  const ideaWithStatus = await addIdea(`[TEST] idée en cours ${Date.now()}`, "Petit", "", "En cours").catch(() => null);
+  record("addIdea accepte un statut initial explicite", (ideaWithStatus as any)?.properties?.Statut?.select?.name === "En cours");
+  if (idea) {
+    await setIdeaStatus(idea.id, "En cours");
+    const afterStatusChange = await notion().pages.retrieve({ page_id: idea.id });
+    record("setIdeaStatus met bien à jour le statut", (afterStatusChange as any).properties.Statut.select?.name === "En cours");
+
+    await updateIdeaNotes(idea.id, "[TEST] synthèse mise à jour après coup");
+    const afterNotesUpdate = await notion().pages.retrieve({ page_id: idea.id });
+    const notesText = (afterNotesUpdate as any).properties.Notes.rich_text.map((r: any) => r.plain_text).join("");
+    record("updateIdeaNotes remplace bien les notes d'une idée existante", notesText === "[TEST] synthèse mise à jour après coup");
+  }
 
   const ambiguousTitle = `[TEST] idée rig avancé ${Date.now()}`;
   const idea2 = await addIdea(ambiguousTitle, "Petit").catch(() => null);
@@ -71,6 +84,39 @@ async function main() {
   record("addAgendaItem crée une page", !!agendaItem);
   const upcoming = await getUpcomingAgenda();
   record("getUpcomingAgenda inclut le nouvel item", upcoming.some((a) => a.title === agendaTitle));
+
+  const timedTitle = `[TEST] rdv horodaté ${Date.now()}`;
+  const timedItem = await addAgendaItem(timedTitle, `${futureDate(3)}T14:30:00`, "ACTIF", "Perso", `${futureDate(3)}T15:00:00`).catch(() => null);
+  record("addAgendaItem accepte une heure de début/fin", !!(timedItem as any)?.properties?.Date?.date?.start?.includes("14:30"));
+
+  // Bornée par une plage de dates propre au test (pas juste Type=Shift) pour ne jamais
+  // recouper un vrai planning de shift que l'utilisateur aurait par ailleurs enregistré.
+  const shiftStart = futureDate(10);
+  const shiftEnd = futureDate(14);
+  const shiftCount = await addShiftSchedule(shiftStart, shiftEnd, "05:00", "13:00", ["lundi", "mardi", "mercredi", "jeudi", "vendredi"]).catch((e) => {
+    record("addShiftSchedule", false, String(e));
+    return 0;
+  });
+  const shiftItems = await notion().databases.query({
+    database_id: process.env.NOTION_AGENDA_DATABASE_ID!,
+    filter: {
+      and: [
+        { property: "Type", select: { equals: "Shift" } },
+        { property: "Date", date: { on_or_after: shiftStart } },
+        { property: "Date", date: { on_or_before: shiftEnd } },
+      ],
+    },
+  });
+  record("addShiftSchedule crée le bon nombre de blocs (jours ouvrés uniquement)", shiftItems.results.length === shiftCount && shiftCount > 0, `${shiftCount} bloc(s)`);
+  const shiftDates = (shiftItems.results as any[]).map((p) => p.properties.Date.date.start.slice(0, 10)).sort();
+  record("addShiftSchedule ne déborde pas avant la date de début demandée", shiftDates.every((d) => d >= futureDate(10)), shiftDates.join(", "));
+
+  const upcomingWithoutShift = await getUpcomingAgenda();
+  record("getUpcomingAgenda exclut les blocs Shift par défaut", !upcomingWithoutShift.some((a) => a.type === "Shift"));
+  const upcomingWithShift = await getUpcomingAgenda(true);
+  record("getUpcomingAgenda(true) inclut les blocs Shift", upcomingWithShift.some((a) => a.type === "Shift"));
+
+  for (const p of shiftItems.results as any[]) await notion().pages.update({ page_id: p.id, archived: true });
 
   console.log("\n=== 4. Progress / streak ===");
   const before = await getLatestProgress();

@@ -1,9 +1,9 @@
 // lib/ai/tools.ts
 import { tool } from "ai";
 import { z } from "zod";
-import { addIdea, findIdeaByTitle, archiveIdea, getIdeasToPropose } from "../notion/idees";
+import { addIdea, findIdeaByTitle, archiveIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose } from "../notion/idees";
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
-import { addAgendaItem } from "../notion/agenda";
+import { addAgendaItem, addShiftSchedule } from "../notion/agenda";
 import { getLatestProgress, saveProgress } from "../notion/progress";
 import { updateModeSchedule, saveBriefingTime } from "../notion/settings";
 import { upsertSchedule } from "../integrations/qstash";
@@ -25,13 +25,54 @@ export const sozaTools = {
         .describe(
           "Synthèse structurée et complète du fond ET de la forme de l'idée telle que décrite par l'utilisateur — pas un résumé minimal. Si la description d'origine est très longue et détaillée, condense-la sans perdre les éléments importants.",
         ),
+      statut: z
+        .enum(["Brute", "En cours", "Archivée"])
+        .nullish()
+        .describe(
+          "Ne renseigne ce champ QUE si l'utilisateur précise explicitement un statut de départ (ex: 'ajoute ce projet et marque-le en cours'). Sinon laisse vide — l'idée sera créée en 'Brute' par défaut.",
+        ),
     }),
-    execute: async ({ title, size, notes }) => {
-      console.log("[tool] create_idea →", { title, size, notesLength: notes.length });
+    execute: async ({ title, size, notes, statut }) => {
+      const finalStatut = statut ?? undefined;
+      console.log("[tool] create_idea →", { title, size, statut: finalStatut, notesLength: notes.length });
       if (!title) throw new Error("create_idea: title is required");
-      const page = await addIdea(title, size, notes);
+      const page = await addIdea(title, size, notes, finalStatut);
       console.log("[tool] ✅ idée créée :", page.id);
-      return { success: true, title, size, pageId: page.id };
+      return { success: true, title, size, statut: finalStatut ?? "Brute", pageId: page.id };
+    },
+  }),
+
+  update_idea_notes: tool({
+    description:
+      "Réécrit la synthèse (notes) d'une idée/projet déjà enregistré — à utiliser quand l'utilisateur détaille, précise ou complète une idée après coup. Ce texte REMPLACE entièrement l'ancienne note : si tu connais déjà des éléments pertinents de cette idée via la conversation, combine-les avec les nouvelles précisions plutôt que d'écraser une note riche par une plus pauvre. Même règles que pour create_idea : synthèse structurée du fond et de la forme, pas un résumé minimal, rien d'inventé.",
+    inputSchema: z.object({
+      title: z.string().describe("Le titre (ou un extrait) de l'idée/projet à compléter"),
+      notes: z
+        .string()
+        .describe("Nouvelle synthèse complète (remplace l'ancienne) — fond ET forme du projet, structurée."),
+    }),
+    execute: async ({ title, notes }) => {
+      console.log("[tool] update_idea_notes →", { title, notesLength: notes.length });
+      const idea = await findIdeaByTitle(title);
+      if (!idea) return { success: false, reason: "Idée introuvable dans Notion" };
+      await updateIdeaNotes(idea.id, notes);
+      return { success: true, title };
+    },
+  }),
+
+  update_idea_status: tool({
+    description:
+      "Change le statut d'une idée/projet existant (Brute, En cours, Archivée). À utiliser quand l'utilisateur demande explicitement de mettre à jour l'avancement d'un projet déjà enregistré — pas pour en créer un nouveau, et pas pour le marquer terminé (utilise complete_project pour ça, qui gère aussi le jalon lié).",
+    inputSchema: z.object({
+      title: z.string().describe("Le titre (ou un extrait) de l'idée/projet à mettre à jour"),
+      statut: z.enum(["Brute", "En cours", "Archivée"]),
+    }),
+    execute: async ({ title, statut }) => {
+      console.log("[tool] update_idea_status →", { title, statut });
+      const idea = await findIdeaByTitle(title);
+      if (!idea) return { success: false, reason: "Idée introuvable dans Notion" };
+      await setIdeaStatus(idea.id, statut);
+      return { success: true, title, statut };
     },
   }),
 
@@ -40,7 +81,7 @@ export const sozaTools = {
     inputSchema: z.object({
       title: z.string(),
       dueDate: z.string().describe("Date ISO"),
-      ideaTitle: z.string().optional().describe("Titre de l'idée d'origine, si ce jalon en découle"),
+      ideaTitle: z.string().nullish().describe("Titre de l'idée d'origine, si ce jalon en découle"),
     }),
     execute: async ({ title, dueDate, ideaTitle }) => {
       console.log("[tool] create_milestone →", { title, dueDate, ideaTitle });
@@ -78,15 +119,45 @@ export const sozaTools = {
 
   add_agenda_item: tool({
     description:
-      "Ajoute un item ponctuel à l'agenda Notion pour une date donnée — pas un jalon de plusieurs jours, plutôt une tâche ou un rendez-vous simple.",
+      "Ajoute un item ponctuel à l'agenda Notion pour une date (et heure si connue) donnée — pas un jalon de plusieurs jours, plutôt une tâche ou un rendez-vous simple. Ne pas utiliser pour un planning de travail récurrent (voir add_shift_schedule).",
     inputSchema: z.object({
       title: z.string(),
-      date: z.string().describe("Date ISO"),
+      date: z
+        .string()
+        .describe(
+          "Date ISO. Si l'utilisateur précise une heure, inclus-la au format YYYY-MM-DDTHH:mm (ex: 2026-10-05T14:30) pour que Notion Calendar affiche un horaire précis plutôt qu'un évènement journée entière. Sinon juste YYYY-MM-DD.",
+        ),
+      endDate: z
+        .string()
+        .nullish()
+        .describe("Heure/date de fin, même format que `date`, si l'utilisateur précise une durée (ex: rdv de 14h à 15h30)."),
     }),
-    execute: async ({ title, date }) => {
-      console.log("[tool] add_agenda_item →", { title, date });
-      const page = await addAgendaItem(title, date, await scheduledModeFromTime());
+    execute: async ({ title, date, endDate }) => {
+      const finalEndDate = endDate ?? undefined;
+      console.log("[tool] add_agenda_item →", { title, date, endDate: finalEndDate });
+      const page = await addAgendaItem(title, date, await scheduledModeFromTime(), "Perso", finalEndDate);
       return { success: true, title, date, pageId: page.id };
+    },
+  }),
+
+  add_shift_schedule: tool({
+    description:
+      "Ajoute un planning de travail récurrent (shift à horaires fixes) dans l'agenda : un bloc par jour ouvré dans la plage donnée, avec heure de début et de fin. À utiliser quand l'utilisateur décrit un rythme de travail répété (ex: 'je travaille de 5h à 13h du lundi au vendredi jusqu'au 24 octobre'), pas pour un rendez-vous ponctuel (voir add_agenda_item). Ces blocs sont marqués d'un type distinct (Shift) pour que Notion Calendar puisse leur donner une couleur différente des rendez-vous personnels.",
+    inputSchema: z.object({
+      startDate: z.string().describe("Date ISO (YYYY-MM-DD) du premier jour du planning. Aujourd'hui si l'utilisateur ne précise pas de début."),
+      endDate: z.string().describe("Date ISO (YYYY-MM-DD) du dernier jour concerné, incluse — ex: la date de fin de contrat mentionnée."),
+      startTime: z.string().describe("Heure de début du shift, format HH:mm"),
+      endTime: z.string().describe("Heure de fin du shift, format HH:mm"),
+      weekdays: z
+        .array(z.enum(["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]))
+        .nullish()
+        .describe("Jours de la semaine concernés. Par défaut lundi à vendredi si l'utilisateur ne précise rien d'autre."),
+    }),
+    execute: async ({ startDate, endDate, startTime, endTime, weekdays }) => {
+      console.log("[tool] add_shift_schedule →", { startDate, endDate, startTime, endTime, weekdays });
+      const days = weekdays ?? ["lundi", "mardi", "mercredi", "jeudi", "vendredi"];
+      const count = await addShiftSchedule(startDate, endDate, startTime, endTime, days);
+      return { success: true, count, startDate, endDate, startTime, endTime };
     },
   }),
 
@@ -110,12 +181,17 @@ export const sozaTools = {
       effectiveDate: z
         .string()
         .describe("Date ISO (YYYY-MM-DD) à partir de laquelle ce changement s'applique. Aujourd'hui si l'utilisateur dit 'maintenant' ou ne précise pas."),
-      shiftStartHour: z.number().min(0).max(23).optional().describe("Nouvelle heure de début de la fenêtre pause, si elle change"),
-      shiftEndHour: z.number().min(0).max(23).optional().describe("Nouvelle heure de fin de la fenêtre pause, si elle change"),
+      shiftStartHour: z.number().min(0).max(23).nullish().describe("Nouvelle heure de début de la fenêtre pause, si elle change"),
+      shiftEndHour: z.number().min(0).max(23).nullish().describe("Nouvelle heure de fin de la fenêtre pause, si elle change"),
     }),
     execute: async ({ shiftActive, effectiveDate, shiftStartHour, shiftEndHour }) => {
       console.log("[tool] update_mode_schedule →", { shiftActive, effectiveDate });
-      await updateModeSchedule({ shiftActive, effectiveDate, shiftStartHour, shiftEndHour });
+      await updateModeSchedule({
+        shiftActive,
+        effectiveDate,
+        shiftStartHour: shiftStartHour ?? undefined,
+        shiftEndHour: shiftEndHour ?? undefined,
+      });
       return { success: true, shiftActive, effectiveDate };
     },
   }),
