@@ -1,5 +1,6 @@
 import type { SozaMode } from "./types";
 import { getSettings } from "./notion/settings";
+import { todayInParis, hourInParis } from "./date";
 
 export const modeRules: Record<SozaMode, { maxTaskMinutes: number; tone: string }> = {
   ACTIF: { maxTaskMinutes: 120, tone: "direct et exigeant" },
@@ -11,7 +12,7 @@ export const modeRules: Record<SozaMode, { maxTaskMinutes: number; tone: string 
 // je change de travail") reste en attente jusqu'à ce que cette date soit atteinte.
 export async function scheduledModeFromTime(date = new Date()): Promise<SozaMode> {
   const settings = await getSettings();
-  const today = date.toISOString().slice(0, 10);
+  const today = todayInParis(date);
 
   const shiftActive =
     settings.pendingChangeDate && settings.pendingChangeDate <= today
@@ -20,7 +21,7 @@ export async function scheduledModeFromTime(date = new Date()): Promise<SozaMode
 
   if (!shiftActive) return "ACTIF";
 
-  const hour = date.getHours();
+  const hour = hourInParis(date);
   return hour >= settings.shiftStartHour && hour < settings.shiftEndHour ? "PAUSE" : "ACTIF";
 }
 

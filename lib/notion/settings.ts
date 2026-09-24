@@ -1,4 +1,5 @@
 import { notion } from "./client";
+import { todayInParis } from "../date";
 
 const database = () => {
   const id = process.env.NOTION_SETTINGS_DATABASE_ID;
@@ -53,7 +54,7 @@ export async function updateModeSchedule(options: {
   shiftEndHour?: number;
 }) {
   const settings = await getSettings();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInParis();
   const properties: Record<string, any> = {};
 
   if (options.effectiveDate <= today) {

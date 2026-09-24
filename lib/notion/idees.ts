@@ -1,5 +1,6 @@
 import { notion } from "./client";
-import type { IdeaSize } from "../types";
+import type { IdeaSize, IdeaStatus } from "../types";
+import { todayInParis } from "../date";
 
 function database() {
   const database_id = process.env.NOTION_IDEAS_DATABASE_ID;
@@ -22,14 +23,14 @@ function toRichText(text: string) {
   return chunks.map((content) => ({ text: { content } }));
 }
 
-export async function addIdea(title: string, size: IdeaSize, notes = "") {
+export async function addIdea(title: string, size: IdeaSize, notes = "", statut: IdeaStatus = "Brute") {
   return notion().pages.create({
     parent: { database_id: database() },
     properties: {
       Titre: { title: [{ text: { content: title } }] },
       Taille: { select: { name: size } },
-      "Date d'entrée": { date: { start: new Date().toISOString().slice(0, 10) } },
-      Statut: { select: { name: "Brute" } },
+      "Date d'entrée": { date: { start: todayInParis() } },
+      Statut: { select: { name: statut } },
       Notes: { rich_text: notes ? toRichText(notes) : [] },
     },
   });
@@ -49,11 +50,22 @@ export async function findIdeaByTitle(title: string) {
   return result.results[0] ?? null;
 }
 
-export async function archiveIdea(pageId: string) {
+export async function updateIdeaNotes(pageId: string, notes: string) {
   await notion().pages.update({
     page_id: pageId,
-    properties: { Statut: { select: { name: "Archivée" } } },
+    properties: { Notes: { rich_text: notes ? toRichText(notes) : [] } },
   });
+}
+
+export async function setIdeaStatus(pageId: string, statut: IdeaStatus) {
+  await notion().pages.update({
+    page_id: pageId,
+    properties: { Statut: { select: { name: statut } } },
+  });
+}
+
+export async function archiveIdea(pageId: string) {
+  await setIdeaStatus(pageId, "Archivée");
 }
 
 type IdeaSuggestion = { title: string; size: string; pageId: string };
