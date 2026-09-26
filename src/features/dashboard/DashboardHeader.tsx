@@ -1,6 +1,20 @@
-import { lazy, Suspense } from "react";
-import { ModeSwitcher } from "../../components/ModeSwitcher";
-import { StreakDisplay } from "../../components/StreakDisplay";
-import type { DashboardData } from "../../types/dashboard";
-const AvatarOrb = lazy(() => import("../../components/AvatarOrb/AvatarOrb").then((module) => ({ default: module.AvatarOrb })));
-export function DashboardHeader({ data }: { data: DashboardData }) { return <header><div><p className="eyebrow">OPÉRATEUR SYSTÈME</p><h1>SOZA</h1><StreakDisplay streak={data.streak} /></div><Suspense fallback={<div className="orb" />}><AvatarOrb /></Suspense><ModeSwitcher mode={data.mode} /></header>; }
+import { Tabs, type TabId } from "../../components/ui/Tabs";
+import { formatDay, localDayKey } from "../../lib/format";
+
+function greeting(now: Date) {
+  const hour = now.getHours();
+  if (hour < 5) return "Bonne nuit";
+  if (hour < 12) return "Bonjour";
+  if (hour < 18) return "Bon après-midi";
+  return "Bonsoir";
+}
+
+export function DashboardHeader({ now, tab, onTabChange }: { now: Date; tab: TabId; onTabChange: (tab: TabId) => void }) {
+  return (
+    <header>
+      <h1>{greeting(now)}</h1>
+      <p>{now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · {formatDay(localDayKey(), { weekday: "long", day: "numeric", month: "long" })}</p>
+      <Tabs active={tab} onChange={onTabChange} />
+    </header>
+  );
+}

@@ -1,12 +1,35 @@
 import { useState } from "react";
-import { Tabs } from "../../components/ui/Tabs";
+import { TABS, type TabId } from "../../components/ui/Tabs";
 import { useDashboardData } from "../../hooks/useDashboardData";
-import { BriefingPanel } from "../briefing/BriefingPanel";
+import { useNow } from "../../hooks/useNow";
 import { CalendarPanel } from "../calendar/CalendarPanel";
-import { NewsPanel } from "../news/NewsPanel";
 import { BlenderPanel } from "../blender/BlenderPanel";
-import { MilestoneList } from "../milestones/MilestoneList";
-import { Timeline } from "../milestones/Timeline";
 import { DailyQuiz } from "../quiz/DailyQuiz";
+import { IdeasPanel } from "../ideas/IdeasPanel";
+import { SettingsPanel } from "../settings/SettingsPanel";
 import { DashboardHeader } from "./DashboardHeader";
-export function DashboardPage() { const data = useDashboardData(); const [tab, setTab] = useState("Aujourd'hui"); return <main><DashboardHeader data={data} /><Tabs active={tab} onChange={setTab} />{tab === "Aujourd'hui" ? <div className="grid"><BriefingPanel briefing={data.briefing} /><CalendarPanel agenda={data.agenda} /><NewsPanel news={data.news} /><BlenderPanel /></div> : tab === "Jalons" ? <><MilestoneList milestones={data.milestones} /><Timeline milestones={data.milestones} /></> : <BlenderPanel />}<DailyQuiz /></main>; }
+import { HeroStats } from "./HeroStats";
+import { Rail } from "./Rail";
+
+export function DashboardPage() {
+  const data = useDashboardData();
+  const now = useNow();
+  const [tab, setTab] = useState<TabId>("calendrier");
+  const label = TABS.find((t) => t.id === tab)!.label;
+  return (
+    <div>
+      <Rail data={data} />
+      <main>
+        <DashboardHeader now={now} tab={tab} onTabChange={setTab} />
+        <HeroStats data={data} now={now} />
+        <section key={tab} role="tabpanel" aria-label={label}>
+          {tab === "calendrier" && <CalendarPanel agenda={data.agenda} milestones={data.milestones} news={data.news} now={now} />}
+          {tab === "blender" && <BlenderPanel milestones={data.milestones} />}
+          {tab === "quiz" && <DailyQuiz question={data.quiz} />}
+          {tab === "idees" && <IdeasPanel ideas={data.ideas} />}
+          {tab === "reglages" && <SettingsPanel settings={data.settings} mode={data.mode} />}
+        </section>
+      </main>
+    </div>
+  );
+}

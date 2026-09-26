@@ -1,6 +1,6 @@
 # État Soza
 
-Dernière mise à jour : session du 24/09/2026. Soza est déployé et fonctionnel en production.
+Dernière mise à jour : session du 26/09/2026. Soza est déployé et fonctionnel en production.
 
 ## Fait
 
@@ -41,6 +41,14 @@ Dernière mise à jour : session du 24/09/2026. Soza est déployé et fonctionne
   - Pour colorer différemment Shift/Perso dans Notion Calendar : réglage à faire manuellement côté utilisateur (paramètres du calendrier → colorer par propriété → Type), l'API ne permet pas de le configurer.
   - `getUpcomingAgenda()` exclut les blocs Shift par défaut (sinon un planning de plusieurs semaines noierait les rendez-vous personnels dans le briefing du matin).
 
+### Progression / streak — remplace le Proof of Work
+- **Proof of Work explicitement mis de côté** (lien, capture, .glb, lecture GitHub...) : décision prise après discussion, à reconsidérer en v2 une fois Soza suffisamment utilisé pour juger de son intérêt réel. Le bouton "Preuve de travail" (placeholder désactivé) retiré de `BlenderPanel.tsx`.
+- **Nouvelle condition d'incrémentation du streak** (`record_progress` dans `lib/ai/tools.ts`) : le streak n'avance que si trois conditions sont réunies, sinon il repart à zéro :
+  1. Réponse au bilan du soir arrivée avant minuit — vérifié côté serveur (`lib/memory.ts` : `markEveningBilanSent`/`wasEveningBilanSentToday`, marqueur Redis posé par `api/cron-evening.ts` à l'envoi du bilan, comparé à `todayInParis()`), indépendant de ce que le modèle déclare.
+  2. Le bilan porte sur le projet actuellement **En cours** dans Notion (`getCurrentProject()` dans `lib/notion/idees.ts`) — comparaison du titre déclaré par le modèle avec celui du projet en cours.
+  3. Cohérence jugée par le modèle avec les 3 derniers bilans (`getRecentProgress()` dans `lib/notion/progress.ts`), consultés via le nouveau tool `get_progress_context` que le modèle doit appeler avant `record_progress` (instruction système dédiée dans `lib/ai/client.ts`).
+- **Limite assumée** : un seul projet "En cours" est pris en compte à la fois — travailler sur plusieurs projets en parallèle n'est pas géré par cette logique de streak (contrainte acceptée par l'utilisateur en échange de la simplicité du contrôle).
+
 ### Actualités
 - Remplacé l'unique flux généraliste par deux flux mondiaux réels : Tech (TechCrunch) et Mode (Vogue). Parsing réécrit pour cibler les titres à l'intérieur des balises `<item>` (un flux dupliquait son titre dans un bloc `<image>`, faussant l'ancien découpage positionnel).
 
@@ -49,15 +57,26 @@ Dernière mise à jour : session du 24/09/2026. Soza est déployé et fonctionne
 - `docs/ai/STATUS.md` et `HANDOFF.md` (obsolètes) supprimés puis ce fichier recréé à jour ; `docs/ai/CONTEXT.md` conservé.
 - Les 4 bases Notion (Idées, Agenda, Milestones, Progress) ont été vidées pour repartir sur une base propre, plus quelques pages résiduelles vides retrouvées et nettoyées en cours de session.
 
+### Dashboard Tauri — reset visuel (design en cours côté utilisateur)
+- **La refonte visuelle éditoriale (palette verte/jaune, polices Coinage/Aspekta, arche avatar, popover calendrier, kanban idées, jauge/cadran SVG) a été entièrement retirée à la demande de l'utilisateur**, qui refait le design de zéro dans Figma et le transmettra ensuite (captures d'écran export 2x + valeurs de style en texte, pas de lien Figma direct — pas de connecteur Figma disponible ici).
+- `src/styles/tokens.css` et `src/styles/globals.css` réduits à un reset minimal (`box-sizing`, police système, quasi aucune classe). Tous les composants de `src/features/dashboard/`, `calendar/`, `blender/`, `ideas/`, `settings/`, `quiz/` rendent désormais du HTML brut sans classes de mise en forme.
+- **Interactions aplaties en listes simples** (décision explicite de l'utilisateur, pas juste un dépouillement CSS) : plus de bascule Semaine/Mois ni de popover calendrier (`CalendarPanel.tsx` liste maintenant les évènements à venir triés par jour), plus de colonnes kanban pour les idées (liste par statut), plus de jauge SVG (Blender) ni de cadran SVG (Réglages) — juste les valeurs en texte.
+- Fichiers supprimés car devenus inutilisés par cet aplatissement : `CalendarCard.tsx`, `MonthGrid.tsx`, `WeekGrid.tsx`, `DayPopover.tsx`, `EventBadge.tsx`, `CalendarItem.tsx` (`src/features/calendar/`), ainsi que les helpers `monthCells`/`addMonths`/`sameMonth` dans `src/lib/format.ts`. `components/ui/Icon.tsx` n'est plus utilisé nulle part mais conservé tel quel (probable réutilisation quand le nouveau design arrivera).
+- Toute la logique de données est conservée à l'identique (`events.ts`, `mockData.ts`, `dashboardStore.ts`, hooks) — seul l'habillage visuel a changé. Vérifié par `tsc --noEmit`, `vite build`, et un passage Playwright headless sur les 5 onglets (aucune erreur console).
+- **Nettoyage pré-existant toujours en attente** (inchangé par ce reset, à faire une fois le nouveau design en place) : `src/components/AvatarOrb/`, `ModeSwitcher.tsx`, `stores/modeStore.ts`, `MilestoneCard.tsx`, `features/milestones/{MilestoneList,Timeline}.tsx`, `features/briefing/BriefingPanel.tsx`, `features/news/NewsPanel.tsx`, `components/ui/{Card,Button}.tsx`, `components/StreakDisplay.tsx`. Rien ne les importe ; la dépendance `three` (ancien `AvatarOrb`) est probablement désinstallable aussi.
+
 ## Reste à faire
 
 ### Dashboard Tauri
-- Toujours déconnecté de tout backend réel (données factices). Aucun écran pour la config Réglages (mode/horaires) — actuellement pilotable uniquement par conversation Telegram.
+- Design visuel entièrement à refaire : l'utilisateur travaille sa maquette dans Figma, transmission prévue par captures d'écran (export 2x) + valeurs de style en texte. Voir "Dashboard Tauri — reset visuel" ci-dessus.
+- Toujours déconnecté de tout backend réel (données factices dans `mockData.ts`). Aucun écran fonctionnel pour la config Réglages (mode/horaires) — l'onglet Réglages affiche les valeurs en lecture seule mais rien n'écrit encore dans Notion depuis le dashboard ; actuellement pilotable uniquement par conversation Telegram.
 - Le stockage (Notion) est déjà prêt à être lu/écrit par un futur écran de réglages, sans changement backend nécessaire.
+- Le code mort pré-existant listé plus haut ("Nettoyage pré-existant toujours en attente") doit être supprimé une fois l'utilisateur satisfait du nouveau design.
+- L'avatar Soza reste à faire par l'utilisateur — hors périmètre IA par consigne explicite. Son emplacement dédié (`.stage__slot`) a disparu avec le reset visuel ; à réintroduire quand le nouveau design arrivera.
 
 ### Fonctionnalités produit
-- Soumission et validation de Proof of Work (lien, capture, analyse vision) — non implémenté.
-- Dégradation visuelle de l'UI après un jalon manqué — non implémentée.
+- Proof of Work : voir section "Progression / streak" ci-dessus — mis de côté au profit d'un contrôle de cohérence conversationnel, à reconsidérer en v2.
+- Dégradation visuelle de l'UI après un jalon manqué — non implémentée. L'ancien design anticipait le cas via un attribut `data-degraded="true"` basculant une palette atténuée, mais ce mécanisme a disparu avec le reset visuel (`src/styles/tokens.css` ne contient plus de palette à atténuer). À reconcevoir avec le nouveau design : ni déclencheur (détection d'un jalon manqué) ni rendu associé n'existent pour l'instant.
 
 ### Qualité / robustesse
 - Aucun test unitaire isolé (seulement le script d'intégration `full-mechanics-test.ts` contre les vraies APIs).
