@@ -9,6 +9,9 @@ import { getHistory, appendToHistory } from "../memory";
 const DOUBT_INSTRUCTION = `
 Quand l'utilisateur mentionne quelque chose qui pourrait être une idée de projet ou un jalon, n'utilise create_idea ou create_milestone que si tu es raisonnablement sûr que c'est son intention. Si c'est ambigu, n'appelle pas l'outil — pose d'abord une question courte pour confirmer.`;
 
+const PROGRESS_INSTRUCTION = `
+Quand l'utilisateur répond au bilan du soir (ou raconte spontanément l'avancement de sa journée), appelle TOUJOURS get_progress_context avant record_progress. Compare son récit au projet 'En cours' renvoyé et aux 3 derniers bilans : s'il parle d'un autre projet, ou si son récit contredit ce qui a été dit les jours précédents, mets completed à false dans record_progress et dis-le lui directement plutôt que de valider par complaisance. Le contrôle d'horaire (avant minuit) est déjà fait côté serveur, tu n'as pas à le juger toi-même.`;
+
 export function resolveModel() {
   if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing");
   const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
@@ -31,7 +34,7 @@ export async function askSoza(chatId: number, input: string) {
 
   const { text, steps } = await generateText({
     model,
-    system: (mode === "ACTIF" ? ikkakuPrompt : jarvisPrompt) + DOUBT_INSTRUCTION,
+    system: (mode === "ACTIF" ? ikkakuPrompt : jarvisPrompt) + DOUBT_INSTRUCTION + PROGRESS_INSTRUCTION,
     messages,
     tools: sozaTools,
     stopWhen: isStepCount(4),
