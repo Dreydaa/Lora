@@ -30,6 +30,7 @@ export async function getUpcomingAgenda(includeShift = false): Promise<AgendaIte
     id: page.id,
     title: page.properties.Titre?.title?.[0]?.plain_text ?? "Sans titre",
     date: page.properties.Date?.date?.start ?? null,
+    end: page.properties.Date?.date?.end ?? null,
     status: page.properties.Statut?.select?.name ?? "À faire",
     mode: page.properties.Mode?.select?.name === "PAUSE" ? "PAUSE" : "ACTIF",
     type: page.properties.Type?.select?.name === "Shift" ? "Shift" : "Perso",
