@@ -1,13 +1,15 @@
 // lib/ai/tools.ts
 import { tool } from "ai";
 import { z } from "zod";
-import { addIdea, findIdeaByTitle, archiveIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose } from "../notion/idees";
+import { addIdea, findIdeaByTitle, archiveIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose, getCurrentProject } from "../notion/idees";
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
 import { addAgendaItem, addShiftSchedule } from "../notion/agenda";
-import { getLatestProgress, saveProgress } from "../notion/progress";
+import { getLatestProgress, getRecentProgress, saveProgress } from "../notion/progress";
 import { updateModeSchedule, saveBriefingTime } from "../notion/settings";
 import { upsertSchedule } from "../integrations/qstash";
 import { scheduledModeFromTime } from "../modes";
+import { wasEveningBilanSentToday } from "../memory";
+import { todayInParis } from "../date";
 
 export const sozaTools = {
   create_idea: tool({
@@ -213,19 +215,52 @@ export const sozaTools = {
     },
   }),
 
+  get_progress_context: tool({
+    description:
+      "Récupère le projet actuellement 'En cours' et les 3 derniers bilans enregistrés dans Notion. À appeler systématiquement AVANT record_progress en réponse au bilan du soir, pour vérifier que ce que dit l'utilisateur aujourd'hui porte bien sur le projet en cours et reste cohérent avec ce qui a été dit les jours précédents (pas de contradiction, pas de saut d'un projet à un autre sans que ce changement ait été annoncé via update_idea_status).",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] get_progress_context");
+      const [currentProject, recentProgress] = await Promise.all([getCurrentProject(), getRecentProgress(3)]);
+      return { currentProject, recentProgress };
+    },
+  }),
+
   record_progress: tool({
     description:
-      "Enregistre le bilan du jour dans Notion. Incrémente le streak si l'utilisateur a fourni une preuve de travail concrète aujourd'hui, le remet à zéro sinon. À utiliser typiquement en réponse au bilan du soir, une fois par jour.",
+      "Enregistre le bilan du jour dans Notion et met à jour le streak. Le streak n'est incrémenté QUE si les 3 conditions suivantes sont réunies : (1) la réponse arrive avant minuit — vérifié automatiquement par le serveur, indépendant de ce que tu déclares ; (2) `projectTitle` correspond au projet actuellement 'En cours' dans Notion ; (3) `completed` est true, ce que tu ne dois affirmer qu'après avoir appelé get_progress_context et constaté que le récit du jour est cohérent avec les 3 derniers bilans (pas de contradiction manifeste). Si une seule de ces conditions manque, le streak repart à zéro. Note : plusieurs projets menés en parallèle ne sont pas gérés — seul le projet 'En cours' compte.",
     inputSchema: z.object({
       review: z.string().describe("Résumé court de ce qui a été fait ou non aujourd'hui"),
-      completed: z.boolean().describe("true si une preuve de travail concrète a été fournie aujourd'hui"),
+      projectTitle: z
+        .string()
+        .describe("Titre du projet dont parle ce bilan, tel que compris de la conversation — doit correspondre au projet 'En cours' pour compter"),
+      completed: z
+        .boolean()
+        .describe(
+          "true seulement si, après avoir consulté get_progress_context, le bilan du jour porte sur le projet en cours et est cohérent avec les 3 derniers jours. Ne mets jamais true par défaut ou par politesse.",
+        ),
     }),
-    execute: async ({ review, completed }) => {
-      console.log("[tool] record_progress →", { review, completed });
-      const previous = await getLatestProgress();
-      const newStreak = completed ? previous.streak + 1 : 0;
+    execute: async ({ review, projectTitle, completed }) => {
+      console.log("[tool] record_progress →", { review, projectTitle, completed });
+      const [previous, currentProject, onTime] = await Promise.all([
+        getLatestProgress(),
+        getCurrentProject(),
+        wasEveningBilanSentToday(todayInParis()),
+      ]);
+
+      const matchesProject = !!currentProject && projectTitle.toLowerCase().includes(currentProject.title.toLowerCase());
+      const validated = completed && onTime && matchesProject;
+      const newStreak = validated ? previous.streak + 1 : 0;
+
       const page = await saveProgress(newStreak, review, await scheduledModeFromTime());
-      return { success: true, streak: newStreak, pageId: page.id };
+
+      const reasons: string[] = [];
+      if (!onTime) reasons.push("réponse arrivée après minuit");
+      if (!currentProject) reasons.push("aucun projet marqué 'En cours' dans Notion");
+      else if (!matchesProject) reasons.push(`le bilan ne mentionne pas le projet en cours ("${currentProject.title}")`);
+      if (!completed) reasons.push("pas de progrès jugé cohérent aujourd'hui");
+
+      return { success: true, streak: newStreak, validated, pageId: page.id, reasons };
     },
   }),
 };
