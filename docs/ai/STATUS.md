@@ -1,6 +1,6 @@
 # État Soza
 
-Dernière mise à jour : session du 26/09/2026. Soza est déployé et fonctionnel en production.
+Dernière mise à jour : session du 27/09/2026. Soza est déployé et fonctionnel en production.
 
 ## Fait
 
@@ -77,6 +77,7 @@ Dernière mise à jour : session du 26/09/2026. Soza est déployé et fonctionne
 ### Fonctionnalités produit
 - Proof of Work : voir section "Progression / streak" ci-dessus — mis de côté au profit d'un contrôle de cohérence conversationnel, à reconsidérer en v2.
 - Dégradation visuelle de l'UI après un jalon manqué — non implémentée. L'ancien design anticipait le cas via un attribut `data-degraded="true"` basculant une palette atténuée, mais ce mécanisme a disparu avec le reset visuel (`src/styles/tokens.css` ne contient plus de palette à atténuer). À reconcevoir avec le nouveau design : ni déclencheur (détection d'un jalon manqué) ni rendu associé n'existent pour l'instant.
+- **À faire : retirer le streak.** Décision utilisateur (27/09/2026) de retirer complètement la mécanique de streak (comptage de jours consécutifs), pas seulement son affichage. Concerne au minimum : le champ `Streak` de la base Notion Progression, la logique d'incrémentation dans `record_progress` (`lib/ai/tools.ts`, section "Progression / streak" ci-dessus), et `components/StreakDisplay.tsx` côté dashboard (déjà listé en code mort en attente de nettoyage). À vérifier aussi dans les prompts de persona (`lib/ai/prompts/`) si le streak y est mentionné.
 
 ### Qualité / robustesse
 - Aucun test unitaire isolé (seulement le script d'intégration `full-mechanics-test.ts` contre les vraies APIs).
