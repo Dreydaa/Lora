@@ -84,6 +84,15 @@ Vision : le hub/page principale du dashboard **est** un ruban de Möbius fait de
 - Blender/TouchDesigner servent au **prototypage et à la documentation portfolio**, pas à produire l'asset final (impossible d'embarquer une scène Blender/TD comme widget de fond dans Tauri). Le rendu final est un shader/three.js dans le webview.
 - **Source audio de la réactivité : la voix de Soza (sortie TTS), pas le micro de l'utilisateur.** Le buffer TTS passe dans un `AnalyserNode` (Web Audio API) qui pilote les paramètres des particules (amplitude, bandes de fréquences). Aucune permission micro à gérer.
 
+**Fait (28/09/2026)** — `src/features/intro/` (visible sur `/?intro`, dashboard non touché) : intro temps réel en three.js (3500 sphères UV blanches, fond bleu). Chronologie : entrée depuis la droite le long d'une courbe relevée sur la vue caméra Blender (`path.ts`) → boucle pleine quelques secondes → transformation en ruban de Möbius paramétrique permanent qui tourne autour de son axe propre (`introScene.ts`, constantes réglables en tête de fichier). Responsive : le cadrage garde le tracé entier (fenêtres larges) ou toute la largeur (portrait), la taille du ruban s'adapte.
+
+**À faire sur l'intro**
+- **Réduire la durée** : l'animation dure ~16,4 s (ruban qui commence à se former à ~11,8 s, complet à 16,4 s), trop long pour un démarrage d'app. Leviers dans `introScene.ts` : `PATH_SPEED` (remplissage plus rapide), `LOOP_HOLD_SECONDS` (durée de la boucle pleine), `MORPH_STAGGER_SECONDS` / `MORPH_SECONDS` (transformation). Exemple : `PATH_SPEED` 700 + `LOOP_HOLD_SECONDS` 2 → ruban complet vers ~10 s.
+- **Choisir les couleurs** : fond bleu (`#2757d0`, estimé à l'œil sur une capture) et particules blanches sont des valeurs provisoires ; à fixer d'après la palette du design final (options `background` / `particleColor`).
+- Brancher l'intro au démarrage réel de l'app (avant/vers le dashboard), affiner la courbe sur la référence Blender, puis réactivité audio.
+
+**Éléments UI/UX et backend** : bientôt finalisés côté utilisateur (design Figma, éléments d'interface, backend dashboard). À caler avec ces livraisons : palette de couleurs, emplacement du ruban dans le hub, connexion du dashboard aux vraies données.
+
 **Ordre de réalisation retenu**
 1. Hub en ruban de particules **statique** (comble l'ancien emplacement `.stage__slot`, réutilise `three`). Indépendant du reste.
 2. **Brancher le dashboard sur le vrai backend** (endpoint ou accès Notion à la place de `mockData.ts`) ; en profiter pour retirer le streak et nettoyer le code mort.
