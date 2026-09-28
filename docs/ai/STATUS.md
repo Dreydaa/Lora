@@ -1,6 +1,6 @@
 # État Soza
 
-Dernière mise à jour : session du 27/09/2026. Soza est déployé et fonctionnel en production.
+Dernière mise à jour : session du 28/09/2026. Soza est déployé et fonctionnel en production (backend Telegram/Notion complet). Ce qui reste concerne le dashboard Tauri, l'avatar en particules et la voix.
 
 ## Fait
 
@@ -63,7 +63,7 @@ Dernière mise à jour : session du 27/09/2026. Soza est déployé et fonctionne
 - **Interactions aplaties en listes simples** (décision explicite de l'utilisateur, pas juste un dépouillement CSS) : plus de bascule Semaine/Mois ni de popover calendrier (`CalendarPanel.tsx` liste maintenant les évènements à venir triés par jour), plus de colonnes kanban pour les idées (liste par statut), plus de jauge SVG (Blender) ni de cadran SVG (Réglages) — juste les valeurs en texte.
 - Fichiers supprimés car devenus inutilisés par cet aplatissement : `CalendarCard.tsx`, `MonthGrid.tsx`, `WeekGrid.tsx`, `DayPopover.tsx`, `EventBadge.tsx`, `CalendarItem.tsx` (`src/features/calendar/`), ainsi que les helpers `monthCells`/`addMonths`/`sameMonth` dans `src/lib/format.ts`. `components/ui/Icon.tsx` n'est plus utilisé nulle part mais conservé tel quel (probable réutilisation quand le nouveau design arrivera).
 - Toute la logique de données est conservée à l'identique (`events.ts`, `mockData.ts`, `dashboardStore.ts`, hooks) — seul l'habillage visuel a changé. Vérifié par `tsc --noEmit`, `vite build`, et un passage Playwright headless sur les 5 onglets (aucune erreur console).
-- **Nettoyage pré-existant toujours en attente** (inchangé par ce reset, à faire une fois le nouveau design en place) : `src/components/AvatarOrb/`, `ModeSwitcher.tsx`, `stores/modeStore.ts`, `MilestoneCard.tsx`, `features/milestones/{MilestoneList,Timeline}.tsx`, `features/briefing/BriefingPanel.tsx`, `features/news/NewsPanel.tsx`, `components/ui/{Card,Button}.tsx`, `components/StreakDisplay.tsx`. Rien ne les importe ; la dépendance `three` (ancien `AvatarOrb`) est probablement désinstallable aussi.
+- **Nettoyage pré-existant toujours en attente** (inchangé par ce reset, à faire une fois le nouveau design en place) : `src/components/AvatarOrb/`, `ModeSwitcher.tsx`, `stores/modeStore.ts`, `MilestoneCard.tsx`, `features/milestones/{MilestoneList,Timeline}.tsx`, `features/briefing/BriefingPanel.tsx`, `features/news/NewsPanel.tsx`, `components/ui/{Card,Button}.tsx`, `components/StreakDisplay.tsx`. Rien ne les importe. **Ne pas désinstaller `three`** : il sera réutilisé pour le ruban de Möbius en particules (voir "Avatar Soza" ci-dessous).
 
 ## Reste à faire
 
@@ -73,6 +73,25 @@ Dernière mise à jour : session du 27/09/2026. Soza est déployé et fonctionne
 - Le stockage (Notion) est déjà prêt à être lu/écrit par un futur écran de réglages, sans changement backend nécessaire.
 - Le code mort pré-existant listé plus haut ("Nettoyage pré-existant toujours en attente") doit être supprimé une fois l'utilisateur satisfait du nouveau design.
 - L'avatar Soza reste à faire par l'utilisateur — hors périmètre IA par consigne explicite. Son emplacement dédié (`.stage__slot`) a disparu avec le reset visuel ; à réintroduire quand le nouveau design arrivera.
+
+### Avatar Soza — ruban de Möbius en particules (décisions du 28/09/2026)
+Vision : le hub/page principale du dashboard **est** un ruban de Möbius fait de particules. Plus tard, il devient un widget de bureau animé (fenêtre réduite, app en arrière-plan) qui réagit à la voix de Soza quand elle répond ou fait le briefing. Le design est prototypé par l'utilisateur dans Blender (puis éventuellement TouchDesigner) et documenté pour son portfolio ; le modèle Blender du ruban existe déjà, pas encore converti en particules.
+
+**Décisions d'architecture**
+- **Pas de vidéo pour l'intro.** Tout est temps réel dans l'app : un seul système de particules, chaque particule a une position de départ (balayage droite→gauche→droite) et une position cible sur le ruban, interpolées par un paramètre de progression 0→1. Une fois arrivé, le hub est ce même système au repos : l'intro n'est que son état initial (aucun raccord vidéo→canvas).
+- Le même moteur sert au hub, au widget de bureau et à la réactivité vocale.
+- Positions du ruban : équation paramétrique du Möbius calculée dans le shader (sinon échantillonnage des points du mesh Blender en texture/JSON).
+- Blender/TouchDesigner servent au **prototypage et à la documentation portfolio**, pas à produire l'asset final (impossible d'embarquer une scène Blender/TD comme widget de fond dans Tauri). Le rendu final est un shader/three.js dans le webview.
+- **Source audio de la réactivité : la voix de Soza (sortie TTS), pas le micro de l'utilisateur.** Le buffer TTS passe dans un `AnalyserNode` (Web Audio API) qui pilote les paramètres des particules (amplitude, bandes de fréquences). Aucune permission micro à gérer.
+
+**Ordre de réalisation retenu**
+1. Hub en ruban de particules **statique** (comble l'ancien emplacement `.stage__slot`, réutilise `three`). Indépendant du reste.
+2. **Brancher le dashboard sur le vrai backend** (endpoint ou accès Notion à la place de `mockData.ts`) ; en profiter pour retirer le streak et nettoyer le code mort.
+3. **Pipeline vocal** — brique inexistante aujourd'hui (Soza répond uniquement en texte via Telegram/Groq, aucun TTS dans la stack). À décider : choix du TTS, où l'audio est généré (backend ou app), comment il arrive dans l'app Tauri, ce qui déclenche la voix (ex. briefing du matin joué à l'ouverture).
+4. Réactivité audio du ruban (mapping AnalyserNode → particules), possible seulement après l'étape 3.
+5. Intro animée (particules → ruban), puis widget de bureau (fenêtre Tauri secondaire transparente, toujours au premier plan — vrai chantier, en dernier).
+
+Garde-fou : ne pas dérouler les étapes 4-5 (visuel) avant d'avoir fini 2-3 (dashboard réel + voix), sous peine de polir l'avatar pendant que le dashboard reste sur des données factices.
 
 ### Fonctionnalités produit
 - Proof of Work : voir section "Progression / streak" ci-dessus — mis de côté au profit d'un contrôle de cohérence conversationnel, à reconsidérer en v2.
