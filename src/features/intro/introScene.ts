@@ -6,23 +6,25 @@ export interface IntroOptions {
   particleColor?: string;
 }
 
-const COUNT = 3500;
+const COUNT = 4500;
 const FOV = 35;
 
 // Flux sur la courbe (unités de scène par seconde, 1512 = largeur du cadre caméra).
-const PATH_SPEED = 420;
-const SPEED_VARIATION = 0.3;
+const PATH_SPEED = 800;
+const SPEED_VARIATION = 0.45;
 const TUBE_RADIUS = 75;
 const DEPTH_SPREAD = 100;
-const WOBBLE = 14;
+const WOBBLE = 18;
+const WAVE = 12;
 const END_FADE = 0.03;
-const MIN_SIZE = 2;
-const MAX_SIZE = 5.5;
+const MIN_SIZE = 1.2;
+const MAX_SIZE = 3.2;
 
 // Chronologie : entrée depuis la droite, boucle pleine, puis transformation en ruban.
-const LOOP_HOLD_SECONDS = 4;
-const MORPH_STAGGER_SECONDS = 1.6;
-const MORPH_SECONDS = 3;
+const LOOP_HOLD_SECONDS = 1.5;
+const MORPH_STAGGER_SECONDS = 1;
+const MORPH_SECONDS = 1.8;
+const SWIRL = 260;
 
 // Ruban de Möbius permanent.
 const RIBBON_RADIUS = 230;
@@ -31,7 +33,7 @@ const RIBBON_THICKNESS = 3;
 const RIBBON_SIZE = 0.75;
 const RIBBON_WOBBLE = 2.5;
 const RIBBON_TILT = THREE.MathUtils.degToRad(58);
-const RIBBON_SPIN = 0.3;
+const RIBBON_SPIN = 0.5;
 
 const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
@@ -67,6 +69,7 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
   const morphAt = new Float32Array(COUNT);
   const size = new Float32Array(COUNT);
   const scatter = new Float32Array(COUNT * 3);
+  const swirl = new Float32Array(COUNT * 3);
   const ribbon = new Float32Array(COUNT * 3);
   const wobblePhase = new Float32Array(COUNT);
   for (let i = 0; i < COUNT; i++) {
@@ -81,6 +84,11 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
     scatter[i * 3] = gaussian() * TUBE_RADIUS * spread;
     scatter[i * 3 + 1] = gaussian() * TUBE_RADIUS * spread;
     scatter[i * 3 + 2] = gaussian() * DEPTH_SPREAD * spread;
+
+    // Détour aléatoire pendant la transformation : les particules jaillissent avant de converger.
+    swirl[i * 3] = (Math.random() * 2 - 1) * SWIRL;
+    swirl[i * 3 + 1] = (Math.random() * 2 - 1) * SWIRL;
+    swirl[i * 3 + 2] = (Math.random() * 2 - 1) * SWIRL * 0.6;
 
     // Ruban de Möbius paramétrique, dans son repère local (anneau dans le plan XY).
     const u = Math.random() * Math.PI * 2;
@@ -139,9 +147,9 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
       const k = f - a;
       const p0 = table[a];
       const p1 = table[Math.min(a + 1, PATH_SAMPLES)];
-      const ph = t * 1.3 + wobblePhase[i];
+      const ph = t * 2.2 + wobblePhase[i];
       const pathX = p0.x + (p1.x - p0.x) * k + scatter[i * 3] + Math.cos(ph * 0.8) * WOBBLE;
-      const pathY = p0.y + (p1.y - p0.y) * k + scatter[i * 3 + 1] + Math.sin(ph) * WOBBLE;
+      const pathY = p0.y + (p1.y - p0.y) * k + scatter[i * 3 + 1] + Math.sin(ph) * WOBBLE + Math.sin(frac * 38 - t * 6) * WAVE;
       const pathZ = scatter[i * 3 + 2] + Math.sin(ph * 0.6) * WOBBLE;
       const fade = Math.min(1, Math.min(frac, 1 - frac) / END_FADE);
 
@@ -156,10 +164,11 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
       const ribbonZ = (spunY * tiltSin + lz * tiltCos) * ribbonScale + Math.sin(ph * 0.6) * RIBBON_WOBBLE;
 
       const w = easeInOutCubic(Math.min(Math.max((t - morphAt[i]) / MORPH_SECONDS, 0), 1));
+      const burst = Math.sin(Math.PI * w);
       dummy.position.set(
-        pathX + (ribbonX - pathX) * w,
-        pathY + (ribbonY - pathY) * w,
-        pathZ + (ribbonZ - pathZ) * w,
+        pathX + (ribbonX - pathX) * w + swirl[i * 3] * burst,
+        pathY + (ribbonY - pathY) * w + swirl[i * 3 + 1] * burst,
+        pathZ + (ribbonZ - pathZ) * w + swirl[i * 3 + 2] * burst,
       );
       dummy.scale.setScalar(size[i] * (fade + (RIBBON_SIZE * ribbonScale - fade) * w));
       dummy.updateMatrix();
