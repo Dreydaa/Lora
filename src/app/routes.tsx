@@ -1,2 +1,7 @@
 import { DashboardPage } from "../features/dashboard/DashboardPage";
-export function Routes() { return <DashboardPage />; }
+import { ParticleIntro } from "../features/intro/ParticleIntro";
+
+export function Routes() {
+  if (new URLSearchParams(window.location.search).has("intro")) return <ParticleIntro />;
+  return <DashboardPage />;
+}
