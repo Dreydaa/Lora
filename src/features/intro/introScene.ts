@@ -1,21 +1,39 @@
 import * as THREE from "three";
-import { buildPathTable, FRAME_W, PATH_SAMPLES } from "./path";
+import { buildPath, FRAME_H, FRAME_W, PATH_SAMPLES } from "./path";
 
 export interface IntroOptions {
   background?: string;
   particleColor?: string;
 }
 
-const COUNT = 2500;
-const TRAVEL_SECONDS = 3.5;
-const SPREAD_SECONDS = 2.5;
-const TUBE_RADIUS = 28;
-const DEPTH_SPREAD = 40;
-const MIN_SIZE = 2.2;
-const MAX_SIZE = 5.5;
+const COUNT = 3500;
 const FOV = 35;
 
-const easeInOutSine = (x: number) => -(Math.cos(Math.PI * x) - 1) / 2;
+// Flux sur la courbe (unités de scène par seconde, 1512 = largeur du cadre caméra).
+const PATH_SPEED = 420;
+const SPEED_VARIATION = 0.3;
+const TUBE_RADIUS = 75;
+const DEPTH_SPREAD = 100;
+const WOBBLE = 14;
+const END_FADE = 0.03;
+const MIN_SIZE = 2;
+const MAX_SIZE = 5.5;
+
+// Chronologie : entrée depuis la droite, boucle pleine, puis transformation en ruban.
+const LOOP_HOLD_SECONDS = 4;
+const MORPH_STAGGER_SECONDS = 1.6;
+const MORPH_SECONDS = 3;
+
+// Ruban de Möbius permanent.
+const RIBBON_RADIUS = 230;
+const RIBBON_HALF_WIDTH = 75;
+const RIBBON_THICKNESS = 3;
+const RIBBON_SIZE = 0.75;
+const RIBBON_WOBBLE = 2.5;
+const RIBBON_TILT = THREE.MathUtils.degToRad(58);
+const RIBBON_SPIN = 0.3;
+
+const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
 function gaussian() {
   return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
@@ -32,7 +50,7 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
   sun.position.set(-300, 400, 600);
   scene.add(sun);
 
-  const camera = new THREE.PerspectiveCamera(FOV, 1, 10, 5000);
+  const camera = new THREE.PerspectiveCamera(FOV, 1, 10, 6000);
 
   const geometry = new THREE.SphereGeometry(1, 16, 12);
   const material = new THREE.MeshStandardMaterial({ color: particleColor, roughness: 0.45, metalness: 0 });
@@ -40,58 +58,110 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
   mesh.frustumCulled = false;
   scene.add(mesh);
 
-  const table = buildPathTable();
+  const { table, length } = buildPath();
+  const spawnWindow = length / PATH_SPEED;
+  const morphStart = spawnWindow + LOOP_HOLD_SECONDS;
+
   const delay = new Float32Array(COUNT);
   const speed = new Float32Array(COUNT);
+  const morphAt = new Float32Array(COUNT);
   const size = new Float32Array(COUNT);
-  const offset = new Float32Array(COUNT * 3);
+  const scatter = new Float32Array(COUNT * 3);
+  const ribbon = new Float32Array(COUNT * 3);
   const wobblePhase = new Float32Array(COUNT);
   for (let i = 0; i < COUNT; i++) {
-    delay[i] = Math.random() * SPREAD_SECONDS;
-    speed[i] = 1 / (TRAVEL_SECONDS * (0.9 + Math.random() * 0.2));
+    delay[i] = Math.random() * spawnWindow;
+    speed[i] = (PATH_SPEED * (1 + (Math.random() * 2 - 1) * SPEED_VARIATION)) / length;
+    morphAt[i] = morphStart + Math.random() * MORPH_STAGGER_SECONDS;
     size[i] = MIN_SIZE + Math.random() * (MAX_SIZE - MIN_SIZE);
-    offset[i * 3] = gaussian() * TUBE_RADIUS;
-    offset[i * 3 + 1] = gaussian() * TUBE_RADIUS;
-    offset[i * 3 + 2] = gaussian() * DEPTH_SPREAD;
     wobblePhase[i] = Math.random() * Math.PI * 2;
+
+    // Cœur dense avec quelques particules très éloignées de la courbe.
+    const spread = 0.35 + Math.random() * 1.65;
+    scatter[i * 3] = gaussian() * TUBE_RADIUS * spread;
+    scatter[i * 3 + 1] = gaussian() * TUBE_RADIUS * spread;
+    scatter[i * 3 + 2] = gaussian() * DEPTH_SPREAD * spread;
+
+    // Ruban de Möbius paramétrique, dans son repère local (anneau dans le plan XY).
+    const u = Math.random() * Math.PI * 2;
+    const v = (Math.random() * 2 - 1) * RIBBON_HALF_WIDTH;
+    const r = RIBBON_RADIUS + v * Math.cos(u / 2);
+    ribbon[i * 3] = r * Math.cos(u) + (Math.random() - 0.5) * RIBBON_THICKNESS;
+    ribbon[i * 3 + 1] = r * Math.sin(u) + (Math.random() - 0.5) * RIBBON_THICKNESS;
+    ribbon[i * 3 + 2] = v * Math.sin(u / 2) + (Math.random() - 0.5) * RIBBON_THICKNESS;
   }
 
   const dummy = new THREE.Object3D();
-  let startedAt = performance.now();
+  const startedAt = performance.now();
+  const tiltCos = Math.cos(RIBBON_TILT);
+  const tiltSin = Math.sin(RIBBON_TILT);
+  let ribbonScale = 1;
   let frame = 0;
 
+  // Le tracé occupe toute la largeur du cadre 16:9 ; sur les fenêtres plus larges on élargit
+  // le champ pour garder la hauteur, sur les fenêtres plus hautes on garde la largeur.
   const resize = () => {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
+    if (!w || !h) return;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
-    camera.position.set(0, 0, FRAME_W / (2 * camera.aspect * Math.tan(THREE.MathUtils.degToRad(FOV / 2))));
+    const visibleW = Math.max(FRAME_W, FRAME_H * camera.aspect);
+    const visibleH = visibleW / camera.aspect;
+    camera.position.set(0, 0, visibleW / (2 * camera.aspect * Math.tan(THREE.MathUtils.degToRad(FOV / 2))));
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
+    ribbonScale = Math.min(visibleW, visibleH) / FRAME_H;
   };
   resize();
   window.addEventListener("resize", resize);
 
   const render = () => {
     const t = (performance.now() - startedAt) / 1000;
+    const spin = t * RIBBON_SPIN;
+    const spinCos = Math.cos(spin);
+    const spinSin = Math.sin(spin);
+
     for (let i = 0; i < COUNT; i++) {
-      const raw = (t - delay[i]) * speed[i];
-      if (raw <= 0 || raw >= 1) {
+      const s = (t - delay[i]) * speed[i];
+      if (s < 0) {
         dummy.scale.setScalar(0);
-      } else {
-        const f = easeInOutSine(raw) * PATH_SAMPLES;
-        const a = Math.floor(f);
-        const k = f - a;
-        const p0 = table[a];
-        const p1 = table[Math.min(a + 1, PATH_SAMPLES)];
-        const wob = Math.sin(t * 1.6 + wobblePhase[i]) * 4;
-        dummy.position.set(
-          p0.x + (p1.x - p0.x) * k + offset[i * 3],
-          p0.y + (p1.y - p0.y) * k + offset[i * 3 + 1] + wob,
-          offset[i * 3 + 2],
-        );
-        dummy.scale.setScalar(size[i]);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+        continue;
       }
+
+      // Position sur la courbe : boucle jusqu'à la transformation, puis avance sans reboucler.
+      const lap = Math.floor(Math.min(s, (morphAt[i] - delay[i]) * speed[i]));
+      const frac = Math.min(s - lap, 1);
+      const f = frac * PATH_SAMPLES;
+      const a = Math.min(Math.floor(f), PATH_SAMPLES);
+      const k = f - a;
+      const p0 = table[a];
+      const p1 = table[Math.min(a + 1, PATH_SAMPLES)];
+      const ph = t * 1.3 + wobblePhase[i];
+      const pathX = p0.x + (p1.x - p0.x) * k + scatter[i * 3] + Math.cos(ph * 0.8) * WOBBLE;
+      const pathY = p0.y + (p1.y - p0.y) * k + scatter[i * 3 + 1] + Math.sin(ph) * WOBBLE;
+      const pathZ = scatter[i * 3 + 2] + Math.sin(ph * 0.6) * WOBBLE;
+      const fade = Math.min(1, Math.min(frac, 1 - frac) / END_FADE);
+
+      // Position sur le ruban : rotation autour de son axe propre, puis inclinaison.
+      const lx = ribbon[i * 3];
+      const ly = ribbon[i * 3 + 1];
+      const lz = ribbon[i * 3 + 2];
+      const spunX = lx * spinCos - ly * spinSin;
+      const spunY = lx * spinSin + ly * spinCos;
+      const ribbonX = spunX * ribbonScale + Math.cos(ph * 0.8) * RIBBON_WOBBLE;
+      const ribbonY = (spunY * tiltCos - lz * tiltSin) * ribbonScale + Math.sin(ph) * RIBBON_WOBBLE;
+      const ribbonZ = (spunY * tiltSin + lz * tiltCos) * ribbonScale + Math.sin(ph * 0.6) * RIBBON_WOBBLE;
+
+      const w = easeInOutCubic(Math.min(Math.max((t - morphAt[i]) / MORPH_SECONDS, 0), 1));
+      dummy.position.set(
+        pathX + (ribbonX - pathX) * w,
+        pathY + (ribbonY - pathY) * w,
+        pathZ + (ribbonZ - pathZ) * w,
+      );
+      dummy.scale.setScalar(size[i] * (fade + (RIBBON_SIZE * ribbonScale - fade) * w));
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
     }
@@ -102,7 +172,6 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
   render();
 
   return {
-    restart: () => { startedAt = performance.now(); },
     setBackground: (color: string) => renderer.setClearColor(color),
     setParticleColor: (color: string) => material.color.set(color),
     dispose: () => {
