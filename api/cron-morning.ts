@@ -1,6 +1,7 @@
 import { buildBriefing } from "../lib/briefing";
 import { sendTelegram } from "../lib/integrations/telegram";
 import { assertCronOrQStash } from "../lib/validation";
+import { saveLastBriefing } from "../lib/memory";
 
 export const config = {
   runtime: "edge",
@@ -9,10 +10,9 @@ export const config = {
 export default async function handler(request: Request) {
   try {
     await assertCronOrQStash(request, await request.text());
-    await sendTelegram(
-      Number(process.env.TELEGRAM_ALLOWED_CHAT_ID),
-      await buildBriefing(),
-    );
+    const briefing = await buildBriefing();
+    await sendTelegram(Number(process.env.TELEGRAM_ALLOWED_CHAT_ID), briefing);
+    await saveLastBriefing(briefing);
     return Response.json({ ok: true });
   } catch (error) {
     return Response.json(

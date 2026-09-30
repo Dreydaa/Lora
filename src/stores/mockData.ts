@@ -2,7 +2,8 @@ import type { AgendaItem } from "../../lib/types";
 import type { DashboardData } from "../types/dashboard";
 import { localDayKey, parseKey } from "../lib/format";
 
-// Données factices tant que le dashboard n'est branché à aucun backend (cf. docs/ai/STATUS.md).
+// Données factices affichées le temps que le premier fetch backend aboutisse, ou en repli
+// si l'API est injoignable (cf. src/features/dashboard/DashboardPage.tsx et docs/ai/STATUS.md).
 const day = (offset: number, time?: string) => (time ? `${localDayKey(offset)}T${time}` : localDayKey(offset));
 const perso = (id: string, title: string, offset: number, time?: string, end?: string): AgendaItem => ({ id, title, date: day(offset, time), end: end ? day(offset, end) : null, status: "Prévu", mode: "ACTIF", type: "Perso" });
 
