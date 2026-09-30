@@ -13,7 +13,6 @@ const shifts: AgendaItem[] = Array.from({ length: 80 }, (_, i) => i - 35)
 
 export const mockData: DashboardData = {
   mode: "ACTIF",
-  streak: 12,
   agenda: [
     ...shifts,
     perso("a1", "Cinéma", -9, "20:30"),
