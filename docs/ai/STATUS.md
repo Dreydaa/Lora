@@ -95,6 +95,8 @@ Vision : le hub/page principale du dashboard **est** un ruban de Möbius fait de
 
 **Ordre de réalisation retenu**
 1. Hub en ruban de particules **statique** (comble l'ancien emplacement `.stage__slot`, réutilise `three`). Indépendant du reste.
+   - **Fait (30/09/2026)** : calcul du ruban (génération des points + position au repos avec spin/tilt/flottement) extrait d'`introScene.ts` vers `src/features/particles/ribbon.ts`, module partagé — `introScene.ts` l'utilise désormais au lieu d'une copie inline (mêmes constantes, aucun changement visuel sur `/?intro`, vérifié par capture d'écran). Nouveau `src/features/hub/hubScene.ts` + `HubRibbon.tsx` : le même ruban, seul, au repos (sans le path/morph de l'intro). Prévisualisable sur `/?hub` (route ajoutée dans `src/app/routes.tsx`), vérifié visuellement (forme du ruban nette, aucune erreur console).
+   - **Pas encore intégré au dashboard réel** : `.stage__slot` a disparu avec le reset visuel et le nouveau design Figma n'est pas encore livré, donc `HubRibbon` reste sur sa route de prévisualisation `/?hub` en attendant un emplacement dans `DashboardPage.tsx`.
 2. **Brancher le dashboard sur le vrai backend** (endpoint ou accès Notion à la place de `mockData.ts`) ; en profiter pour retirer le streak et nettoyer le code mort.
 3. **Pipeline vocal** — brique inexistante aujourd'hui (Soza répond uniquement en texte via Telegram/Groq, aucun TTS dans la stack). À décider : choix du TTS, où l'audio est généré (backend ou app), comment il arrive dans l'app Tauri, ce qui déclenche la voix (ex. briefing du matin joué à l'ouverture).
 4. Réactivité audio du ruban (mapping AnalyserNode → particules), possible seulement après l'étape 3.

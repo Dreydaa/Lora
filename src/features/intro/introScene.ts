@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { buildPath, FRAME_H, FRAME_W, PATH_SAMPLES } from "./path";
+import { RIBBON_SIZE, RIBBON_SPIN, buildRibbonPoints, ribbonPosition } from "../particles/ribbon";
 
 export interface IntroOptions {
   background?: string;
@@ -25,15 +26,6 @@ const LOOP_HOLD_SECONDS = 1.5;
 const MORPH_STAGGER_SECONDS = 1;
 const MORPH_SECONDS = 1.8;
 const SWIRL = 260;
-
-// Ruban de Möbius permanent.
-const RIBBON_RADIUS = 230;
-const RIBBON_HALF_WIDTH = 75;
-const RIBBON_THICKNESS = 3;
-const RIBBON_SIZE = 0.75;
-const RIBBON_WOBBLE = 2.5;
-const RIBBON_TILT = THREE.MathUtils.degToRad(58);
-const RIBBON_SPIN = 0.5;
 
 const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
@@ -70,14 +62,12 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
   const size = new Float32Array(COUNT);
   const scatter = new Float32Array(COUNT * 3);
   const swirl = new Float32Array(COUNT * 3);
-  const ribbon = new Float32Array(COUNT * 3);
-  const wobblePhase = new Float32Array(COUNT);
+  const { points: ribbon, wobblePhase } = buildRibbonPoints(COUNT);
   for (let i = 0; i < COUNT; i++) {
     delay[i] = Math.random() * spawnWindow;
     speed[i] = (PATH_SPEED * (1 + (Math.random() * 2 - 1) * SPEED_VARIATION)) / length;
     morphAt[i] = morphStart + Math.random() * MORPH_STAGGER_SECONDS;
     size[i] = MIN_SIZE + Math.random() * (MAX_SIZE - MIN_SIZE);
-    wobblePhase[i] = Math.random() * Math.PI * 2;
 
     // Cœur dense avec quelques particules très éloignées de la courbe.
     const spread = 0.35 + Math.random() * 1.65;
@@ -89,20 +79,11 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
     swirl[i * 3] = (Math.random() * 2 - 1) * SWIRL;
     swirl[i * 3 + 1] = (Math.random() * 2 - 1) * SWIRL;
     swirl[i * 3 + 2] = (Math.random() * 2 - 1) * SWIRL * 0.6;
-
-    // Ruban de Möbius paramétrique, dans son repère local (anneau dans le plan XY).
-    const u = Math.random() * Math.PI * 2;
-    const v = (Math.random() * 2 - 1) * RIBBON_HALF_WIDTH;
-    const r = RIBBON_RADIUS + v * Math.cos(u / 2);
-    ribbon[i * 3] = r * Math.cos(u) + (Math.random() - 0.5) * RIBBON_THICKNESS;
-    ribbon[i * 3 + 1] = r * Math.sin(u) + (Math.random() - 0.5) * RIBBON_THICKNESS;
-    ribbon[i * 3 + 2] = v * Math.sin(u / 2) + (Math.random() - 0.5) * RIBBON_THICKNESS;
   }
 
   const dummy = new THREE.Object3D();
+  const ribbonPos = new THREE.Vector3();
   const startedAt = performance.now();
-  const tiltCos = Math.cos(RIBBON_TILT);
-  const tiltSin = Math.sin(RIBBON_TILT);
   let ribbonScale = 1;
   let frame = 0;
 
@@ -154,21 +135,14 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
       const fade = Math.min(1, Math.min(frac, 1 - frac) / END_FADE);
 
       // Position sur le ruban : rotation autour de son axe propre, puis inclinaison.
-      const lx = ribbon[i * 3];
-      const ly = ribbon[i * 3 + 1];
-      const lz = ribbon[i * 3 + 2];
-      const spunX = lx * spinCos - ly * spinSin;
-      const spunY = lx * spinSin + ly * spinCos;
-      const ribbonX = spunX * ribbonScale + Math.cos(ph * 0.8) * RIBBON_WOBBLE;
-      const ribbonY = (spunY * tiltCos - lz * tiltSin) * ribbonScale + Math.sin(ph) * RIBBON_WOBBLE;
-      const ribbonZ = (spunY * tiltSin + lz * tiltCos) * ribbonScale + Math.sin(ph * 0.6) * RIBBON_WOBBLE;
+      ribbonPosition(ribbon[i * 3], ribbon[i * 3 + 1], ribbon[i * 3 + 2], spinCos, spinSin, ph, ribbonScale, ribbonPos);
 
       const w = easeInOutCubic(Math.min(Math.max((t - morphAt[i]) / MORPH_SECONDS, 0), 1));
       const burst = Math.sin(Math.PI * w);
       dummy.position.set(
-        pathX + (ribbonX - pathX) * w + swirl[i * 3] * burst,
-        pathY + (ribbonY - pathY) * w + swirl[i * 3 + 1] * burst,
-        pathZ + (ribbonZ - pathZ) * w + swirl[i * 3 + 2] * burst,
+        pathX + (ribbonPos.x - pathX) * w + swirl[i * 3] * burst,
+        pathY + (ribbonPos.y - pathY) * w + swirl[i * 3 + 1] * burst,
+        pathZ + (ribbonPos.z - pathZ) * w + swirl[i * 3 + 2] * burst,
       );
       dummy.scale.setScalar(size[i] * (fade + (RIBBON_SIZE * ribbonScale - fade) * w));
       dummy.updateMatrix();
