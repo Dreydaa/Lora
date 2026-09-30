@@ -23,7 +23,6 @@ export function HeroStats({ data, now }: { data: DashboardData; now: Date }) {
 
   return (
     <ul>
-      <li>Streak : {data.streak} jour(s)</li>
       <li>Cette semaine : {weekRdv} rdv, {weekShifts} shift{weekShifts > 1 ? "s" : ""}</li>
       <li>Prochain rdv : {nextEvent ? `${nextTime ? `${shortHour(nextTime)} · ` : ""}${relativeDay(dayKey(nextEvent.date!))} · ${nextEvent.title}` : "Agenda libre"}</li>
       <li>{late ? "Jalon en retard" : "Prochain jalon"} : {nextMilestone ? `${nextMilestone.title}${late ? ` (${-delay}j de retard)` : delay === 0 ? " (aujourd'hui)" : ` (J-${delay})`}` : "Tout est validé"}</li>

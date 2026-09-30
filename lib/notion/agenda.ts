@@ -10,7 +10,7 @@ const db = () => {
 // Les blocs "Shift" sont exclus par défaut : récurrents et déjà connus, ils
 // noieraient les rendez-vous personnels dans les 10 résultats (page_size) dès qu'un
 // planning de travail de plusieurs semaines est enregistré.
-export async function getUpcomingAgenda(includeShift = false): Promise<AgendaItem[]> {
+export async function getUpcomingAgenda(includeShift = false, limit = 10): Promise<AgendaItem[]> {
   const today = todayInParis();
 
   const data = await notion().databases.query({
@@ -23,7 +23,7 @@ export async function getUpcomingAgenda(includeShift = false): Promise<AgendaIte
       ],
     },
     sorts: [{ property: "Date", direction: "ascending" }],
-    page_size: 10,
+    page_size: limit,
   });
 
   return data.results.map((page: any) => ({

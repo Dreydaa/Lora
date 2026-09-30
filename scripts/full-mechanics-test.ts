@@ -118,12 +118,11 @@ async function main() {
 
   for (const p of shiftItems.results as any[]) await notion().pages.update({ page_id: p.id, archived: true });
 
-  console.log("\n=== 4. Progress / streak ===");
-  const before = await getLatestProgress();
-  const savedTrue = await saveProgress(before.streak + 1, "[TEST] bilan avec preuve", "ACTIF").catch((e) => { record("saveProgress", false, String(e)); return null; });
-  record("saveProgress (completed) incrémente le streak", !!savedTrue);
+  console.log("\n=== 4. Progress ===");
+  const savedTrue = await saveProgress("[TEST] bilan avec preuve", "ACTIF").catch((e) => { record("saveProgress", false, String(e)); return null; });
+  record("saveProgress enregistre le bilan", !!savedTrue);
   const afterTrue = await getLatestProgress();
-  record("getLatestProgress reflète le nouveau streak", afterTrue.streak === before.streak + 1, `${before.streak} -> ${afterTrue.streak}`);
+  record("getLatestProgress reflète le nouveau bilan", afterTrue.review === "[TEST] bilan avec preuve");
 
   console.log("\n=== 5. Mémoire Redis ===");
   await appendToHistory(TEST_CHAT_ID, [{ role: "user", content: "[TEST] message 1" }]);
