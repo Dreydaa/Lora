@@ -65,15 +65,27 @@ const FRAGMENT = /* glsl */ `
     float across = (toCorner.x + toCorner.y) * 0.7071;
     float beam = exp(-(along * along * 0.55 + across * across * 3.2));
 
-    float near = bokehLayer(uv + vec2(uTime * 0.004, uTime * 0.010), 0.34, 0.014, 0.038, 1.7, 0.35, 0.30);
-    float mid  = bokehLayer(uv * 1.6 + 17.0 + vec2(uTime * 0.002, uTime * 0.005), 0.16, 0.006, 0.016, 1.4, 0.45, 0.28);
-    float far  = bokehLayer(uv * 2.6 + 41.0 + vec2(uTime * 0.001, uTime * 0.002), 0.06, 0.0025, 0.006, 1.0, 0.55, 0.45);
+    // Dégradé large sur tout le cadre (pas seulement le halo net) : la scène entière
+    // s'assombrit en s'éloignant du coin lumineux — c'est ce dégradé, plus que le halo
+    // lui-même, qui porte la sensation de profondeur d'ensemble façon PS5.
+    float depthGrad = clamp(1.0 - (along + 0.25) * 0.32, 0.0, 1.0);
+    float depthBoost = mix(0.55, 1.35, depthGrad);
 
-    vec3 color = uBase;
-    color += uDust * beam * 0.20;
-    color += uDust * near * 0.20;
-    color += uDust * mid * 0.14;
-    color += uDust * far * 0.12;
+    vec3 color = uBase * mix(0.5, 1.15, depthGrad);
+
+    // Quatre couches (des gros bokeh proches aux fines poussières lointaines), plus
+    // denses qu'avant pour donner de la matière, modulées par le dégradé de profondeur
+    // pour rester cohérentes avec la direction de la lumière.
+    float near   = bokehLayer(uv + vec2(uTime * 0.004, uTime * 0.010), 0.30, 0.016, 0.046, 1.7, 0.45, 0.32);
+    float mid    = bokehLayer(uv * 1.6 + 17.0 + vec2(uTime * 0.002, uTime * 0.005), 0.15, 0.007, 0.018, 1.4, 0.55, 0.30);
+    float far    = bokehLayer(uv * 2.6 + 41.0 + vec2(uTime * 0.001, uTime * 0.002), 0.055, 0.0025, 0.006, 1.0, 0.65, 0.48);
+    float motes  = bokehLayer(uv * 4.2 + 83.0 + vec2(uTime * 0.0006, uTime * 0.0012), 0.028, 0.0012, 0.003, 0.9, 0.7, 0.6);
+
+    color += uDust * beam * 0.26;
+    color += uDust * near * 0.24 * depthBoost;
+    color += uDust * mid * 0.17 * depthBoost;
+    color += uDust * far * 0.13 * depthBoost;
+    color += uDust * motes * 0.10;
 
     gl_FragColor = vec4(color, 1.0);
   }
