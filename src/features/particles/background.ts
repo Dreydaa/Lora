@@ -20,7 +20,6 @@ const FRAGMENT = /* glsl */ `
   uniform float uTime;
   uniform vec3 uBase;
   uniform vec3 uDust;
-  uniform vec2 uParallax;
   varying vec2 vUv;
 
   float hash21(vec2 p) {
@@ -60,9 +59,8 @@ const FRAGMENT = /* glsl */ `
     vec2 uv = vUv;
 
     // Lueur étirée en diagonale (rayon) plutôt qu'un halo rond : falloff lent le long
-    // de la diagonale coin -> centre, rapide perpendiculairement. Décalée très légèrement
-    // par la parallaxe (une source de lumière bouge à peine avec le point de vue).
-    vec2 toCorner = (uv - uParallax * 0.015) - vec2(0.05, 0.95);
+    // de la diagonale coin -> centre, rapide perpendiculairement.
+    vec2 toCorner = uv - vec2(0.05, 0.95);
     float along = (toCorner.x - toCorner.y) * 0.7071;
     float across = (toCorner.x + toCorner.y) * 0.7071;
     float beam = exp(-(along * along * 0.55 + across * across * 3.2));
@@ -77,14 +75,11 @@ const FRAGMENT = /* glsl */ `
     vec3 color = uBase * mix(0.12, 1.05, depthGrad);
 
     // Cinq couches (des gros bokeh proches aux fines poussières lointaines), denses pour
-    // donner de la matière, modulées par le dégradé de profondeur. Chaque couche reçoit
-    // aussi un décalage de parallaxe propre à sa profondeur (les couches "proches" bougent
-    // nettement plus que les couches "lointaines" quand la souris se déplace) — c'est ce
-    // mouvement différentiel, pas seulement la dérive dans le temps, qui vend le trompe-l'œil.
-    float near   = bokehLayer(uv + uParallax * 0.15 + vec2(uTime * 0.004, uTime * 0.010), 0.30, 0.016, 0.046, 1.7, 0.55, 0.32);
-    float mid    = bokehLayer(uv * 1.6 + 17.0 + uParallax * 0.05 + vec2(uTime * 0.002, uTime * 0.005), 0.15, 0.007, 0.018, 1.4, 0.65, 0.30);
-    float far    = bokehLayer(uv * 2.6 + 41.0 + uParallax * 0.012 + vec2(uTime * 0.001, uTime * 0.002), 0.055, 0.0025, 0.006, 1.0, 0.75, 0.48);
-    float motes  = bokehLayer(uv * 4.2 + 83.0 + uParallax * 0.003 + vec2(uTime * 0.0006, uTime * 0.0012), 0.028, 0.0012, 0.003, 0.9, 0.85, 0.6);
+    // donner de la matière, modulées par le dégradé de profondeur.
+    float near   = bokehLayer(uv + vec2(uTime * 0.004, uTime * 0.010), 0.30, 0.016, 0.046, 1.7, 0.55, 0.32);
+    float mid    = bokehLayer(uv * 1.6 + 17.0 + vec2(uTime * 0.002, uTime * 0.005), 0.15, 0.007, 0.018, 1.4, 0.65, 0.30);
+    float far    = bokehLayer(uv * 2.6 + 41.0 + vec2(uTime * 0.001, uTime * 0.002), 0.055, 0.0025, 0.006, 1.0, 0.75, 0.48);
+    float motes  = bokehLayer(uv * 4.2 + 83.0 + vec2(uTime * 0.0006, uTime * 0.0012), 0.028, 0.0012, 0.003, 0.9, 0.85, 0.6);
     float grain  = bokehLayer(uv * 6.5 + 127.0 + vec2(uTime * 0.0003, uTime * 0.0006), 0.016, 0.0006, 0.0016, 0.8, 0.9, 0.7);
 
     color += uDust * beam * 0.24;
@@ -105,7 +100,6 @@ export function createBackground({ baseColor = "#2757d0", dustColor = "#ffffff" 
       uTime: { value: 0 },
       uBase: { value: new THREE.Color(baseColor) },
       uDust: { value: new THREE.Color(dustColor) },
-      uParallax: { value: new THREE.Vector2(0, 0) },
     },
     vertexShader: VERTEX,
     fragmentShader: FRAGMENT,
@@ -113,20 +107,10 @@ export function createBackground({ baseColor = "#2757d0", dustColor = "#ffffff" 
   });
   const mesh = new THREE.Mesh(geometry, material);
 
-  // Trompe-l'œil de profondeur : la cible de parallaxe suit le pointeur (centré, -1..1),
-  // et chaque couche du shader s'y réfère avec un poids différent selon sa profondeur.
-  const parallaxTarget = new THREE.Vector2(0, 0);
-  const onPointerMove = (e: PointerEvent) => {
-    parallaxTarget.set((e.clientX / window.innerWidth) * 2 - 1, (e.clientY / window.innerHeight) * 2 - 1);
-  };
-  window.addEventListener("pointermove", onPointerMove);
-
   return {
     mesh,
     update(time: number) {
       material.uniforms.uTime.value = time;
-      // Lissage exponentiel vers la cible : évite un décalage saccadé au moindre mouvement.
-      material.uniforms.uParallax.value.lerp(parallaxTarget, 0.04);
     },
     // Le plan est placé loin derrière la scène (distance) et redimensionné pour couvrir
     // tout le cadre caméra à cette profondeur — visibleW/visibleH sont le cadre déjà
@@ -143,7 +127,6 @@ export function createBackground({ baseColor = "#2757d0", dustColor = "#ffffff" 
       material.uniforms.uDust.value.set(color);
     },
     dispose() {
-      window.removeEventListener("pointermove", onPointerMove);
       geometry.dispose();
       material.dispose();
     },
