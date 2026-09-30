@@ -1,0 +1,120 @@
+import * as THREE from "three";
+
+export interface BackgroundOptions {
+  baseColor?: string;
+  dustColor?: string;
+}
+
+const VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+// Fond façon écran d'accueil PS5 : une lueur diagonale douce dans un coin, et trois
+// couches de "bokeh" (poussière floue) qui dérivent à des échelles/vitesses différentes
+// pour donner une impression de profondeur/parallaxe, sans jamais dessiner de forme nette.
+const FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform vec3 uBase;
+  uniform vec3 uDust;
+  varying vec2 vUv;
+
+  float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+
+  vec2 hash22(vec2 p) {
+    return vec2(hash21(p), hash21(p + 19.19));
+  }
+
+  // Poussière floue répartie sur une grille, éparse (une cellule sur "presence" en
+  // moyenne affiche un point) et à bords très doux (flou proportionnel au rayon,
+  // pas une valeur fixe) pour un rendu bokeh plutôt qu'une pastille nette.
+  // Recherche sur les 9 cellules voisines pour éviter les coupures aux bords.
+  float bokehLayer(vec2 uv, float cellSize, float sizeMin, float sizeMax, float softFactor, float presence, float baseAlpha) {
+    vec2 grid = uv / cellSize;
+    vec2 cell = floor(grid);
+    float total = 0.0;
+    for (float y = -1.0; y <= 1.0; y += 1.0) {
+      for (float x = -1.0; x <= 1.0; x += 1.0) {
+        vec2 neighbor = cell + vec2(x, y);
+        if (hash21(neighbor + 11.0) > presence) continue;
+        vec2 rnd = hash22(neighbor);
+        vec2 point = neighbor + 0.5 + (rnd - 0.5) * 0.7;
+        float radius = mix(sizeMin, sizeMax, hash21(neighbor + 7.0));
+        float soft = radius * softFactor;
+        float d = length(grid - point);
+        total += smoothstep(radius + soft, radius - soft, d) * mix(baseAlpha, 1.0, hash21(neighbor + 3.0));
+      }
+    }
+    return clamp(total, 0.0, 1.0);
+  }
+
+  void main() {
+    vec2 uv = vUv;
+
+    // Lueur étirée en diagonale (rayon) plutôt qu'un halo rond : falloff lent le long
+    // de la diagonale coin -> centre, rapide perpendiculairement.
+    vec2 toCorner = uv - vec2(0.05, 0.95);
+    float along = (toCorner.x - toCorner.y) * 0.7071;
+    float across = (toCorner.x + toCorner.y) * 0.7071;
+    float beam = exp(-(along * along * 0.55 + across * across * 3.2));
+
+    float near = bokehLayer(uv + vec2(uTime * 0.004, uTime * 0.010), 0.34, 0.014, 0.038, 1.7, 0.35, 0.30);
+    float mid  = bokehLayer(uv * 1.6 + 17.0 + vec2(uTime * 0.002, uTime * 0.005), 0.16, 0.006, 0.016, 1.4, 0.45, 0.28);
+    float far  = bokehLayer(uv * 2.6 + 41.0 + vec2(uTime * 0.001, uTime * 0.002), 0.06, 0.0025, 0.006, 1.0, 0.55, 0.45);
+
+    vec3 color = uBase;
+    color += uDust * beam * 0.20;
+    color += uDust * near * 0.20;
+    color += uDust * mid * 0.14;
+    color += uDust * far * 0.12;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createBackground({ baseColor = "#2757d0", dustColor = "#ffffff" }: BackgroundOptions = {}) {
+  const geometry = new THREE.PlaneGeometry(1, 1);
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uBase: { value: new THREE.Color(baseColor) },
+      uDust: { value: new THREE.Color(dustColor) },
+    },
+    vertexShader: VERTEX,
+    fragmentShader: FRAGMENT,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+
+  return {
+    mesh,
+    update(time: number) {
+      material.uniforms.uTime.value = time;
+    },
+    // Le plan est placé loin derrière la scène (distance) et redimensionné pour couvrir
+    // tout le cadre caméra à cette profondeur — visibleW/visibleH sont le cadre déjà
+    // calculé au niveau de la scène (z=0) par l'appelant.
+    resize(camera: THREE.PerspectiveCamera, visibleW: number, visibleH: number, distance = 600) {
+      const factor = (camera.position.z + distance) / camera.position.z;
+      mesh.position.z = -distance;
+      mesh.scale.set(visibleW * factor * 1.15, visibleH * factor * 1.15, 1);
+    },
+    setBaseColor(color: string) {
+      material.uniforms.uBase.value.set(color);
+    },
+    setDustColor(color: string) {
+      material.uniforms.uDust.value.set(color);
+    },
+    dispose() {
+      geometry.dispose();
+      material.dispose();
+    },
+  };
+}

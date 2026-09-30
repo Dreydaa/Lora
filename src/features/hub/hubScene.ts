@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { RIBBON_HALF_WIDTH, RIBBON_RADIUS, RIBBON_SIZE, RIBBON_SPIN, buildRibbonPoints, ribbonPosition } from "../particles/ribbon";
+import { createBackground } from "../particles/background";
 
 export interface HubOptions {
   background?: string;
@@ -23,6 +24,9 @@ export function createHub(canvas: HTMLCanvasElement, { background = "#2757d0", p
   const sun = new THREE.DirectionalLight("#ffffff", 2.2);
   sun.position.set(-300, 400, 600);
   scene.add(sun);
+
+  const bg = createBackground({ baseColor: background, dustColor: particleColor });
+  scene.add(bg.mesh);
 
   const camera = new THREE.PerspectiveCamera(FOV, 1, 10, 6000);
 
@@ -52,12 +56,14 @@ export function createHub(canvas: HTMLCanvasElement, { background = "#2757d0", p
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
     ribbonScale = Math.min(visibleW, visibleH) / FRAME;
+    bg.resize(camera, visibleW, visibleH);
   };
   resize();
   window.addEventListener("resize", resize);
 
   const render = () => {
     const t = (performance.now() - startedAt) / 1000;
+    bg.update(t);
     const spin = t * RIBBON_SPIN;
     const spinCos = Math.cos(spin);
     const spinSin = Math.sin(spin);
@@ -77,14 +83,21 @@ export function createHub(canvas: HTMLCanvasElement, { background = "#2757d0", p
   render();
 
   return {
-    setBackground: (color: string) => renderer.setClearColor(color),
-    setParticleColor: (color: string) => material.color.set(color),
+    setBackground: (color: string) => {
+      renderer.setClearColor(color);
+      bg.setBaseColor(color);
+    },
+    setParticleColor: (color: string) => {
+      material.color.set(color);
+      bg.setDustColor(color);
+    },
     dispose: () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
       geometry.dispose();
       material.dispose();
       mesh.dispose();
+      bg.dispose();
       renderer.dispose();
     },
   };
