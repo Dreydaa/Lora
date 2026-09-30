@@ -58,9 +58,10 @@ const FRAGMENT = /* glsl */ `
     return clamp(total, 0.0, 1.0);
   }
 
-  // Plusieurs rayons distincts (largeur/angle/intensité propres à chacun, via hash),
-  // en éventail depuis une source placée hors du cadre en haut à gauche, plutôt qu'un
-  // dégradé continu — c'est la séparation nette entre rayons qui fait la ressemblance.
+  // Plusieurs rayons en éventail depuis une source hors du cadre en haut à gauche,
+  // larges et à bords très progressifs plutôt que nets : ils se chevauchent et se
+  // fondent les uns dans les autres (variation douce d'intensité) au lieu de se lire
+  // comme des faisceaux séparés.
   float rays(vec2 uv) {
     vec2 source = vec2(-0.30, 1.30);
     vec2 dir = uv - source;
@@ -72,13 +73,13 @@ const FRAGMENT = /* glsl */ `
       float t = (i + 0.5) / 6.0;
       float jitter = hash21(vec2(i, 5.0)) - 0.5;
       float center = mix(-1.42, -0.55, t + jitter * 0.12);
-      float width = mix(0.035, 0.085, hash21(vec2(i, 9.0)));
-      float bright = mix(0.45, 1.0, hash21(vec2(i, 13.0)));
-      float d = abs(angle - center) / width;
-      total += smoothstep(1.0, 0.0, d) * bright;
+      float width = mix(0.11, 0.22, hash21(vec2(i, 9.0)));
+      float bright = mix(0.55, 0.85, hash21(vec2(i, 13.0)));
+      float d = (angle - center) / width;
+      total += exp(-d * d) * bright;
     }
-    float radial = exp(-max(dist - 0.15, 0.0) * 1.1);
-    return clamp(total, 0.0, 1.0) * radial;
+    float radial = exp(-max(dist - 0.15, 0.0) * 0.75);
+    return clamp(total * 0.6, 0.0, 1.0) * radial;
   }
 
   void main() {
@@ -97,9 +98,9 @@ const FRAGMENT = /* glsl */ `
     // Légère lueur ambiante en bas à gauche (lumière qui rebondit au sol).
     float haze = exp(-length(uv - vec2(-0.02, -0.02)) * 2.0);
 
-    vec3 color = uBase * 0.09;
+    vec3 color = uBase * 0.24;
     color += uBase * haze * 0.35;
-    color += uDust * rayMask * 0.55;
+    color += uDust * rayMask * 0.5;
 
     float near   = bokehLayer(uv + vec2(uTime * 0.003, uTime * 0.007), 0.30, 0.014, 0.040, 1.6, 0.5, 0.30) * dustBand;
     float mid    = bokehLayer(uv * 1.6 + 17.0 + vec2(uTime * 0.0018, uTime * 0.004), 0.15, 0.006, 0.016, 1.3, 0.6, 0.28) * dustBand;
