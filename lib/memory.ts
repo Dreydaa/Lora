@@ -21,18 +21,15 @@ export async function appendToHistory(chatId: number, newMessages: ChatMessage[]
   await redis.set(key(chatId), updated, { ex: TTL_SECONDS });
 }
 
-// Marque qu'un bilan du soir a été envoyé pour une date Paris donnée. Sert à vérifier,
-// au moment où record_progress s'exécute, que la réponse de l'utilisateur est bien
-// arrivée avant minuit (même journée Paris que l'envoi du bilan) plutôt que de se fier
-// au jugement du modèle sur ce point objectif.
-function eveningBilanKey(dateParis: string) {
-  return `evening-bilan-sent:${dateParis}`;
+const LAST_BRIEFING_KEY = "last-briefing";
+const LAST_BRIEFING_TTL_SECONDS = 60 * 60 * 20; // survit jusqu'au lendemain matin (prochain cron)
+
+// Le dashboard affiche le texte réellement envoyé sur Telegram plutôt que d'en régénérer
+// un (via l'IA) à chaque chargement — coûteux et non déterministe pour un simple affichage.
+export async function saveLastBriefing(text: string) {
+  await redis.set(LAST_BRIEFING_KEY, text, { ex: LAST_BRIEFING_TTL_SECONDS });
 }
 
-export async function markEveningBilanSent(dateParis: string) {
-  await redis.set(eveningBilanKey(dateParis), true, { ex: 60 * 60 * 30 });
-}
-
-export async function wasEveningBilanSentToday(dateParis: string): Promise<boolean> {
-  return !!(await redis.get(eveningBilanKey(dateParis)));
+export async function getLastBriefing(): Promise<string | null> {
+  return (await redis.get<string>(LAST_BRIEFING_KEY)) ?? null;
 }

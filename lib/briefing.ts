@@ -21,7 +21,6 @@ export async function buildBriefing(): Promise<string> {
   ]);
 
   const contextSummary = [
-    `Streak: ${progress.streak} jour(s).`,
     `Hier: ${progress.review}.`,
     `Météo: ${weather}.`,
     `Agenda: ${agenda.slice(0, 3).map((item) => `${item.title}${item.date ? ` (${item.date})` : ""}`).join(" · ") || "libre"}.`,
