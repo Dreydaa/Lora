@@ -13,9 +13,10 @@ const VERTEX = /* glsl */ `
   }
 `;
 
-// Fond façon écran d'accueil PS5 : une lueur diagonale douce dans un coin, et trois
-// couches de "bokeh" (poussière floue) qui dérivent à des échelles/vitesses différentes
-// pour donner une impression de profondeur/parallaxe, sans jamais dessiner de forme nette.
+// Fond inspiré d'une référence "rayons de lumière + poussière" (photo fournie par
+// l'utilisateur) : plusieurs rayons NETS et distincts en éventail depuis une source
+// hors-cadre (pas un halo diffus unique), un fond quasi noir en dehors, et de la
+// poussière/bokeh concentrée dans une bande plutôt qu'éparpillée sur tout le cadre.
 const FRAGMENT = /* glsl */ `
   uniform float uTime;
   uniform vec3 uBase;
@@ -33,9 +34,9 @@ const FRAGMENT = /* glsl */ `
   }
 
   // Poussière floue répartie sur une grille, éparse (une cellule sur "presence" en
-  // moyenne affiche un point) et à bords très doux (flou proportionnel au rayon,
-  // pas une valeur fixe) pour un rendu bokeh plutôt qu'une pastille nette.
-  // Recherche sur les 9 cellules voisines pour éviter les coupures aux bords.
+  // moyenne affiche un point), avec un noyau plus brillant en plus du halo doux
+  // (flou proportionnel au rayon) — rendu bokeh à deux composantes plutôt qu'une
+  // pastille uniforme. Recherche sur les 9 cellules voisines pour éviter les coupures.
   float bokehLayer(vec2 uv, float cellSize, float sizeMin, float sizeMax, float softFactor, float presence, float baseAlpha) {
     vec2 grid = uv / cellSize;
     vec2 cell = floor(grid);
@@ -49,45 +50,66 @@ const FRAGMENT = /* glsl */ `
         float radius = mix(sizeMin, sizeMax, hash21(neighbor + 7.0));
         float soft = radius * softFactor;
         float d = length(grid - point);
-        total += smoothstep(radius + soft, radius - soft, d) * mix(baseAlpha, 1.0, hash21(neighbor + 3.0));
+        float halo = smoothstep(radius + soft, radius - soft, d);
+        float core = smoothstep(radius * 0.4, 0.0, d);
+        total += (halo * 0.55 + core * 0.9) * mix(baseAlpha, 1.0, hash21(neighbor + 3.0));
       }
     }
     return clamp(total, 0.0, 1.0);
   }
 
+  // Plusieurs rayons distincts (largeur/angle/intensité propres à chacun, via hash),
+  // en éventail depuis une source placée hors du cadre en haut à gauche, plutôt qu'un
+  // dégradé continu — c'est la séparation nette entre rayons qui fait la ressemblance.
+  float rays(vec2 uv) {
+    vec2 source = vec2(-0.30, 1.30);
+    vec2 dir = uv - source;
+    float dist = length(dir);
+    float angle = atan(dir.y, dir.x);
+
+    float total = 0.0;
+    for (float i = 0.0; i < 6.0; i += 1.0) {
+      float t = (i + 0.5) / 6.0;
+      float jitter = hash21(vec2(i, 5.0)) - 0.5;
+      float center = mix(-1.42, -0.55, t + jitter * 0.12);
+      float width = mix(0.035, 0.085, hash21(vec2(i, 9.0)));
+      float bright = mix(0.45, 1.0, hash21(vec2(i, 13.0)));
+      float d = abs(angle - center) / width;
+      total += smoothstep(1.0, 0.0, d) * bright;
+    }
+    float radial = exp(-max(dist - 0.15, 0.0) * 1.1);
+    return clamp(total, 0.0, 1.0) * radial;
+  }
+
   void main() {
     vec2 uv = vUv;
 
-    // Lueur étirée en diagonale (rayon) plutôt qu'un halo rond : falloff lent le long
-    // de la diagonale coin -> centre, rapide perpendiculairement.
-    vec2 toCorner = uv - vec2(0.05, 0.95);
-    float along = (toCorner.x - toCorner.y) * 0.7071;
-    float across = (toCorner.x + toCorner.y) * 0.7071;
-    float beam = exp(-(along * along * 0.55 + across * across * 3.2));
+    float rayMask = rays(uv);
 
-    // Dégradé large sur tout le cadre (pas seulement le halo net) : la scène entière
-    // s'assombrit en s'éloignant du coin lumineux — c'est ce dégradé, plus que le halo
-    // lui-même, qui porte la sensation de profondeur d'ensemble façon PS5. Fond plus
-    // sombre dans les zones éloignées de la lumière.
-    float depthGrad = clamp(1.0 - (along + 0.25) * 0.55, 0.0, 1.0);
-    float depthBoost = mix(0.55, 1.35, depthGrad);
+    // Poussière concentrée dans une bande horizontale plutôt qu'uniforme sur tout le
+    // cadre, façon particules éclairées par les rayons plutôt que dispersées partout.
+    // Sigma choisi par rapport à l'espace UV du plan, pas du cadre caméra visible : le
+    // plan est surdimensionné (resize(), facteur 1.15) pour ne jamais laisser voir ses
+    // bords en rotation, donc le cadre visible ne couvre qu'environ uv.y ∈ [0.065, 0.935]
+    // — un sigma pensé "plein cadre" paraîtrait deux fois plus large que voulu à l'écran.
+    float dustBand = exp(-pow((uv.y - 0.50) / 0.15, 2.0));
 
-    vec3 color = uBase * mix(0.12, 1.05, depthGrad);
+    // Légère lueur ambiante en bas à gauche (lumière qui rebondit au sol).
+    float haze = exp(-length(uv - vec2(-0.02, -0.02)) * 2.0);
 
-    // Cinq couches (des gros bokeh proches aux fines poussières lointaines), denses pour
-    // donner de la matière, modulées par le dégradé de profondeur.
-    float near   = bokehLayer(uv + vec2(uTime * 0.004, uTime * 0.010), 0.30, 0.016, 0.046, 1.7, 0.55, 0.32);
-    float mid    = bokehLayer(uv * 1.6 + 17.0 + vec2(uTime * 0.002, uTime * 0.005), 0.15, 0.007, 0.018, 1.4, 0.65, 0.30);
-    float far    = bokehLayer(uv * 2.6 + 41.0 + vec2(uTime * 0.001, uTime * 0.002), 0.055, 0.0025, 0.006, 1.0, 0.75, 0.48);
-    float motes  = bokehLayer(uv * 4.2 + 83.0 + vec2(uTime * 0.0006, uTime * 0.0012), 0.028, 0.0012, 0.003, 0.9, 0.85, 0.6);
-    float grain  = bokehLayer(uv * 6.5 + 127.0 + vec2(uTime * 0.0003, uTime * 0.0006), 0.016, 0.0006, 0.0016, 0.8, 0.9, 0.7);
+    vec3 color = uBase * 0.09;
+    color += uBase * haze * 0.35;
+    color += uDust * rayMask * 0.55;
 
-    color += uDust * beam * 0.24;
-    color += uDust * near * 0.26 * depthBoost;
-    color += uDust * mid * 0.18 * depthBoost;
-    color += uDust * far * 0.14 * depthBoost;
-    color += uDust * motes * 0.11;
-    color += uDust * grain * 0.06;
+    float near   = bokehLayer(uv + vec2(uTime * 0.003, uTime * 0.007), 0.30, 0.014, 0.040, 1.6, 0.5, 0.30) * dustBand;
+    float mid    = bokehLayer(uv * 1.6 + 17.0 + vec2(uTime * 0.0018, uTime * 0.004), 0.15, 0.006, 0.016, 1.3, 0.6, 0.28) * dustBand;
+    float far    = bokehLayer(uv * 2.6 + 41.0 + vec2(uTime * 0.001, uTime * 0.002), 0.06, 0.0025, 0.006, 1.0, 0.7, 0.45) * dustBand;
+    float motes  = bokehLayer(uv * 4.2 + 83.0 + vec2(uTime * 0.0006, uTime * 0.0012), 0.03, 0.0012, 0.003, 0.9, 0.8, 0.6) * dustBand;
+
+    color += uDust * near * 0.30;
+    color += uDust * mid * 0.20;
+    color += uDust * far * 0.15;
+    color += uDust * motes * 0.10;
 
     gl_FragColor = vec4(color, 1.0);
   }
