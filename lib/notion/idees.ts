@@ -68,6 +68,20 @@ export async function archiveIdea(pageId: string) {
   await setIdeaStatus(pageId, "Archivée");
 }
 
+export async function getAllIdeas(): Promise<{ id: string; title: string; size: IdeaSize; status: IdeaStatus }[]> {
+  const data = await notion().databases.query({
+    database_id: database(),
+    sorts: [{ property: "Date d'entrée", direction: "descending" }],
+    page_size: 100,
+  });
+  return data.results.map((page: any) => ({
+    id: page.id,
+    title: page.properties.Titre?.title?.[0]?.plain_text ?? "(sans titre)",
+    size: page.properties.Taille?.select?.name ?? "Petit",
+    status: page.properties.Statut?.select?.name ?? "Brute",
+  }));
+}
+
 type IdeaSuggestion = { title: string; size: string; pageId: string };
 
 function toSuggestion(page: any): IdeaSuggestion {

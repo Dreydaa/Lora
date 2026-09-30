@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TABS, type TabId } from "../../components/ui/Tabs";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { useNow } from "../../hooks/useNow";
+import { fetchDashboardData } from "../../lib/api";
+import { dashboardStore } from "../../stores/dashboardStore";
 import { CalendarPanel } from "../calendar/CalendarPanel";
 import { BlenderPanel } from "../blender/BlenderPanel";
 import { DailyQuiz } from "../quiz/DailyQuiz";
@@ -14,6 +16,13 @@ import { Rail } from "./Rail";
 export function DashboardPage() {
   const data = useDashboardData();
   const now = useNow();
+
+  useEffect(() => {
+    fetchDashboardData()
+      .then(dashboardStore.set)
+      .catch((error) => console.error("[dashboard] échec du chargement backend, données factices conservées :", error));
+  }, []);
+
   const [tab, setTab] = useState<TabId>("calendrier");
   const label = TABS.find((t) => t.id === tab)!.label;
   return (

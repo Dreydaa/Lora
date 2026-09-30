@@ -18,6 +18,15 @@ export const workerJobSchema = z.object({
 export function isAllowedChat(chatId: number) {
   return String(chatId) === process.env.TELEGRAM_ALLOWED_CHAT_ID;
 }
+// Protège l'endpoint dashboard (lu par l'app Tauri) : une clé statique partagée,
+// même logique que CRON_SECRET ci-dessous plutôt qu'un système d'auth utilisateur —
+// usage mono-utilisateur, la clé est embarquée dans le build client (VITE_*).
+export function assertDashboardKey(request: Request) {
+  const key = request.headers.get("x-dashboard-key");
+  if (!process.env.DASHBOARD_API_KEY || key !== process.env.DASHBOARD_API_KEY) {
+    throw new Error("Unauthorized dashboard request");
+  }
+}
 // Les crons matin/soir sont déclenchés par un schedule QStash (horaires configurables
 // dynamiquement, voir lib/notion/settings.ts) et signés comme n'importe quel message QStash.
 // On accepte aussi le Bearer CRON_SECRET pour permettre un déclenchement manuel (tests, debug).
