@@ -1,10 +1,13 @@
 import * as THREE from "three";
 import { buildPath, FRAME_H, FRAME_W, PATH_SAMPLES } from "./path";
 import { RIBBON_SIZE, RIBBON_SPIN, buildRibbonPoints, ribbonPosition } from "../particles/ribbon";
-import { createBackground } from "../particles/background";
+import { DEFAULT_BACKGROUND, createBackground } from "../particles/background";
+import { createGlow } from "../particles/glow";
+import { createParticleLook } from "../particles/look";
+import { DEFAULT_PARTICLES, colorParticles } from "../particles/palette";
+import { mountBackgroundPanel } from "../particles/backgroundPanel";
 
 export interface IntroOptions {
-  background?: string;
   particleColor?: string;
 }
 
@@ -34,10 +37,10 @@ function gaussian() {
   return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
 }
 
-export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0", particleColor = "#ffffff" }: IntroOptions = {}) {
+export function createIntro(canvas: HTMLCanvasElement, { particleColor }: IntroOptions = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(background);
+  renderer.setClearColor(DEFAULT_BACKGROUND.colorDark);
 
   const scene = new THREE.Scene();
   scene.add(new THREE.AmbientLight("#ffffff", 1.1));
@@ -45,16 +48,22 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
   sun.position.set(-300, 400, 600);
   scene.add(sun);
 
-  const bg = createBackground({ baseColor: background, dustColor: particleColor });
+  const bg = createBackground();
   scene.add(bg.mesh);
 
   const camera = new THREE.PerspectiveCamera(FOV, 1, 10, 6000);
 
   const geometry = new THREE.SphereGeometry(1, 16, 12);
-  const material = new THREE.MeshStandardMaterial({ color: particleColor, roughness: 0.45, metalness: 0 });
+  const material = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.45, metalness: 0 });
   const mesh = new THREE.InstancedMesh(geometry, material, COUNT);
+  colorParticles(mesh, particleColor ? [particleColor] : undefined);
+  const look = createParticleLook(mesh);
+  look.setSettings(DEFAULT_PARTICLES);
+  const glow = createGlow(mesh);
+  const unmountPanel = import.meta.env.DEV ? mountBackgroundPanel(bg, mesh, glow, look) : undefined;
   mesh.frustumCulled = false;
   scene.add(mesh);
+  scene.add(glow.points);
 
   const { table, length } = buildPath();
   const spawnWindow = length / PATH_SPEED;
@@ -105,14 +114,15 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
     ribbonScale = Math.min(visibleW, visibleH) / FRAME_H;
-    bg.resize(camera, visibleW, visibleH);
+    bg.resize(camera, ribbonScale);
   };
   resize();
   window.addEventListener("resize", resize);
 
   const render = () => {
     const t = (performance.now() - startedAt) / 1000;
-    bg.update(t);
+    // L'ombre apparaît avec le ruban, pas avant.
+    bg.setShadowAmount(easeInOutCubic(Math.min(Math.max((t - morphStart - MORPH_STAGGER_SECONDS * 0.5) / (MORPH_SECONDS + 0.6), 0), 1)));
     const spin = t * RIBBON_SPIN;
     const spinCos = Math.cos(spin);
     const spinSin = Math.sin(spin);
@@ -161,13 +171,8 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
   render();
 
   return {
-    setBackground: (color: string) => {
-      renderer.setClearColor(color);
-      bg.setBaseColor(color);
-    },
     setParticleColor: (color: string) => {
-      material.color.set(color);
-      bg.setDustColor(color);
+      colorParticles(mesh, [color]);
     },
     dispose: () => {
       cancelAnimationFrame(frame);
@@ -175,6 +180,9 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
       geometry.dispose();
       material.dispose();
       mesh.dispose();
+      unmountPanel?.();
+      glow.dispose();
+      look.dispose();
       bg.dispose();
       renderer.dispose();
     },

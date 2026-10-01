@@ -1,180 +1,387 @@
 import * as THREE from "three";
+import { BURST_PROFILE_SIZE, burstProfile } from "./burstProfile";
 
-export interface BackgroundOptions {
-  baseColor?: string;
-  dustColor?: string;
+// Tous les réglages du fond. Les valeurs par défaut sont celles de la config validée ; le panneau
+// de réglage (backgroundPanel.ts, dev uniquement) les modifie en direct. Le profil des rayons
+// vient de la photo de référence (docs/product/soza-fond-eclat-325x238.jpg).
+export interface BackgroundSettings {
+  // Palette (sRGB), du plus sombre au plus clair : la luminosité de l'éclat est convertie en
+  // couleur par interpolation entre ces cinq tons, répartis à 0, 25, 50, 75 et 100 %.
+  colorDark: string;
+  colorLow: string;
+  colorMid: string;
+  colorHigh: string;
+  colorLight: string;
+  // Éclat de rayons. Centre en fraction de l'écran (0..1, y vers le haut), rotation en degrés
+  // (sens antihoraire). brightness multiplie la luminosité, contrast est un exposant (> 1 creuse
+  // les ombres). Le cœur sombre s'éclaircit sur coreRadius (en hauteurs d'écran), avec une
+  // transition de raideur coreSharpness. detail* ajoute de fins rayons : force (0 = aucun) et
+  // nombre de rayons par tour.
+  centerX: number;
+  centerY: number;
+  rotation: number;
+  brightness: number;
+  contrast: number;
+  coreRadius: number;
+  coreSharpness: number;
+  detailStrength: number;
+  detailFrequency: number;
+  // Trame en quadrillage (visible surtout dans les tons moyens) : force et pas en pixels écran.
+  meshStrength: number;
+  meshSize: number;
+  // Animation du fond. animSpeed accélère/ralentit tout (0 = figé). Balancement : la lumière
+  // oscille de ±swayAngle degrés sur swayPeriod secondes. Scintillement : chaque fin rayon pulse
+  // à son rythme (force 0..1, vitesse en rad/s). Respiration : le cœur et la luminosité pulsent
+  // de ±breathAmount sur breathPeriod secondes. Dérive : le centre se promène de ±driftAmount
+  // (fraction de l'écran).
+  animSpeed: number;
+  swayAngle: number;
+  swayPeriod: number;
+  shimmerStrength: number;
+  shimmerSpeed: number;
+  breathAmount: number;
+  breathPeriod: number;
+  driftAmount: number;
+  // Ombre portée du ruban. Y et largeur en unités de scène (à l'échelle du ruban), hauteur en
+  // espace écran (-1..1). Falloff = vitesse de décroissance (plus grand = plus resserré).
+  shadowColor: string;
+  shadowY: number;
+  shadowWidth: number;
+  shadowHeight: number;
+  shadowOpacity: number;
+  shadowCoreStrength: number;
+  shadowCoreFalloff: number;
+  shadowSoftStrength: number;
+  shadowSoftFalloff: number;
+  shadowMaxDarkness: number;
+  // Animation de l'ombre, comme si le ruban montait et descendait : elle s'élargit et s'éclaircit
+  // quand il monte (shadowPulse = amplitude relative, 0 = fixe) sur shadowPulsePeriod secondes,
+  // et glisse latéralement de ±shadowSway (espace écran).
+  shadowPulse: number;
+  shadowPulsePeriod: number;
+  shadowSway: number;
 }
 
+export const DEFAULT_BACKGROUND: BackgroundSettings = {
+  colorDark: "#030711",
+  colorLow: "#302361",
+  colorMid: "#a46060",
+  colorHigh: "#d8d2ab",
+  colorLight: "#f8eefb",
+  centerX: 0.517,
+  centerY: 0.5,
+  rotation: 0,
+  brightness: 1.2,
+  contrast: 1,
+  coreRadius: 0.224,
+  coreSharpness: 2.6,
+  detailStrength: 0.15,
+  detailFrequency: 200,
+  meshStrength: 0.08,
+  meshSize: 4,
+  animSpeed: 4,
+  swayAngle: 2,
+  swayPeriod: 60,
+  shimmerStrength: 0.1,
+  shimmerSpeed: 0.6,
+  breathAmount: 0.1,
+  breathPeriod: 9,
+  driftAmount: 0,
+  shadowColor: "#1e87c8",
+  shadowY: -258,
+  shadowWidth: 466,
+  shadowHeight: 0.23,
+  shadowOpacity: 1,
+  shadowCoreStrength: 0.58,
+  shadowCoreFalloff: 2.2,
+  shadowSoftStrength: 0.37,
+  shadowSoftFalloff: 2.2,
+  shadowMaxDarkness: 1,
+  shadowPulse: 0.07,
+  shadowPulsePeriod: 30,
+  shadowSway: 0.012,
+};
+
+// Fond plein écran dessiné en espace écran, derrière tout le reste : un éclat de rayons (zoom
+// radial) dont la luminosité varie avec l'angle autour du centre (profil extrait de la photo,
+// plus un peu de bruit pour de fins rayons qui scintillent) et s'éteint vers le cœur, converti en
+// couleur par la palette, puis une trame en quadrillage et l'ombre portée du ruban.
 const VERTEX = /* glsl */ `
   varying vec2 vUv;
   void main() {
     vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    gl_Position = vec4(position.xy, 1.0, 1.0);
   }
 `;
 
-// Fond "puits de lumière" naturel : plusieurs rayons distincts en éventail depuis une
-// source hors-cadre, mais texturés par un bruit volumétrique (pas de cône parfaitement
-// lisse) pour éviter l'effet "laser" artificiel — comme de la lumière qui traverse de la
-// poussière en suspension. Fond plus clair que le noir quasi total, poussière abondante
-// concentrée dans une bande plutôt qu'éparpillée sur tout le cadre.
 const FRAGMENT = /* glsl */ `
+  uniform sampler2D uProfile;
   uniform float uTime;
-  uniform vec3 uBase;
-  uniform vec3 uDust;
+  uniform vec2 uCenter;
+  uniform float uAspect;
+  uniform float uRotation;
+  uniform float uBrightness;
+  uniform float uContrast;
+  uniform vec2 uCore;          // rayon (hauteurs d'écran), raideur
+  uniform float uDetail;       // force des fins rayons
+  uniform vec2 uDetailCycles;  // rayons par tour, deux octaves
+  uniform vec2 uShimmer;       // force, vitesse du scintillement
+  uniform vec2 uMesh;          // force, pas en pixels du buffer
+  uniform vec3 uC0;
+  uniform vec3 uC1;
+  uniform vec3 uC2;
+  uniform vec3 uC3;
+  uniform vec3 uC4;
+  uniform vec3 uShadowColor;
+  uniform vec2 uShadowCenter;  // espace écran (-1..1)
+  uniform vec2 uShadowRadius;
+  uniform float uShadowAmount;
+  uniform vec4 uShadowShape;   // force/falloff du noyau, force/falloff de la pénombre
+  uniform float uShadowMax;
   varying vec2 vUv;
 
-  float hash21(vec2 p) {
-    p = fract(p * vec2(123.34, 456.21));
-    p += dot(p, p + 45.32);
-    return fract(p.x * p.y);
+  float hash11(float n) {
+    return fract(sin(n * 127.1) * 43758.5453);
   }
 
-  vec2 hash22(vec2 p) {
-    return vec2(hash21(p), hash21(p + 19.19));
+  // Bruit de valeur 1D périodique sur [0, cycles) : l'angle boucle sur un tour sans couture.
+  float periodicNoise(float x, float cycles) {
+    float i = floor(x);
+    float f = x - i;
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(hash11(mod(i, cycles)), hash11(mod(i + 1.0, cycles)), f);
   }
 
-  // Bruit de valeur lissé (interpolation bilinéaire de hash21) : sert à texturer les
-  // rayons sans faire apparaître la grille de hash21 brute (qui donnerait un bruit
-  // "TV cassée" pixelisé au lieu d'un grain de poussière organique).
-  float noise2D(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    float a = hash21(i);
-    float b = hash21(i + vec2(1.0, 0.0));
-    float c = hash21(i + vec2(0.0, 1.0));
-    float d = hash21(i + vec2(1.0, 1.0));
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+  // Pulsation (0..1) du fin rayon numéro i : chacun a sa vitesse et sa phase.
+  float pulse(float i) {
+    return 0.5 + 0.5 * sin(uTime * uShimmer.y * (0.5 + hash11(i + 7.0)) + hash11(i + 13.0) * 6.2831853);
   }
 
-  // Poussière floue répartie sur une grille, éparse (une cellule sur "presence" en
-  // moyenne affiche un point), avec un noyau plus brillant en plus du halo doux
-  // (flou proportionnel au rayon) — rendu bokeh à deux composantes plutôt qu'une
-  // pastille uniforme. Recherche sur les 9 cellules voisines pour éviter les coupures.
-  float bokehLayer(vec2 uv, float cellSize, float sizeMin, float sizeMax, float softFactor, float presence, float baseAlpha) {
-    vec2 grid = uv / cellSize;
-    vec2 cell = floor(grid);
-    float total = 0.0;
-    for (float y = -1.0; y <= 1.0; y += 1.0) {
-      for (float x = -1.0; x <= 1.0; x += 1.0) {
-        vec2 neighbor = cell + vec2(x, y);
-        if (hash21(neighbor + 11.0) > presence) continue;
-        vec2 rnd = hash22(neighbor);
-        vec2 point = neighbor + 0.5 + (rnd - 0.5) * 0.7;
-        float radius = mix(sizeMin, sizeMax, hash21(neighbor + 7.0));
-        float soft = radius * softFactor;
-        float d = length(grid - point);
-        float halo = smoothstep(radius + soft, radius - soft, d);
-        float core = smoothstep(radius * 0.4, 0.0, d);
-        total += (halo * 0.55 + core * 0.9) * mix(baseAlpha, 1.0, hash21(neighbor + 3.0));
-      }
-    }
-    return clamp(total, 0.0, 1.0);
-  }
-
-  // Plusieurs rayons en éventail depuis une source hors du cadre en haut à gauche,
-  // assez étroits pour rester distincts les uns des autres (pas fondus en un halo
-  // unique). Chaque rayon est traversé par un bruit de valeur à deux échelles qui
-  // dérive lentement dans le temps : ça casse la symétrie parfaite d'un cône
-  // mathématique et donne l'aspect "volumétrique" irrégulier d'un vrai rayon qui
-  // traverse de la poussière en mouvement, plutôt qu'un faisceau laser bien net.
-  float rays(vec2 uv) {
-    vec2 source = vec2(-0.30, 1.30);
-    vec2 dir = uv - source;
-    float dist = length(dir);
-    float angle = atan(dir.y, dir.x);
-
-    float total = 0.0;
-    for (float i = 0.0; i < 6.0; i += 1.0) {
-      float t = (i + 0.5) / 6.0;
-      float jitter = hash21(vec2(i, 5.0)) - 0.5;
-      float center = mix(-1.42, -0.55, t + jitter * 0.12);
-      float width = mix(0.09, 0.17, hash21(vec2(i, 9.0)));
-      float bright = mix(0.6, 0.95, hash21(vec2(i, 13.0)));
-      float d = (angle - center) / width;
-      float beam = exp(-d * d);
-
-      float drift = noise2D(vec2(dist * 4.0 - uTime * 0.04, i * 12.0)) * 0.5
-                  + noise2D(vec2(dist * 9.0 - uTime * 0.07, i * 30.0)) * 0.5;
-      float turbulence = mix(0.5, 1.0, drift);
-
-      total += beam * bright * turbulence;
-    }
-    float radial = exp(-max(dist - 0.15, 0.0) * 0.75);
-    return clamp(total * 0.7, 0.0, 1.0) * radial;
+  // Luminosité (0..1) -> couleur, par interpolation entre les cinq tons de la palette.
+  vec3 ramp(float l) {
+    float x = clamp(l, 0.0, 1.0) * 4.0;
+    vec3 c = mix(uC0, uC1, clamp(x, 0.0, 1.0));
+    c = mix(c, uC2, clamp(x - 1.0, 0.0, 1.0));
+    c = mix(c, uC3, clamp(x - 2.0, 0.0, 1.0));
+    return mix(c, uC4, clamp(x - 3.0, 0.0, 1.0));
   }
 
   void main() {
-    vec2 uv = vUv;
+    // Coordonnées isotropes centrées sur l'éclat : les rayons restent des droites à l'écran.
+    vec2 p = (vUv - uCenter) * vec2(uAspect, 1.0);
+    float r = max(length(p), 1e-5);
+    float turn = fract((atan(p.y, p.x) - uRotation) / 6.2831853);
 
-    float rayMask = rays(uv);
+    float ray = pow(texture2D(uProfile, vec2(turn, 0.5)).r, uContrast);
+    float core = 1.0 - exp(-pow(r / uCore.x, uCore.y));
+    float n = periodicNoise(turn * uDetailCycles.x, uDetailCycles.x) * 0.65
+            + periodicNoise(turn * uDetailCycles.y, uDetailCycles.y) * 0.35;
+    float detail = clamp(1.0 + uDetail * (n * 2.0 - 1.0), 0.0, 2.0);
 
-    // Poussière concentrée dans une bande horizontale plutôt qu'uniforme sur tout le
-    // cadre, façon particules éclairées par les rayons plutôt que dispersées partout.
-    // Sigma choisi par rapport à l'espace UV du plan, pas du cadre caméra visible : le
-    // plan est surdimensionné (resize(), facteur 1.15) pour ne jamais laisser voir ses
-    // bords en rotation, donc le cadre visible ne couvre qu'environ uv.y ∈ [0.065, 0.935]
-    // — un sigma pensé "plein cadre" paraîtrait deux fois plus large que voulu à l'écran.
-    float dustBand = exp(-pow((uv.y - 0.50) / 0.17, 2.0));
+    // Scintillement : les fins rayons (cellules de l'octave fine) pulsent chacun à leur rythme,
+    // avec un fondu entre cellules voisines pour éviter les marches.
+    float cell = turn * uDetailCycles.y;
+    float ci = floor(cell);
+    float cf = cell - ci;
+    cf = cf * cf * (3.0 - 2.0 * cf);
+    float shimmer = 1.0 + uShimmer.x * (mix(pulse(mod(ci, uDetailCycles.y)), pulse(mod(ci + 1.0, uDetailCycles.y)), cf) * 2.0 - 1.0);
 
-    // Légère lueur ambiante en bas à gauche (lumière qui rebondit au sol).
-    float haze = exp(-length(uv - vec2(-0.02, -0.02)) * 2.0);
+    float l = clamp(ray * core * detail * shimmer * uBrightness, 0.0, 1.0);
 
-    vec3 color = uBase * 0.28;
-    color += uBase * haze * 0.40;
-    color += uDust * rayMask * 0.55;
+    // Trame : lignes horizontales et verticales, d'autant plus visibles que le ton est moyen.
+    float mid = pow(4.0 * l * (1.0 - l), 1.5);
+    vec2 g = gl_FragCoord.xy / max(uMesh.y, 1.0) * 6.2831853;
+    l = clamp(l + uMesh.x * mid * 0.5 * (cos(g.x) + cos(g.y)), 0.0, 1.0);
 
-    float near   = bokehLayer(uv + vec2(uTime * 0.003, uTime * 0.007), 0.30, 0.014, 0.040, 1.6, 0.55, 0.30) * dustBand;
-    float mid    = bokehLayer(uv * 1.6 + 17.0 + vec2(uTime * 0.0018, uTime * 0.004), 0.15, 0.006, 0.016, 1.3, 0.65, 0.28) * dustBand;
-    float far    = bokehLayer(uv * 2.6 + 41.0 + vec2(uTime * 0.001, uTime * 0.002), 0.06, 0.0025, 0.006, 1.0, 0.75, 0.45) * dustBand;
-    float motes  = bokehLayer(uv * 4.2 + 83.0 + vec2(uTime * 0.0006, uTime * 0.0012), 0.03, 0.0012, 0.003, 0.9, 0.85, 0.6) * dustBand;
+    vec3 color = ramp(l);
 
-    color += uDust * near * 0.34;
-    color += uDust * mid * 0.24;
-    color += uDust * far * 0.18;
-    color += uDust * motes * 0.13;
+    // Ombre : noyau sombre + pénombre large, pour que le ruban semble flotter au-dessus du sol.
+    // La palette est en sRGB : on assombrit comme en espace linéaire pour garder le même rendu.
+    vec2 d = (vUv * 2.0 - 1.0 - uShadowCenter) / uShadowRadius;
+    float q = dot(d, d);
+    float shadow = exp(-q * uShadowShape.y) * uShadowShape.x + exp(-q * uShadowShape.w) * uShadowShape.z;
+    float keep = pow(1.0 - clamp(shadow * uShadowAmount, 0.0, uShadowMax), 1.0 / 2.2);
+    color = mix(uShadowColor, color, keep);
 
     gl_FragColor = vec4(color, 1.0);
   }
 `;
 
-export function createBackground({ baseColor = "#2757d0", dustColor = "#ffffff" }: BackgroundOptions = {}) {
-  const geometry = new THREE.PlaneGeometry(1, 1);
+const TAU = Math.PI * 2;
+
+// Couleur de la palette telle quelle (sRGB), sans conversion vers l'espace linéaire.
+const setTone = (target: THREE.Color, hex: string) => target.setStyle(hex, THREE.LinearSRGBColorSpace);
+
+export function createBackground(initial: Partial<BackgroundSettings> = {}) {
+  const settings: BackgroundSettings = { ...DEFAULT_BACKGROUND, ...initial };
+
+  const profile = new THREE.DataTexture(burstProfile(), BURST_PROFILE_SIZE, 1, THREE.RedFormat, THREE.UnsignedByteType);
+  profile.wrapS = THREE.RepeatWrapping;
+  profile.minFilter = THREE.LinearFilter;
+  profile.magFilter = THREE.LinearFilter;
+  profile.needsUpdate = true;
+
+  const geometry = new THREE.PlaneGeometry(2, 2);
   const material = new THREE.ShaderMaterial({
     uniforms: {
+      uProfile: { value: profile },
       uTime: { value: 0 },
-      uBase: { value: new THREE.Color(baseColor) },
-      uDust: { value: new THREE.Color(dustColor) },
+      uCenter: { value: new THREE.Vector2() },
+      uAspect: { value: 1 },
+      uRotation: { value: 0 },
+      uBrightness: { value: 1 },
+      uContrast: { value: 1 },
+      uCore: { value: new THREE.Vector2() },
+      uDetail: { value: 0 },
+      uDetailCycles: { value: new THREE.Vector2(1, 3) },
+      uShimmer: { value: new THREE.Vector2() },
+      uMesh: { value: new THREE.Vector2(0, 4) },
+      uC0: { value: new THREE.Color() },
+      uC1: { value: new THREE.Color() },
+      uC2: { value: new THREE.Color() },
+      uC3: { value: new THREE.Color() },
+      uC4: { value: new THREE.Color() },
+      uShadowColor: { value: new THREE.Color() },
+      uShadowCenter: { value: new THREE.Vector2(0, -0.6) },
+      uShadowRadius: { value: new THREE.Vector2(0.5, 0.1) },
+      uShadowAmount: { value: 0 },
+      uShadowShape: { value: new THREE.Vector4() },
+      uShadowMax: { value: 0 },
     },
     vertexShader: VERTEX,
     fragmentShader: FRAGMENT,
+    depthTest: false,
     depthWrite: false,
   });
   const mesh = new THREE.Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = -1000;
+
+  const u = material.uniforms;
+  const point = new THREE.Vector3();
+  const shadowBase = { x: 0, y: -0.6, rx: 0.5, ry: 0.1 };
+  let camera: THREE.PerspectiveCamera | null = null;
+  let ribbonScale = 1;
+  let shadowAmount = 0;
+  let pixelRatio = 1;
+  // Horloge de l'animation, en secondes ; avance au rythme de animSpeed.
+  let time = 0;
+  let lastFrame = performance.now();
+
+  // Positions qui dépendent de la caméra : ombre à l'écran, rapport d'aspect de l'éclat.
+  const layout = () => {
+    if (!camera) return;
+    camera.updateMatrixWorld();
+    u.uAspect.value = camera.aspect;
+    point.set(0, settings.shadowY * ribbonScale, 0).project(camera);
+    const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    shadowBase.x = point.x;
+    shadowBase.y = point.y;
+    shadowBase.rx = Math.max((settings.shadowWidth * ribbonScale) / (camera.position.z * tanHalf * camera.aspect), 0.0001);
+    shadowBase.ry = Math.max(settings.shadowHeight, 0.0001);
+  };
+
+  // Tout ce qui varie avec le temps : balancement, respiration, dérive, ombre.
+  const animate = () => {
+    const t = time;
+    u.uTime.value = t;
+
+    const sway = settings.swayAngle * Math.sin((TAU * t) / Math.max(settings.swayPeriod, 0.1));
+    u.uRotation.value = THREE.MathUtils.degToRad(settings.rotation + sway);
+
+    const breathPeriod = Math.max(settings.breathPeriod, 0.1);
+    const breath = Math.sin((TAU * t) / breathPeriod);
+    u.uCore.value.set(
+      Math.max(settings.coreRadius * (1 + settings.breathAmount * breath), 0.001),
+      Math.max(settings.coreSharpness, 0.1),
+    );
+    u.uBrightness.value = settings.brightness * (1 + 0.5 * settings.breathAmount * Math.sin((TAU * t) / breathPeriod - 0.8));
+
+    const drift = settings.driftAmount;
+    u.uCenter.value.set(
+      settings.centerX + drift * (Math.sin(t * 0.13 + 1) + 0.5 * Math.sin(t * 0.31)),
+      settings.centerY + drift * (Math.cos(t * 0.11) + 0.5 * Math.cos(t * 0.27 + 2)),
+    );
+
+    // Le ruban « monte » quand pulse > 0 : l'ombre s'élargit et s'éclaircit.
+    const shadowPeriod = Math.max(settings.shadowPulsePeriod, 0.1);
+    const pulse = Math.sin((TAU * t) / shadowPeriod);
+    const scale = 1 + settings.shadowPulse * pulse;
+    u.uShadowCenter.value.set(
+      shadowBase.x + settings.shadowSway * Math.sin((TAU * t) / (shadowPeriod * 2) + 1.3),
+      shadowBase.y,
+    );
+    u.uShadowRadius.value.set(shadowBase.rx * scale, shadowBase.ry * scale);
+    u.uShadowAmount.value = shadowAmount * settings.shadowOpacity * Math.max(1 - 0.8 * settings.shadowPulse * pulse, 0);
+  };
+
+  // Réglages statiques (ceux qui ne dépendent pas du temps).
+  const apply = () => {
+    setTone(u.uC0.value, settings.colorDark);
+    setTone(u.uC1.value, settings.colorLow);
+    setTone(u.uC2.value, settings.colorMid);
+    setTone(u.uC3.value, settings.colorHigh);
+    setTone(u.uC4.value, settings.colorLight);
+    setTone(u.uShadowColor.value, settings.shadowColor);
+    u.uContrast.value = Math.max(settings.contrast, 0.01);
+    u.uDetail.value = settings.detailStrength;
+    // Nombres entiers de rayons par tour, pour que le bruit se raccorde sans couture.
+    const cycles = Math.max(1, Math.round(settings.detailFrequency));
+    u.uDetailCycles.value.set(cycles, cycles * 2 + 1);
+    u.uShimmer.value.set(settings.shimmerStrength, settings.shimmerSpeed);
+    u.uMesh.value.set(settings.meshStrength, settings.meshSize * pixelRatio);
+    u.uShadowShape.value.set(
+      settings.shadowCoreStrength,
+      settings.shadowCoreFalloff,
+      settings.shadowSoftStrength,
+      settings.shadowSoftFalloff,
+    );
+    u.uShadowMax.value = settings.shadowMaxDarkness;
+    layout();
+    animate();
+  };
+  apply();
+
+  // À chaque image : fait avancer l'horloge, et suit le ratio de pixels du rendu (le pas de la
+  // trame est exprimé en pixels écran).
+  mesh.onBeforeRender = (renderer) => {
+    const now = performance.now();
+    time += Math.min((now - lastFrame) / 1000, 0.1) * settings.animSpeed;
+    lastFrame = now;
+    const ratio = renderer.getPixelRatio();
+    if (ratio !== pixelRatio) {
+      pixelRatio = ratio;
+      u.uMesh.value.y = settings.meshSize * ratio;
+    }
+    animate();
+  };
 
   return {
     mesh,
-    update(time: number) {
-      material.uniforms.uTime.value = time;
+    // À appeler une fois la caméra positionnée.
+    resize(cam: THREE.PerspectiveCamera, scale: number) {
+      camera = cam;
+      ribbonScale = scale;
+      layout();
     },
-    // Le plan est placé loin derrière la scène (distance) et redimensionné pour couvrir
-    // tout le cadre caméra à cette profondeur — visibleW/visibleH sont le cadre déjà
-    // calculé au niveau de la scène (z=0) par l'appelant.
-    resize(camera: THREE.PerspectiveCamera, visibleW: number, visibleH: number, distance = 600) {
-      const factor = (camera.position.z + distance) / camera.position.z;
-      mesh.position.z = -distance;
-      mesh.scale.set(visibleW * factor * 1.15, visibleH * factor * 1.15, 1);
+    // 0 = pas d'ombre, 1 = ombre pleine (ex: une fois le ruban formé) ; multiplié par shadowOpacity.
+    setShadowAmount(amount: number) {
+      shadowAmount = amount;
     },
-    setBaseColor(color: string) {
-      material.uniforms.uBase.value.set(color);
-    },
-    setDustColor(color: string) {
-      material.uniforms.uDust.value.set(color);
+    getSettings: (): BackgroundSettings => ({ ...settings }),
+    // Ignore les clés inconnues (réglages sauvegardés par une ancienne version du fond).
+    setSettings(patch: Partial<BackgroundSettings>) {
+      for (const key of Object.keys(patch) as (keyof BackgroundSettings)[]) {
+        if (key in DEFAULT_BACKGROUND) Object.assign(settings, { [key]: patch[key] });
+      }
+      apply();
     },
     dispose() {
       geometry.dispose();
       material.dispose();
+      profile.dispose();
     },
   };
 }
+
+export type Background = ReturnType<typeof createBackground>;
