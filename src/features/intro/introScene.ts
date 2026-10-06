@@ -5,10 +5,11 @@ import { DEFAULT_BACKGROUND, createBackground } from "../particles/background";
 import { createGlow } from "../particles/glow";
 import { createParticleLook } from "../particles/look";
 import { DEFAULT_PARTICLES, colorParticles } from "../particles/palette";
-import { mountBackgroundPanel } from "../particles/backgroundPanel";
 
 export interface IntroOptions {
   particleColor?: string;
+  // Démarre directement sur le ruban formé (animation sautée).
+  skip?: boolean;
 }
 
 const COUNT = 4500;
@@ -37,7 +38,7 @@ function gaussian() {
   return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
 }
 
-export function createIntro(canvas: HTMLCanvasElement, { particleColor }: IntroOptions = {}) {
+export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: IntroOptions = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(DEFAULT_BACKGROUND.colorDark);
@@ -60,7 +61,6 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor }: IntroO
   const look = createParticleLook(mesh);
   look.setSettings(DEFAULT_PARTICLES);
   const glow = createGlow(mesh);
-  const unmountPanel = import.meta.env.DEV ? mountBackgroundPanel(bg, mesh, glow, look) : undefined;
   mesh.frustumCulled = false;
   scene.add(mesh);
   scene.add(glow.points);
@@ -68,6 +68,8 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor }: IntroO
   const { table, length } = buildPath();
   const spawnWindow = length / PATH_SPEED;
   const morphStart = spawnWindow + LOOP_HOLD_SECONDS;
+  // Durée totale : le ruban est complet à cet instant.
+  const duration = morphStart + MORPH_STAGGER_SECONDS + MORPH_SECONDS;
 
   const delay = new Float32Array(COUNT);
   const speed = new Float32Array(COUNT);
@@ -96,7 +98,7 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor }: IntroO
 
   const dummy = new THREE.Object3D();
   const ribbonPos = new THREE.Vector3();
-  const startedAt = performance.now();
+  const startedAt = performance.now() - (skip ? duration * 1000 : 0);
   let ribbonScale = 1;
   let frame = 0;
 
@@ -171,6 +173,7 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor }: IntroO
   render();
 
   return {
+    duration,
     setParticleColor: (color: string) => {
       colorParticles(mesh, [color]);
     },
@@ -180,7 +183,6 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor }: IntroO
       geometry.dispose();
       material.dispose();
       mesh.dispose();
-      unmountPanel?.();
       glow.dispose();
       look.dispose();
       bg.dispose();

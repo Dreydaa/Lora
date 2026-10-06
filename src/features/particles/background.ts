@@ -26,9 +26,6 @@ export interface BackgroundSettings {
   coreSharpness: number;
   detailStrength: number;
   detailFrequency: number;
-  // Trame en quadrillage (visible surtout dans les tons moyens) : force et pas en pixels écran.
-  meshStrength: number;
-  meshSize: number;
   // Animation du fond. animSpeed accélère/ralentit tout (0 = figé). Balancement : la lumière
   // oscille de ±swayAngle degrés sur swayPeriod secondes. Scintillement : chaque fin rayon pulse
   // à son rythme (force 0..1, vitesse en rad/s). Respiration : le cœur et la luminosité pulsent
@@ -77,8 +74,6 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
   coreSharpness: 2.6,
   detailStrength: 0.15,
   detailFrequency: 200,
-  meshStrength: 0.08,
-  meshSize: 4,
   animSpeed: 4,
   swayAngle: 2,
   swayPeriod: 60,
@@ -105,7 +100,7 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
 // Fond plein écran dessiné en espace écran, derrière tout le reste : un éclat de rayons (zoom
 // radial) dont la luminosité varie avec l'angle autour du centre (profil extrait de la photo,
 // plus un peu de bruit pour de fins rayons qui scintillent) et s'éteint vers le cœur, converti en
-// couleur par la palette, puis une trame en quadrillage et l'ombre portée du ruban.
+// couleur par la palette, puis l'ombre portée du ruban.
 const VERTEX = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -126,7 +121,6 @@ const FRAGMENT = /* glsl */ `
   uniform float uDetail;       // force des fins rayons
   uniform vec2 uDetailCycles;  // rayons par tour, deux octaves
   uniform vec2 uShimmer;       // force, vitesse du scintillement
-  uniform vec2 uMesh;          // force, pas en pixels du buffer
   uniform vec3 uC0;
   uniform vec3 uC1;
   uniform vec3 uC2;
@@ -188,11 +182,6 @@ const FRAGMENT = /* glsl */ `
 
     float l = clamp(ray * core * detail * shimmer * uBrightness, 0.0, 1.0);
 
-    // Trame : lignes horizontales et verticales, d'autant plus visibles que le ton est moyen.
-    float mid = pow(4.0 * l * (1.0 - l), 1.5);
-    vec2 g = gl_FragCoord.xy / max(uMesh.y, 1.0) * 6.2831853;
-    l = clamp(l + uMesh.x * mid * 0.5 * (cos(g.x) + cos(g.y)), 0.0, 1.0);
-
     vec3 color = ramp(l);
 
     // Ombre : noyau sombre + pénombre large, pour que le ruban semble flotter au-dessus du sol.
@@ -235,7 +224,6 @@ export function createBackground(initial: Partial<BackgroundSettings> = {}) {
       uDetail: { value: 0 },
       uDetailCycles: { value: new THREE.Vector2(1, 3) },
       uShimmer: { value: new THREE.Vector2() },
-      uMesh: { value: new THREE.Vector2(0, 4) },
       uC0: { value: new THREE.Color() },
       uC1: { value: new THREE.Color() },
       uC2: { value: new THREE.Color() },
@@ -263,7 +251,6 @@ export function createBackground(initial: Partial<BackgroundSettings> = {}) {
   let camera: THREE.PerspectiveCamera | null = null;
   let ribbonScale = 1;
   let shadowAmount = 0;
-  let pixelRatio = 1;
   // Horloge de l'animation, en secondes ; avance au rythme de animSpeed.
   let time = 0;
   let lastFrame = performance.now();
@@ -329,7 +316,6 @@ export function createBackground(initial: Partial<BackgroundSettings> = {}) {
     const cycles = Math.max(1, Math.round(settings.detailFrequency));
     u.uDetailCycles.value.set(cycles, cycles * 2 + 1);
     u.uShimmer.value.set(settings.shimmerStrength, settings.shimmerSpeed);
-    u.uMesh.value.set(settings.meshStrength, settings.meshSize * pixelRatio);
     u.uShadowShape.value.set(
       settings.shadowCoreStrength,
       settings.shadowCoreFalloff,
@@ -342,17 +328,11 @@ export function createBackground(initial: Partial<BackgroundSettings> = {}) {
   };
   apply();
 
-  // À chaque image : fait avancer l'horloge, et suit le ratio de pixels du rendu (le pas de la
-  // trame est exprimé en pixels écran).
-  mesh.onBeforeRender = (renderer) => {
+  // À chaque image : fait avancer l'horloge.
+  mesh.onBeforeRender = () => {
     const now = performance.now();
     time += Math.min((now - lastFrame) / 1000, 0.1) * settings.animSpeed;
     lastFrame = now;
-    const ratio = renderer.getPixelRatio();
-    if (ratio !== pixelRatio) {
-      pixelRatio = ratio;
-      u.uMesh.value.y = settings.meshSize * ratio;
-    }
     animate();
   };
 
