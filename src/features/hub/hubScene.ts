@@ -4,7 +4,6 @@ import { DEFAULT_BACKGROUND, createBackground } from "../particles/background";
 import { createGlow } from "../particles/glow";
 import { createParticleLook } from "../particles/look";
 import { DEFAULT_PARTICLES, colorParticles } from "../particles/palette";
-import { mountBackgroundPanel } from "../particles/backgroundPanel";
 
 export interface HubOptions {
   particleColor?: string;
@@ -40,7 +39,6 @@ export function createHub(canvas: HTMLCanvasElement, { particleColor }: HubOptio
   const look = createParticleLook(mesh);
   look.setSettings(DEFAULT_PARTICLES);
   const glow = createGlow(mesh);
-  const unmountPanel = import.meta.env.DEV ? mountBackgroundPanel(bg, mesh, glow, look) : undefined;
   mesh.frustumCulled = false;
   scene.add(mesh);
   scene.add(glow.points);
@@ -101,7 +99,6 @@ export function createHub(canvas: HTMLCanvasElement, { particleColor }: HubOptio
       geometry.dispose();
       material.dispose();
       mesh.dispose();
-      unmountPanel?.();
       glow.dispose();
       look.dispose();
       bg.dispose();

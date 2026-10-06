@@ -1,0 +1,86 @@
+/* Blocs du dashboard en verre : mêmes proportions, pastilles et tuiles que le calendrier (calendar.css). */
+.gw { display: flex; flex-direction: column; gap: 0.9em; height: 100%; min-height: 0; }
+.gw p, .gw h2, .gw h3 { margin: 0; }
+.gw ul { list-style: none; margin: 0; padding: 0; }
+
+.gw-head { display: flex; align-items: center; justify-content: space-between; gap: 1em; }
+.gw-head h2 { font-size: 1.5em; font-weight: 600; letter-spacing: -0.01em; }
+.gw-pill { display: inline-flex; align-items: center; gap: 0.4em; padding: 0.3em 0.9em; border-radius: 999px; background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); font-variant-numeric: tabular-nums; }
+.gw-icon[data-tone="sun"] svg { color: #ffc56e; }
+.gw-icon[data-tone="moon"] svg { color: #c9a0ff; }
+
+.gw-list { display: flex; flex-direction: column; gap: 0.5em; min-height: 0; overflow: auto; scrollbar-width: none; }
+/* Bento remodelé (cartes plus basses) : la dernière ligne visible s'estompe au lieu d'être tranchée. */
+.glass-stage[data-focus] .glass-col-a .gw-list { -webkit-mask-image: linear-gradient(180deg, #000 75%, transparent); mask-image: linear-gradient(180deg, #000 75%, transparent); }
+.gw-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.8em; padding: 0.7em 0.9em; border-radius: 1.1em; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.gw-row .gcal-logo { width: 2.2em; height: 2.2em; border-radius: 0.7em; }
+.gw-row .gcal-logo svg { width: 1.4em; height: 1.4em; }
+.gw-row-sm { padding: 0.45em 0.8em; font-size: 0.92em; }
+.gw-row-sm .gcal-logo { width: 1.6em; height: 1.6em; border-radius: 0.5em; }
+.gw-row-sm .gcal-logo svg { width: 1em; height: 1em; }
+.gw-title { font-size: 1.1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gw-row-sm .gw-title { font-size: 1em; }
+.gw-meta { opacity: 0.7; font-variant-numeric: tabular-nums; }
+.gw-size { display: flex; gap: 0.2em; align-items: flex-end; height: 1.2em; }
+.gw-size i { width: 0.35em; border-radius: 0.2em; background: rgba(255, 255, 255, 0.22); }
+.gw-size i:nth-child(1) { height: 40%; }
+.gw-size i:nth-child(2) { height: 70%; }
+.gw-size i:nth-child(3) { height: 100%; }
+.gw-size i[data-on="true"] { background: #fff; }
+
+.gw-text { display: flex; flex-direction: column; gap: 0.7em; min-height: 0; overflow: auto; scrollbar-width: none; font-size: 1.05em; line-height: 1.45; }
+.gw-sub { opacity: 0.75; font-size: 0.9em; }
+.gw-section { font-size: 0.85em; font-weight: 500; opacity: 0.65; margin-bottom: -0.4em; }
+.gw-empty { opacity: 0.7; }
+
+/* Petits blocs (carrés) : étiquette en haut, valeur au centre, détail en bas. */
+.gw-mini { justify-content: space-between; gap: 0.3em; }
+.gw-label { display: flex; align-items: center; justify-content: space-between; font-size: 0.8em; opacity: 0.7; }
+.gw-tag { font-style: normal; padding: 0.05em 0.5em; border-radius: 999px; background: rgba(255, 255, 255, 0.16); }
+.gw-big { display: flex; align-items: center; gap: 0.3em; }
+.gw-big b { font-size: 2.4em; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+.gw-total { font-size: 1.9em; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+.gw-bar { display: flex; gap: 2px; height: 0.55em; border-radius: 999px; overflow: hidden; }
+.gw-bar i { min-width: 0; border-radius: 2px; }
+/* Bloc cliquable : le bouton remplit toute la carte (le padding du corps est repris par le bouton). */
+.glass-body:has(> .gw-button) { padding: 0; }
+.gw-button { width: 100%; padding: calc(22 * var(--u)); border: 0; border-radius: inherit; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background 0.2s; }
+.gw-button:hover { background: rgba(255, 255, 255, 0.07); }
+.gw-button[aria-expanded="true"] { background: rgba(255, 255, 255, 0.12); }
+.gw-button:focus-visible { outline: 2px solid #fff; outline-offset: -4px; }
+.gw-total[data-tone="late"] { color: var(--late); }
+.gw-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.25; }
+
+/* Ligne du temps des jalons : frise horizontale, cartes en alternance au-dessus / en dessous. */
+.gt { animation: gcal-fade 0.35s ease 0.2s both; }
+.gt[data-leaving="true"] { animation: gcal-fade-out 0.2s ease forwards; }
+.gt-actions { display: flex; align-items: center; gap: 0.6em; }
+.gt-close { width: 2em; height: 2em; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.12); color: inherit; font: inherit; cursor: pointer; }
+.gt-close:hover { background: rgba(255, 255, 255, 0.22); }
+.gt-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* Marges aux extrémités (les cartes débordent de leur jalon) et bords en fondu quand la frise défile. */
+.gt-track { position: relative; flex: 1; min-height: 0; display: flex; padding: 0 3em; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, transparent, #000 3em, #000 calc(100% - 3em), transparent); mask-image: linear-gradient(90deg, transparent, #000 3em, #000 calc(100% - 3em), transparent); }
+.gt-item { --tone: rgba(255, 255, 255, 0.55); position: relative; flex: 0 0 7em; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.gt-item[data-tone="done"] { --tone: #7ee787; }
+.gt-item[data-tone="late"] { --tone: var(--late); }
+.gt-item[data-tone="doing"] { --tone: var(--perso); }
+.gt-item[data-tone="today"] { --tone: #ff9a70; }
+.gt-item::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; transform: translateY(-50%); background: rgba(255, 255, 255, 0.25); }
+.gt-node { position: relative; z-index: 1; width: 1.1em; height: 1.1em; border-radius: 50%; background: var(--tone); box-shadow: 0 0 0 0.3em rgba(255, 255, 255, 0.12), 0 0 0.9em var(--tone); }
+.gt-item[data-today="true"] .gt-node { width: 1.3em; height: 1.3em; background: none; box-shadow: inset 0 0 0 2px var(--tone), 0 0 0.9em var(--tone); }
+.gt-slot { flex: 1; min-height: 0; display: flex; justify-content: center; width: 100%; }
+.gt-up { align-items: flex-end; padding-bottom: 0.7em; }
+.gt-down { align-items: flex-start; padding-top: 0.7em; }
+.gt-card { flex: none; width: 13em; display: flex; flex-direction: column; gap: 0.2em; padding: 0.55em 0.8em; border-radius: 1em; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 2px 0 var(--tone, #fff); }
+.gt-card h3 { margin: 0; min-width: 0; font-size: 1em; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gt-card p { margin: 0; font-size: 0.85em; color: rgba(255, 255, 255, 0.7); }
+.gt-card-top { display: flex; align-items: center; gap: 0.5em; }
+.gt-card-top .gcal-logo { flex: none; width: 1.5em; height: 1.5em; border-radius: 0.45em; }
+.gt-card-top .gcal-logo svg { width: 0.95em; height: 0.95em; }
+.gt-due { font-weight: 600; color: var(--tone); }
+.gt-today { padding: 0.3em 0.9em; border-radius: 999px; background: rgba(255, 154, 112, 0.18); color: #ffb48f; box-shadow: inset 0 0 0 1px rgba(255, 154, 112, 0.5); font-size: 0.9em; }
+@media (prefers-reduced-motion: reduce) { .gt { animation: none !important; } }
+
+.gw-stats { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
+.gw-stats b { display: block; font-size: 1.9em; font-weight: 600; line-height: 1.1; }
+.gw-stats span { font-size: 0.72em; opacity: 0.7; white-space: nowrap; }

@@ -1,0 +1,92 @@
+/* Fenêtre verrouillée (1440 ou 1920 de large) : la grille de la maquette est mise à l'échelle, sans mise en page alternative. */
+.glass-root { position: fixed; inset: 0; overflow: hidden; }
+.glass-bg { position: fixed; inset: 0; }
+
+.glass-stage {
+  --u: min(100vw / 1440, 100vh / 1024);
+  position: relative;
+  box-sizing: border-box;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 736fr 544fr;
+  gap: calc(var(--g-gap) * var(--u));
+  padding: calc(var(--g-margin) * var(--u));
+}
+.glass-col { display: grid; gap: calc(var(--g-gap) * var(--u)); min-width: 0; min-height: 0; }
+.glass-col-b { grid-template-rows: 351fr 512fr; }
+
+/* Colonne gauche : 4 cartes (lignes 1, 3, 5, 7) séparées par des pistes d'écart (lignes 2, 4, 6). La 4e carte
+   (« ligne du temps », ajoutée par le clic sur Prochain jalon) et l'écart qui la précède sont repliés à 0 hors mode
+   « jalons » : ainsi tout s'anime avec grid-template-rows seul, sans vide ni marge animée. */
+.glass-col-a { --gap: calc(var(--g-gap) * var(--u)); row-gap: 0; grid-template-rows: 383fr var(--gap) 160fr var(--gap) 288fr 0px 0fr; }
+.glass-col-a > :nth-child(1) { grid-row: 1; }
+.glass-col-a > :nth-child(2) { grid-row: 3; }
+.glass-col-a > :nth-child(3) { grid-row: 5; }
+.glass-col-a > :nth-child(4) { grid-row: 7; }
+
+/* Mode « jalons » : la carte vide du bas passe de 288 à 140, Projets de 383 à 230, et la nouvelle carte (270) s'insère
+   dessous ; les petits blocs et la colonne de droite ne bougent pas. Durée = FOCUS_MS dans GlassPage.tsx. */
+.glass-col { transition: grid-template-rows 0.6s cubic-bezier(0.25, 1, 0.5, 1); }
+.glass-stage[data-focus="milestones"] .glass-col-a { grid-template-rows: 230fr var(--gap) 160fr var(--gap) 140fr var(--gap) 270fr; }
+@media (prefers-reduced-motion: reduce) { .glass-col { transition: none; } }
+.glass-small-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--g-gap) * var(--u)); min-height: 0; }
+
+.glass {
+  position: relative;
+  opacity: 0;
+  transform: translateY(calc(16 * var(--u)));
+  transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition-delay: calc(var(--i, 0) * 70ms);
+  min-width: 0;
+  min-height: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--g-tint-rgb), calc(var(--g-tint-a) * (1 + var(--g-grad)))),
+    rgba(var(--g-tint-rgb), calc(var(--g-tint-a) * (1 - var(--g-grad))))
+  );
+  box-shadow:
+    inset 0 0 calc(var(--g-glow) * var(--u)) rgba(255, 255, 255, var(--g-glow-a)),
+    0 calc(var(--g-shadow-y) * var(--u)) calc(var(--g-shadow-blur) * var(--u)) rgba(var(--g-shadow-rgb), var(--g-shadow-a));
+}
+/* Contenu d'une carte, par-dessus le reflet. --fs : taille de texte de base. */
+.glass-body {
+  --fs: max(12px, calc(14 * var(--u)));
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  padding: calc(22 * var(--u));
+  border-radius: inherit;
+  overflow: hidden;
+  color: #fff;
+  font: var(--fs) / 1.35 system-ui, sans-serif;
+}
+/* Verre teinté sombre : garde le texte lisible sur les rayons clairs. */
+.glass-dark { --g-tint-rgb: 8, 12, 36; --g-tint-a: 0.42; }
+
+.glass-stage[data-ready="true"] .glass { opacity: 1; transform: none; }
+/* Carte ajoutée en mode « jalons » : invisible tant que le mode est fermé, fondu après le début du remodelage. */
+.glass-timeline { transition: opacity 0.4s ease 0.15s, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.glass-stage:not([data-focus]) .glass-timeline { opacity: 0; pointer-events: none; transition-delay: 0s; }
+.glass-lg { border-radius: calc(var(--g-radius-lg) * var(--u)); }
+.glass-sm { border-radius: calc(var(--g-radius-sm) * var(--u)); }
+
+/* Reflet spéculaire du biseau : carte générée dans glass.ts à partir des normales du bord. */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--g-spec-img) center / 100% 100% no-repeat;
+  pointer-events: none;
+}
+
+/* Grain fin. */
+.glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: var(--g-grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
