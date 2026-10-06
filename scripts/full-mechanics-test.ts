@@ -8,7 +8,7 @@ import { getHistory, appendToHistory } from "../lib/memory";
 import { detectMode, scheduledModeFromTime } from "../lib/modes";
 import { getSettings, updateModeSchedule } from "../lib/notion/settings";
 import { askSoza, resolveModel } from "../lib/ai/client";
-import { buildBriefing } from "../lib/briefing";
+import { agendaLine, bilanLine, buildBriefing } from "../lib/briefing";
 import { notion } from "../lib/notion/client";
 
 const results: { name: string; ok: boolean; detail?: string }[] = [];
@@ -149,6 +149,16 @@ async function main() {
   }
 
   console.log("\n=== 7. Briefing (fallback + LLM) ===");
+  const today0 = "2026-10-07";
+  const item = (title: string, date: string | null) => ({ id: "x", title, date, status: "À faire", mode: "ACTIF" as const, type: "Perso" as const });
+  record("bilanLine: bilan d'hier repris", bilanLine({ review: "ok", date: "2026-10-06" }, today0) === "Bilan d'hier: ok.");
+  record("bilanLine: bilan saisi après minuit compte pour hier", bilanLine({ review: "ok", date: "2026-10-07" }, today0).includes("ok"));
+  record("bilanLine: ancien bilan présenté comme manquant", bilanLine({ review: "vieux", date: "2026-10-03" }, today0).includes("AUCUN") && !bilanLine({ review: "vieux", date: "2026-10-03" }, today0).includes("vieux"));
+  record("bilanLine: aucun bilan jamais", bilanLine({ review: "Aucun bilan", date: null }, today0).includes("AUCUN"));
+  const agenda0 = agendaLine([item("Dentiste", "2026-10-07"), item("Coiffeur", "2026-10-08T14:30:00"), item("Cinéma", "2026-10-11"), item("Mariage", "2026-11-20")], today0);
+  record("agendaLine: échéances explicites", agenda0.includes("Dentiste (aujourd'hui)") && agenda0.includes("Coiffeur (demain à 14:30)") && agenda0.includes("Cinéma (dans 4 jours, dimanche 11/10)"), agenda0);
+  record("agendaLine: rien au-delà de 7 jours", !agenda0.includes("Mariage"));
+  record("agendaLine: agenda vide", agendaLine([], today0).includes("rien de prévu"));
   try {
     const briefing = await buildBriefing();
     record("buildBriefing retourne un texte non vide", !!briefing?.trim(), briefing.slice(0, 150));

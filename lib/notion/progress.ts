@@ -10,9 +10,11 @@ export async function getLatestProgress() {
     sorts: [{ property: "Date", direction: "descending" }],
   });
   const page: any = data.results[0];
+  const title: string = page?.properties?.Date?.title?.[0]?.plain_text ?? "";
   return {
     review:
       page?.properties?.Bilan?.rich_text?.[0]?.plain_text ?? "Aucun bilan",
+    date: /^\d{4}-\d{2}-\d{2}$/.test(title) ? title : null,
   };
 }
 
