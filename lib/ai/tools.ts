@@ -8,6 +8,9 @@ import { saveProgress } from "../notion/progress";
 import { updateModeSchedule, saveBriefingTime } from "../notion/settings";
 import { upsertSchedule } from "../integrations/qstash";
 import { scheduledModeFromTime } from "../modes";
+import { clearBreak, setBreak } from "../memory";
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 export const sozaTools = {
   create_idea: tool({
@@ -210,6 +213,31 @@ export const sozaTools = {
       await upsertSchedule(scheduleId, path, time);
       await saveBriefingTime(type, time, scheduleId);
       return { success: true, type, time };
+    },
+  }),
+
+  set_break: tool({
+    description:
+      "Met Soza en pause sur une période où l'utilisateur ne travaillera pas (un week-end, des vacances...) : pendant ces jours, plus de briefing du matin ni de bilan du soir, et l'absence de bilan n'est pas reprochée. Au retour, le briefing accueille la reprise. À utiliser quand l'utilisateur annonce qu'il prend une pause ou ne bossera pas sur des jours précis. Remplace toute pause précédente. Convertis toi-même les expressions relatives (« ce week-end », « jusqu'à dimanche ») en dates à partir de la date du jour.",
+    inputSchema: z.object({
+      startDate: z.string().regex(ISO_DAY).describe("Premier jour de pause, YYYY-MM-DD (aujourd'hui si la pause commence maintenant)."),
+      endDate: z.string().regex(ISO_DAY).describe("Dernier jour de pause, inclus, YYYY-MM-DD."),
+    }),
+    execute: async ({ startDate, endDate }) => {
+      console.log("[tool] set_break →", { startDate, endDate });
+      if (endDate < startDate) return { success: false, reason: "La date de fin précède la date de début" };
+      await setBreak(startDate, endDate);
+      return { success: true, startDate, endDate };
+    },
+  }),
+
+  cancel_break: tool({
+    description: "Annule la pause en cours ou programmée : les briefings et bilans reprennent normalement.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] cancel_break");
+      await clearBreak();
+      return { success: true };
     },
   }),
 
