@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { daysBetween, todayInParis } from "./date";
 
 const redis = Redis.fromEnv();
 
@@ -32,4 +33,26 @@ export async function saveLastBriefing(text: string) {
 
 export async function getLastBriefing(): Promise<string | null> {
   return (await redis.get<string>(LAST_BRIEFING_KEY)) ?? null;
+}
+
+// Pause de plusieurs jours (week-end, vacances) : briefings et bilans suspendus, absence de bilan non reprochée.
+export type Break = { start: string; end: string };
+const BREAK_KEY = "break";
+
+export async function setBreak(start: string, end: string) {
+  // Reste lisible 3 jours après la fin : le briefing de reprise doit savoir que la veille était en pause.
+  const days = Math.max(daysBetween(todayInParis(), end), 0) + 3;
+  await redis.set(BREAK_KEY, { start, end }, { ex: days * 24 * 60 * 60 });
+}
+
+export async function getBreak(): Promise<Break | null> {
+  return (await redis.get<Break>(BREAK_KEY)) ?? null;
+}
+
+export async function clearBreak() {
+  await redis.del(BREAK_KEY);
+}
+
+export function inBreak(brk: Break | null, day: string): boolean {
+  return !!brk && day >= brk.start && day <= brk.end;
 }

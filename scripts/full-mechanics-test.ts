@@ -4,7 +4,7 @@ import { addIdea, findIdeaByTitle, archiveIdea, setIdeaStatus, updateIdeaNotes, 
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../lib/notion/milestones";
 import { addAgendaItem, addShiftSchedule, getUpcomingAgenda } from "../lib/notion/agenda";
 import { getLatestProgress, saveProgress } from "../lib/notion/progress";
-import { getHistory, appendToHistory } from "../lib/memory";
+import { getHistory, appendToHistory, setBreak, getBreak, clearBreak, inBreak } from "../lib/memory";
 import { detectMode, scheduledModeFromTime } from "../lib/modes";
 import { getSettings, updateModeSchedule } from "../lib/notion/settings";
 import { askSoza, resolveModel } from "../lib/ai/client";
@@ -159,6 +159,16 @@ async function main() {
   record("agendaLine: échéances explicites", agenda0.includes("Dentiste (aujourd'hui)") && agenda0.includes("Coiffeur (demain à 14:30)") && agenda0.includes("Cinéma (dans 4 jours, dimanche 11/10)"), agenda0);
   record("agendaLine: rien au-delà de 7 jours", !agenda0.includes("Mariage"));
   record("agendaLine: agenda vide", agendaLine([], today0).includes("rien de prévu"));
+  const brk0 = { start: "2026-10-10", end: "2026-10-11" };
+  const back0 = bilanLine({ review: "rig fini", date: "2026-10-09" }, "2026-10-12", brk0);
+  record("pause: retour sans reproche, dernier bilan rappelé", back0.includes("pas un manquement") && back0.includes("rig fini") && !back0.includes("AUCUN"));
+  record("pause: sans pause, la même situation = AUCUN bilan", bilanLine({ review: "rig fini", date: "2026-10-09" }, "2026-10-12", null).includes("AUCUN"));
+  record("pause: inBreak bornes incluses", inBreak(brk0, "2026-10-10") && inBreak(brk0, "2026-10-11") && !inBreak(brk0, "2026-10-12") && !inBreak(null, "2026-10-10"));
+  await setBreak("2000-01-01", "2000-01-02");
+  const storedBreak = await getBreak();
+  record("pause: round-trip Redis", storedBreak?.start === "2000-01-01" && storedBreak?.end === "2000-01-02");
+  await clearBreak();
+  record("pause: clearBreak supprime la clé", (await getBreak()) === null);
   try {
     const briefing = await buildBriefing();
     record("buildBriefing retourne un texte non vide", !!briefing?.trim(), briefing.slice(0, 150));
