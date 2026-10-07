@@ -5,6 +5,7 @@ import { DEFAULT_BACKGROUND, createBackground } from "../particles/background";
 import { createGlow } from "../particles/glow";
 import { createParticleLook } from "../particles/look";
 import { DEFAULT_PARTICLES, colorParticles } from "../particles/palette";
+import { mountParticlePanel } from "../particles/particlePanel";
 
 export interface IntroOptions {
   particleColor?: string;
@@ -61,6 +62,8 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: 
   const look = createParticleLook(mesh);
   look.setSettings(DEFAULT_PARTICLES);
   const glow = createGlow(mesh);
+  // Réglage en direct des particules : /?glass&skip&settings
+  const unmountPanel = new URLSearchParams(window.location.search).has("settings") ? mountParticlePanel(mesh, glow, look) : undefined;
   mesh.frustumCulled = false;
   scene.add(mesh);
   scene.add(glow.points);
@@ -180,6 +183,7 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: 
     dispose: () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
+      unmountPanel?.();
       geometry.dispose();
       material.dispose();
       mesh.dispose();
