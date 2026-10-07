@@ -1,5 +1,4 @@
 import { notion } from "./client";
-import { todayInParis } from "../date";
 
 const database = () => {
   const id = process.env.NOTION_SETTINGS_DATABASE_ID;
@@ -45,33 +44,6 @@ export async function getSettings(): Promise<SozaSettings> {
   const page = data.results[0];
   if (!page) throw new Error("Aucune ligne de config trouvée dans Soza Réglages");
   return parseSettings(page);
-}
-
-export async function updateModeSchedule(options: {
-  shiftActive: boolean;
-  effectiveDate: string;
-  shiftStartHour?: number;
-  shiftEndHour?: number;
-}) {
-  const settings = await getSettings();
-  const today = todayInParis();
-  const properties: Record<string, any> = {};
-
-  if (options.effectiveDate <= today) {
-    // Le changement s'applique dès maintenant : on écrit directement la valeur active
-    // et on efface tout changement différé en attente.
-    properties["Fenêtre pause active"] = { checkbox: options.shiftActive };
-    properties["Date de changement"] = { date: null };
-    properties["Nouvelle valeur fenêtre pause"] = { checkbox: false };
-  } else {
-    properties["Date de changement"] = { date: { start: options.effectiveDate } };
-    properties["Nouvelle valeur fenêtre pause"] = { checkbox: options.shiftActive };
-  }
-
-  if (options.shiftStartHour !== undefined) properties["Heure début pause"] = { number: options.shiftStartHour };
-  if (options.shiftEndHour !== undefined) properties["Heure fin pause"] = { number: options.shiftEndHour };
-
-  await notion().pages.update({ page_id: settings.pageId, properties });
 }
 
 export async function saveBriefingTime(type: "morning" | "evening", time: string, scheduleId: string) {

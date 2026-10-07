@@ -5,9 +5,8 @@ import { addIdea, findIdeaByTitle, archiveIdea, setIdeaStatus, updateIdeaNotes, 
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
 import { addAgendaItem, addShiftSchedule } from "../notion/agenda";
 import { saveProgress } from "../notion/progress";
-import { updateModeSchedule, saveBriefingTime } from "../notion/settings";
+import { saveBriefingTime } from "../notion/settings";
 import { upsertSchedule } from "../integrations/qstash";
-import { scheduledModeFromTime } from "../modes";
 import { clearBreak, setBreak } from "../memory";
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -138,7 +137,7 @@ export const sozaTools = {
     execute: async ({ title, date, endDate }) => {
       const finalEndDate = endDate ?? undefined;
       console.log("[tool] add_agenda_item →", { title, date, endDate: finalEndDate });
-      const page = await addAgendaItem(title, date, await scheduledModeFromTime(), "Perso", finalEndDate);
+      const page = await addAgendaItem(title, date, "Perso", finalEndDate);
       return { success: true, title, date, pageId: page.id };
     },
   }),
@@ -171,31 +170,6 @@ export const sozaTools = {
       console.log("[tool] list_milestones");
       const milestones = await getMilestones();
       return { milestones };
-    },
-  }),
-
-  update_mode_schedule: tool({
-    description:
-      "Change si la fenêtre PAUSE (basée sur les horaires de shift/travail) est active, à partir d'une date donnée. À utiliser quand l'utilisateur annonce un changement de contrat/travail qui affecte le besoin du mode calme automatique : ex. fin de contrat → plus de fenêtre pause (mode actif en continu), nouveau travail avec horaires → réactive la fenêtre pause.",
-    inputSchema: z.object({
-      shiftActive: z
-        .boolean()
-        .describe("true si un travail avec horaires fixes s'applique (fenêtre pause activée), false si plus aucun (mode actif en continu)"),
-      effectiveDate: z
-        .string()
-        .describe("Date ISO (YYYY-MM-DD) à partir de laquelle ce changement s'applique. Aujourd'hui si l'utilisateur dit 'maintenant' ou ne précise pas."),
-      shiftStartHour: z.number().min(0).max(23).nullish().describe("Nouvelle heure de début de la fenêtre pause, si elle change"),
-      shiftEndHour: z.number().min(0).max(23).nullish().describe("Nouvelle heure de fin de la fenêtre pause, si elle change"),
-    }),
-    execute: async ({ shiftActive, effectiveDate, shiftStartHour, shiftEndHour }) => {
-      console.log("[tool] update_mode_schedule →", { shiftActive, effectiveDate });
-      await updateModeSchedule({
-        shiftActive,
-        effectiveDate,
-        shiftStartHour: shiftStartHour ?? undefined,
-        shiftEndHour: shiftEndHour ?? undefined,
-      });
-      return { success: true, shiftActive, effectiveDate };
     },
   }),
 
@@ -248,7 +222,7 @@ export const sozaTools = {
     }),
     execute: async ({ review }) => {
       console.log("[tool] record_progress →", { review });
-      const page = await saveProgress(review, await scheduledModeFromTime());
+      const page = await saveProgress(review);
       return { success: true, pageId: page.id };
     },
   }),

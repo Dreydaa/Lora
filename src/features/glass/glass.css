@@ -15,19 +15,20 @@
 .glass-col { display: grid; gap: calc(var(--g-gap) * var(--u)); min-width: 0; min-height: 0; }
 .glass-col-b { grid-template-rows: 351fr 512fr; }
 
-/* Colonne gauche : 4 cartes (lignes 1, 3, 5, 7) séparées par des pistes d'écart (lignes 2, 4, 6). La 4e carte
-   (« ligne du temps », ajoutée par le clic sur Prochain jalon) et l'écart qui la précède sont repliés à 0 hors mode
-   « jalons » : ainsi tout s'anime avec grid-template-rows seul, sans vide ni marge animée. */
-.glass-col-a { --gap: calc(var(--g-gap) * var(--u)); row-gap: 0; grid-template-rows: 383fr var(--gap) 160fr var(--gap) 288fr 0px 0fr; }
+/* Colonne gauche : 4 cartes (lignes 1, 3, 5, 7) séparées par des pistes d'écart (lignes 2, 4, 6). La 3e carte
+   (« ligne du temps », ajoutée par le clic sur Prochain jalon) s'insère juste sous la rangée des petits blocs, et
+   elle et l'écart qui la précède sont repliés à 0 hors mode « jalons » : ainsi tout s'anime avec
+   grid-template-rows seul, sans vide ni marge animée. */
+.glass-col-a { --gap: calc(var(--g-gap) * var(--u)); row-gap: 0; grid-template-rows: 383fr var(--gap) 160fr 0px 0fr var(--gap) 288fr; }
 .glass-col-a > :nth-child(1) { grid-row: 1; }
 .glass-col-a > :nth-child(2) { grid-row: 3; }
 .glass-col-a > :nth-child(3) { grid-row: 5; }
 .glass-col-a > :nth-child(4) { grid-row: 7; }
 
-/* Mode « jalons » : la carte vide du bas passe de 288 à 140, Projets de 383 à 230, et la nouvelle carte (270) s'insère
-   dessous ; les petits blocs et la colonne de droite ne bougent pas. Durée = FOCUS_MS dans GlassPage.tsx. */
+/* Mode « jalons » : la nouvelle carte (270) s'insère sous les petits blocs, la carte vide du bas passe de 288 à 140
+   et Projets de 383 à 230 ; les petits blocs et la colonne de droite ne bougent pas. Durée = FOCUS_MS dans GlassPage.tsx. */
 .glass-col { transition: grid-template-rows 0.6s cubic-bezier(0.25, 1, 0.5, 1); }
-.glass-stage[data-focus="milestones"] .glass-col-a { grid-template-rows: 230fr var(--gap) 160fr var(--gap) 140fr var(--gap) 270fr; }
+.glass-stage[data-focus="milestones"] .glass-col-a { grid-template-rows: 230fr var(--gap) 160fr var(--gap) 270fr var(--gap) 140fr; }
 @media (prefers-reduced-motion: reduce) { .glass-col { transition: none; } }
 .glass-small-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--g-gap) * var(--u)); min-height: 0; }
 
@@ -59,7 +60,11 @@
   overflow: hidden;
   color: #fff;
   font: var(--fs) / 1.35 system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Le texte flotte sur un verre qui réfracte des rayons clairs : une ombre à peine visible le garde net. */
+  text-shadow: 0 1px 2px rgba(5, 11, 46, 0.28);
 }
+.glass-body ::selection { background: rgba(255, 255, 255, 0.3); text-shadow: none; }
 /* Verre teinté sombre : garde le texte lisible sur les rayons clairs. */
 .glass-dark { --g-tint-rgb: 8, 12, 36; --g-tint-a: 0.42; }
 
