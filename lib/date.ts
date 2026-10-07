@@ -11,6 +11,17 @@ export function todayInParis(date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(date);
 }
 
+// Calcul calendaire sur des dates "YYYY-MM-DD", en UTC pour ne jamais glisser d'un jour.
+export function addDays(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
 export function hourInParis(date = new Date()): number {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, hour: "numeric", hourCycle: "h23" }).formatToParts(date);
   return Number(parts.find((p) => p.type === "hour")?.value ?? date.getHours());

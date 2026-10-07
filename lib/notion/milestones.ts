@@ -19,6 +19,7 @@ export async function getMilestones(): Promise<Milestone[]> {
     dueDate: p.properties.Échéance?.date?.start ?? null,
     status: p.properties.Statut?.select?.name ?? "À faire",
     proofUrl: p.properties.Preuve?.url,
+    ideaId: p.properties["Idée liée"]?.relation?.[0]?.id,
   }));
 }
 

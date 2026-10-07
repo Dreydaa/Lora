@@ -72,3 +72,7 @@ Le script `scripts/full-mechanics-test.ts` (lancé via `tsx --env-file=.env scri
 ## État du projet
 
 Voir [`docs/ai/STATUS.md`](docs/ai/STATUS.md) pour le détail de ce qui est fait et ce qu'il reste à faire.
+
+## Journal de construction
+
+[`docs/portfolio/BUILD-LOG.md`](docs/portfolio/BUILD-LOG.md) raconte comment le projet a été conçu : architecture, choix techniques et leurs raisons, bugs rencontrés, évolution du design — matière première pour une présentation portfolio.

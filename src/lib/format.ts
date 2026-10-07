@@ -36,6 +36,19 @@ export function relativeDay(key: string) {
   return formatDay(key, { weekday: "short", day: "numeric", month: "short" });
 }
 
+const monthStart = (key: string) => `${key.slice(0, 7)}-01`;
+export const sameMonth = (a: string, b: string) => a.slice(0, 7) === b.slice(0, 7);
+
+// Premier jour du mois, `n` mois plus loin.
+export function addMonths(key: string, n: number) {
+  const date = parseKey(monthStart(key));
+  date.setMonth(date.getMonth() + n);
+  return toKey(date);
+}
+
+// 6 semaines complètes (lundi d'abord) qui couvrent le mois.
+export const monthCells = (key: string) => Array.from({ length: 42 }, (_, i) => addDays(startOfWeek(monthStart(key)), i));
+
 // "05:00" → "5h", "17:30" → "17h30"
 export function shortHour(time: string | null) {
   if (!time) return "";

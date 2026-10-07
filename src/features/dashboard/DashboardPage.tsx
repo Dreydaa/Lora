@@ -36,7 +36,7 @@ export function DashboardPage() {
           {tab === "blender" && <BlenderPanel milestones={data.milestones} />}
           {tab === "quiz" && <DailyQuiz question={data.quiz} />}
           {tab === "idees" && <IdeasPanel ideas={data.ideas} />}
-          {tab === "reglages" && <SettingsPanel settings={data.settings} mode={data.mode} />}
+          {tab === "reglages" && <SettingsPanel settings={data.settings} />}
         </section>
       </main>
     </div>

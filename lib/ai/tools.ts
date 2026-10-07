@@ -5,9 +5,11 @@ import { addIdea, findIdeaByTitle, archiveIdea, setIdeaStatus, updateIdeaNotes, 
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
 import { addAgendaItem, addShiftSchedule } from "../notion/agenda";
 import { saveProgress } from "../notion/progress";
-import { updateModeSchedule, saveBriefingTime } from "../notion/settings";
+import { saveBriefingTime } from "../notion/settings";
 import { upsertSchedule } from "../integrations/qstash";
-import { scheduledModeFromTime } from "../modes";
+import { clearBreak, setBreak } from "../memory";
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 export const sozaTools = {
   create_idea: tool({
@@ -135,7 +137,7 @@ export const sozaTools = {
     execute: async ({ title, date, endDate }) => {
       const finalEndDate = endDate ?? undefined;
       console.log("[tool] add_agenda_item →", { title, date, endDate: finalEndDate });
-      const page = await addAgendaItem(title, date, await scheduledModeFromTime(), "Perso", finalEndDate);
+      const page = await addAgendaItem(title, date, "Perso", finalEndDate);
       return { success: true, title, date, pageId: page.id };
     },
   }),
@@ -171,31 +173,6 @@ export const sozaTools = {
     },
   }),
 
-  update_mode_schedule: tool({
-    description:
-      "Change si la fenêtre PAUSE (basée sur les horaires de shift/travail) est active, à partir d'une date donnée. À utiliser quand l'utilisateur annonce un changement de contrat/travail qui affecte le besoin du mode calme automatique : ex. fin de contrat → plus de fenêtre pause (mode actif en continu), nouveau travail avec horaires → réactive la fenêtre pause.",
-    inputSchema: z.object({
-      shiftActive: z
-        .boolean()
-        .describe("true si un travail avec horaires fixes s'applique (fenêtre pause activée), false si plus aucun (mode actif en continu)"),
-      effectiveDate: z
-        .string()
-        .describe("Date ISO (YYYY-MM-DD) à partir de laquelle ce changement s'applique. Aujourd'hui si l'utilisateur dit 'maintenant' ou ne précise pas."),
-      shiftStartHour: z.number().min(0).max(23).nullish().describe("Nouvelle heure de début de la fenêtre pause, si elle change"),
-      shiftEndHour: z.number().min(0).max(23).nullish().describe("Nouvelle heure de fin de la fenêtre pause, si elle change"),
-    }),
-    execute: async ({ shiftActive, effectiveDate, shiftStartHour, shiftEndHour }) => {
-      console.log("[tool] update_mode_schedule →", { shiftActive, effectiveDate });
-      await updateModeSchedule({
-        shiftActive,
-        effectiveDate,
-        shiftStartHour: shiftStartHour ?? undefined,
-        shiftEndHour: shiftEndHour ?? undefined,
-      });
-      return { success: true, shiftActive, effectiveDate };
-    },
-  }),
-
   update_briefing_schedule: tool({
     description:
       "Change l'heure d'envoi du briefing du matin ou du bilan du soir. À utiliser quand l'utilisateur demande explicitement de décaler l'un de ces deux messages automatiques.",
@@ -213,6 +190,31 @@ export const sozaTools = {
     },
   }),
 
+  set_break: tool({
+    description:
+      "Met Soza en pause sur une période où l'utilisateur ne travaillera pas (un week-end, des vacances...) : pendant ces jours, plus de briefing du matin ni de bilan du soir, et l'absence de bilan n'est pas reprochée. Au retour, le briefing accueille la reprise. À utiliser quand l'utilisateur annonce qu'il prend une pause ou ne bossera pas sur des jours précis. Remplace toute pause précédente. Convertis toi-même les expressions relatives (« ce week-end », « jusqu'à dimanche ») en dates à partir de la date du jour.",
+    inputSchema: z.object({
+      startDate: z.string().regex(ISO_DAY).describe("Premier jour de pause, YYYY-MM-DD (aujourd'hui si la pause commence maintenant)."),
+      endDate: z.string().regex(ISO_DAY).describe("Dernier jour de pause, inclus, YYYY-MM-DD."),
+    }),
+    execute: async ({ startDate, endDate }) => {
+      console.log("[tool] set_break →", { startDate, endDate });
+      if (endDate < startDate) return { success: false, reason: "La date de fin précède la date de début" };
+      await setBreak(startDate, endDate);
+      return { success: true, startDate, endDate };
+    },
+  }),
+
+  cancel_break: tool({
+    description: "Annule la pause en cours ou programmée : les briefings et bilans reprennent normalement.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] cancel_break");
+      await clearBreak();
+      return { success: true };
+    },
+  }),
+
   record_progress: tool({
     description: "Enregistre le bilan du jour dans Notion.",
     inputSchema: z.object({
@@ -220,7 +222,7 @@ export const sozaTools = {
     }),
     execute: async ({ review }) => {
       console.log("[tool] record_progress →", { review });
-      const page = await saveProgress(review, await scheduledModeFromTime());
+      const page = await saveProgress(review);
       return { success: true, pageId: page.id };
     },
   }),

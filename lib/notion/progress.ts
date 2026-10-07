@@ -1,5 +1,4 @@
 import { notion } from "./client";
-import type { SozaMode } from "../types";
 import { todayInParis } from "../date";
 export async function getLatestProgress() {
   const database_id = process.env.NOTION_PROGRESS_DATABASE_ID;
@@ -10,13 +9,15 @@ export async function getLatestProgress() {
     sorts: [{ property: "Date", direction: "descending" }],
   });
   const page: any = data.results[0];
+  const title: string = page?.properties?.Date?.title?.[0]?.plain_text ?? "";
   return {
     review:
       page?.properties?.Bilan?.rich_text?.[0]?.plain_text ?? "Aucun bilan",
+    date: /^\d{4}-\d{2}-\d{2}$/.test(title) ? title : null,
   };
 }
 
-export async function saveProgress(review: string, mode: SozaMode) {
+export async function saveProgress(review: string) {
   const database_id = process.env.NOTION_PROGRESS_DATABASE_ID;
   if (!database_id) throw new Error("NOTION_PROGRESS_DATABASE_ID is missing");
   const date = todayInParis();
@@ -25,7 +26,6 @@ export async function saveProgress(review: string, mode: SozaMode) {
     properties: {
       Date: { title: [{ text: { content: date } }] },
       Bilan: { rich_text: [{ text: { content: review } }] },
-      Mode: { select: { name: mode } },
     },
   });
 }
