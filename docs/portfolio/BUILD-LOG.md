@@ -1,6 +1,6 @@
 # Soza — étude de cas et journal de construction
 
-Soza est un assistant personnel piloté par Telegram, doublé d'une application de bureau, construit de zéro en trois semaines (16 septembre → 6 octobre 2026). Ce document raconte **comment** : l'architecture, les choix et leurs compromis, les bugs et leurs causes racines, ce qui a été essayé puis abandonné, et la méthode de travail.
+Soza est un assistant personnel piloté par Telegram, doublé d'une application de bureau, construit de zéro en trois semaines (16 septembre → 7 octobre 2026). Ce document raconte **comment** : l'architecture, les choix et leurs compromis, les bugs et leurs causes racines, ce qui a été essayé puis abandonné, et la méthode de travail.
 
 Il se lit à trois niveaux :
 
@@ -23,22 +23,24 @@ L'état d'avancement détaillé et daté vit dans [`docs/ai/STATUS.md`](../ai/ST
 - il envoie un **briefing le matin** (météo, agenda, bilan de la veille) et demande un **bilan le soir**, à des horaires modifiables en conversation ;
 - une **application de bureau** (Tauri + React) affiche tout cela dans un tableau de bord en « verre liquide » devant un ruban de Möbius en particules animé en temps réel.
 
-**Statut.** Backend en production et utilisé au quotidien. Dashboard en finition. Une V2 (assistant vocal local, protocoles, gestes) est cadrée mais volontairement pas commencée.
+**Statut.** Backend en production et utilisé au quotidien. Le dashboard en verre est devenu la page d'accueil de l'app (intro en particules, puis cartes) ; il reste du nettoyage et quelques blocs sur données d'exemple. Une V2 (assistant vocal local, protocoles, gestes) est cadrée mais volontairement pas commencée.
+
+**Un cadrage qui a évolué.** Soza est née comme un coach de discipline à deux personnalités (une exigeante, une protectrice, selon les horaires de travail). Le 07/10, l'utilisateur tenant sa cadence de travail, ce cadrage a été abandonné : une seule personnalité (« Friday »), plus de mode ACTIF/PAUSE, le produit se rapprochant d'un assistant du type Jarvis/FRIDAY. Le retrait a touché le backend (modes, prompts, outils, accès Notion, briefing, API du dashboard), les scripts et le front.
 
 ### Chiffres clés
 
 | | |
 | --- | --- |
-| Durée | 3 semaines (premier commit le 16/09/2026, dernier le 06/10/2026) |
-| Historique | 34 commits |
-| Code suivi par git | ~4 750 lignes de TypeScript/CSS/Rust : `api/` 177, `lib/` 1 151, `src/` 2 985, `scripts/` 422, Rust 17 |
+| Durée | 3 semaines (premier commit le 16/09/2026, dernier le 07/10/2026) |
+| Historique | 37 commits de travail (hors fusions de pull requests) |
+| Code suivi par git | ~4 850 lignes de TypeScript/CSS/Rust : `api/` 174, `lib/` 1 098, `src/` 3 199, `scripts/` 367, Rust 17 |
 | Endpoints serverless | 5 (webhook Telegram, worker, cron matin, cron soir, dashboard) |
-| Outils IA exposés au modèle | 14 |
+| Outils IA exposés au modèle | 13 |
 | Bases Notion | 5 (Idées, Agenda, Jalons, Progression, Réglages) |
 | Fournisseur LLM | 1 (Groq) — un second a été essayé puis retiré |
 | Dépendances d'exécution | 15, dont `three`, `zod`, `ai` (Vercel AI SDK), `@upstash/*`, `@notionhq/client` |
 
-Chiffres tirés de `git log` et du dépôt au 06/10/2026.
+Chiffres tirés de `git log` et du dépôt au 07/10/2026.
 
 ### Compétences démontrées
 
@@ -61,14 +63,15 @@ Chiffres tirés de `git log` et du dépôt au 06/10/2026.
 | 28/09 → 01/10 | **L'avatar** | Intro en particules (entrée, boucle, transformation en ruban de Möbius) ; hub statique ; fond en shader reconstruit à partir d'une photo de référence ; ombre, glow, rendu hologramme. 8 commits rien que le 30/09 pour trouver le fond. |
 | 30/09 | **Dashboard branché** | Nouvel endpoint agrégé `api/dashboard.ts` ; le front passe des données factices aux vraies données Notion. |
 | 06/10 | **Dashboard en verre et correctifs** | Disposition « bento » de la maquette, calendrier, blocs, frise des jalons ; correctif du briefing (bilan manquant, rappels d'agenda) ; pauses de plusieurs jours. |
-| à partir de 30/09 | **V2 cadrée** | Assistant vocal local, protocoles, puis (06/10) gestes de la main : documenté, pas démarré. |
+| 07/10 | **Une seule personnalité, dashboard par défaut, mise en ligne** | Les deux personnalités sont fusionnées en une seule (« Friday ») et le mode ACTIF/PAUSE est retiré de tout le code ; le dashboard en verre devient la page d'accueil de l'app ; le fond passe à un aplat bleu avec des particules blanches en fil de fer ; la fusion sur `main` déclenche le déploiement de production qui met enfin en ligne les correctifs de la veille. |
+| à partir de 30/09 | **V2 cadrée** | Assistant vocal local, protocoles, puis (06/10) gestes de la main : documenté, pas démarré. Le premier chantier (personnalité unique) a été fait le 07/10, en fin de V1. |
 
 ---
 
 ## Architecture
 
 ```
-Telegram ──▶ api/telegram-webhook.ts ──▶ QStash (file) ──▶ api/qstash-worker.ts ──▶ Groq (LLM + 14 outils) ──▶ Notion
+Telegram ──▶ api/telegram-webhook.ts ──▶ QStash (file) ──▶ api/qstash-worker.ts ──▶ Groq (LLM + 13 outils) ──▶ Notion
                     │                                              │
                     ▼                                              ▼
              valide chat_id                                  répond sur Telegram
@@ -103,11 +106,13 @@ docs/       état du projet, contexte IA, schéma Notion, V2, ce journal
 
 ## Le cœur IA : tool calling et prompts
 
-Le modèle ne « répond » pas seulement : il agit, via 14 outils (créer une idée, planifier un rendez-vous, enregistrer un bilan, changer l'heure du briefing, mettre en pause…), chacun défini par un schéma Zod. Quelques choix qui comptent :
+Le modèle ne « répond » pas seulement : il agit, via 13 outils (créer une idée, planifier un rendez-vous, enregistrer un bilan, changer l'heure du briefing, mettre en pause…), chacun défini par un schéma Zod. Quelques choix qui comptent :
 
 **Une phrase peut déclencher plusieurs actions.** Jusqu'à 4 étapes d'outils par message (« crée cette idée et planifie un point jeudi »).
 
 **Le doute vaut mieux que l'action.** Une consigne dédiée interdit de créer une idée ou un jalon sur une intention ambiguë : le modèle pose d'abord une question courte. Validé en conditions réelles.
+
+**Une seule personnalité.** Deux prompts de personnage (l'un exigeant, l'autre protecteur, choisis selon l'heure) ont été fusionnés en un seul, `friday.ts`, rédigé par l'utilisateur : le prompt dit à Soza que « Soza » est son nom, qu'elle parle à la première personne, et fixe son registre. Moins de code : le choix du personnage et la détection du mode ont disparu.
 
 **Le modèle décide des détails qu'il peut décider.** La taille d'un projet (Petit / Moyen / Grand) est estimée par le modèle selon une grille donnée dans la description de l'outil, au lieu d'être demandée à l'utilisateur. À l'inverse, il lui est interdit d'inventer le contenu d'une note.
 
@@ -125,7 +130,7 @@ Le modèle ne « répond » pas seulement : il agit, via 14 outils (créer une i
 | --- | --- | --- | --- |
 | **QStash** pour planifier briefing et bilan | Crons Vercel | Le plan gratuit limite à 1 exécution par jour avec ±59 min d'imprécision ; QStash a une API qui permet de changer l'heure *depuis une conversation*, sans redéployer | Un service tiers de plus |
 | **Webhook + file + worker** | Tout traiter dans le webhook | Un appel IA lent ne doit pas faire expirer/rejouer le webhook | Plus de pièces mobiles |
-| **Notion comme source de vérité, y compris la config** | Variables d'environnement, base dédiée | Modifier son rythme de travail en conversation naturelle, sans toucher au déploiement | Latence et limites de l'API Notion |
+| **Notion comme source de vérité, y compris la config** | Variables d'environnement, base dédiée | Changer l'heure du briefing et du bilan en conversation naturelle, sans toucher au déploiement | Latence et limites de l'API Notion |
 | **Un bloc Notion par jour de shift** | Un évènement récurrent | L'API Notion ne gère pas la récurrence : un bloc unique s'afficherait comme un évènement continu | Beaucoup de pages créées |
 | **Redis limité à l'éphémère** | Y mettre aussi l'état métier | Deux sources de vérité = divergences | Rien d'autre que du cache en Redis |
 | **La pause dans Redis, pas dans Notion** | Nouvelle propriété Notion | Évite de modifier le schéma de la base de production pour un état transitoire ; expire seul 3 jours après la fin | Pas visible dans Notion |
@@ -141,6 +146,7 @@ Savoir retirer est autant une compétence que savoir ajouter. Chaque retrait est
 
 - **Le « Proof of Work »** (preuve tangible d'une journée : lien, capture, export 3D, commit) : jugé trop lourd à l'usage, remplacé par un contrôle de cohérence conversationnel, puis supprimé.
 - **Le streak (compteur de jours consécutifs)** : retiré *en entier*, pas seulement son affichage. La machinerie qui le justifiait (contrôle d'horaire, vérification de cohérence) est partie avec, `record_progress` redevenant un simple enregistrement, et la colonne a été supprimée de la base Notion de production plutôt que laissée morte.
+- **Le mode ACTIF/PAUSE et les deux personnalités (07/10/2026)** : un mode qui basculait le ton du modèle selon les horaires de travail. Retiré en entier : le module de détection, le type, le champ dans Notion et dans l'API, l'outil qui le pilotait, les composants du dashboard. L'utilisateur tenait sa cadence de travail : le mécanisme n'avait plus d'utilité pour lui, et un mécanisme inutilisé reste du code à maintenir et à tester.
 - **Le second fournisseur LLM (Gemini)**, la refonte visuelle « éditoriale » du dashboard (repartie de zéro depuis Figma), le parallax du fond, une première version du fond en poussière à quatre couches, la mise en page mobile.
 
 ---
@@ -153,7 +159,7 @@ Chaque entrée suit : symptôme → cause → correction → leçon.
 Les jobs échouaient en 401 silencieux et étaient retentés sans fin. Cause : ils visaient `VERCEL_URL`, l'URL propre à chaque déploiement, protégée par défaut par Vercel Deployment Protection. Correction : une URL fixe (`APP_URL`) pointant sur l'alias de production. *Leçon : la protection par défaut d'une plateforme est facile à oublier tant qu'on ne teste pas un vrai appel externe.*
 
 **2. Le décalage horaire invisible.**
-La fenêtre « pause » se déclenchait avec 1 à 2 heures d'écart selon la saison. Cause : Vercel exécute en UTC ; `getHours()` et `toISOString()` donnaient l'heure UTC, pas celle de Paris. Correction : une conversion centralisée via `Intl` dans `lib/date.ts`, utilisée partout. *Leçon : ne jamais laisser chaque appelant refaire son propre calcul d'heure.*
+La fenêtre « pause » (celle de l'ancien mode ACTIF/PAUSE, retiré depuis) se déclenchait avec 1 à 2 heures d'écart selon la saison. Cause : Vercel exécute en UTC ; `getHours()` et `toISOString()` donnaient l'heure UTC, pas celle de Paris. Correction : une conversion centralisée via `Intl` dans `lib/date.ts`, utilisée partout. *Leçon : ne jamais laisser chaque appelant refaire son propre calcul d'heure.*
 
 **3. Un `null` explicite qui fait échouer toute une action.**
 Voir [Le cœur IA](#le-cœur-ia--tool-calling-et-prompts). *Leçon : une validation trop stricte sur la sortie d'un LLM fait échouer l'action de façon invisible au lieu de la rejeter proprement.*
@@ -171,7 +177,7 @@ Le premier déploiement tentait d'envoyer `node_modules` et la cible de compilat
 *Symptôme* : sans bilan la veille, le briefing du matin répétait le dernier bilan enregistré comme s'il datait d'hier. *Cause racine* : la requête renvoyait « le dernier bilan », quelle que soit sa date, et le texte envoyé au modèle disait « Hier : … ». Corriger le *prompt* n'aurait pas suffi : le modèle n'avait aucun moyen de savoir que cette information était périmée. *Correction* : la requête renvoie aussi la **date** du bilan ; le code décide si c'est « hier » ; sinon le modèle reçoit explicitement « Bilan d'hier : AUCUN, le dernier date du … » et doit le signaler. Le même correctif limite les rappels d'agenda aux 7 prochains jours avec une échéance écrite en toutes lettres (« demain à 14 h », « dans 4 jours, dimanche 11/10 »), car un rendez-vous à trois semaines était présenté comme s'il avait lieu aujourd'hui. *Leçon : ne demandez pas à un modèle de déduire une absence ou une date relative ; calculez-la et donnez-lui le fait.*
 
 **8. Un correctif écrit n'est pas un correctif livré.**
-Le lendemain du correctif ci-dessus, le briefing avait encore l'ancien comportement. Cause : les commits étaient sur une branche de travail, et la production se déploie depuis `main` ; la liste des déploiements montrait un dernier déploiement de production vieux de 7 jours. Indice décisif dans le texte lui-même : il citait un évènement à 23 jours, que le nouveau code aurait filtré. *Leçon : « terminé » veut dire déployé et observé en production, pas seulement mergé en local ; et un symptôme vous dit quelle version de votre code tourne.*
+Le lendemain du correctif ci-dessus, le briefing avait encore l'ancien comportement. Cause : les commits étaient sur une branche de travail, et la production se déploie depuis `main` ; la liste des déploiements montrait un dernier déploiement de production vieux de 7 jours. Indice décisif dans le texte lui-même : il citait un évènement à 23 jours, que le nouveau code aurait filtré. Résolu le 07/10 : la fusion de la pull request sur `main` a déclenché un déploiement de production, observé « Ready » dans la liste des déploiements. *Leçon : « terminé » veut dire déployé et observé en production, pas seulement mergé en local ; et un symptôme vous dit quelle version de votre code tourne.*
 
 ---
 
@@ -182,6 +188,8 @@ Le ruban de Möbius est un mesh instancié de 4 500 sphères positionnées par l
 
 ### Un fond reconstruit à partir d'une photo
 Le fond est un shader plein écran. Plutôt que de le régler à l'œil, le profil des rayons (360 valeurs, une par degré) a été **extrait automatiquement d'une photo de référence** (centre et courbe du cœur ajustés par moindres carrés). Mesuré sur le rendu seul : **0,978 de corrélation** avec la photo, à luminosité moyenne égale. Cette approche a remplacé des itérations purement visuelles, toutes abandonnées, qui avaient coûté 8 commits en une journée.
+
+**Puis simplifié.** Le 07/10, avec le dashboard en verre devant, ce fond a lui-même été remplacé par un aplat bleu et des particules blanches en fil de fer (réglées avec un panneau de développement qui copie la config à figer dans le code). Le shader et le profil de rayons restent dans le code, désactivés par leurs valeurs, sans être supprimés. Le résultat final est plus sobre que l'étape qui avait coûté le plus de travail.
 
 ### Le « verre liquide »
 Chaque carte du dashboard est un panneau de verre qui **réfracte** réellement le fond :
@@ -240,7 +248,7 @@ Les relecteurs expérimentés y regarderont en premier ; autant les dire.
 
 **Un garde-fou contre la dispersion.** Le projet s'est donné une règle écrite : ne pas commencer une idée de la V2 avant d'avoir fini la V1. Elle est inscrite en tête de `SozaV2.md` et rappelée à chaque nouvelle ambition. Les idées sont notées, discutées, cadrées, mais pas implémentées tant que le socle n'est pas fini.
 
-**Des décisions prises en discussion, puis écrites.** Les choix structurants (retrait du streak, mode ACTIF/PAUSE, moteur de détection du mot d'activation) sont discutés avec leurs alternatives, tranchés, puis consignés avec leur raison.
+**Des décisions prises en discussion, puis écrites.** Les choix structurants (retrait du streak, retrait du mode ACTIF/PAUSE au profit d'une personnalité unique, moteur de détection du mot d'activation) sont discutés avec leurs alternatives, tranchés, puis consignés avec leur raison.
 
 **Développement assisté par IA.** Le projet a été mené avec un assistant de code IA (Claude Code), guidé par des fichiers de contexte versionnés dans le dépôt (`CLAUDE.md`, `docs/ai/`). Les règles de sécurité (validation du `chat_id`, aucune tâche longue dans le webhook) y sont écrites noir sur blanc. Le dépôt montre aussi les limites de ce mode de travail : un correctif « fini » mais jamais déployé (voir bug 8), un modèle auquel on avait oublié de donner la date du jour (voir plus haut).
 
@@ -250,7 +258,7 @@ Les relecteurs expérimentés y regarderont en premier ; autant les dire.
 
 ## Vision V2 (résumé)
 
-La V2 rapproche Soza d'un assistant du type Jarvis/FRIDAY : une seule personnalité, des fonctionnalités qui servent l'utilisateur plutôt qu'un rôle de coach. Le détail est dans [`SozaV2.md`](../ai/SozaV2.md). Les décisions d'architecture déjà prises, avant la moindre ligne de code :
+La V2 rapproche Soza d'un assistant du type Jarvis/FRIDAY : une seule personnalité, des fonctionnalités qui servent l'utilisateur plutôt qu'un rôle de coach. Le premier pas, la personnalité unique et le retrait du mode ACTIF/PAUSE, a été fait dès le 07/10, en fin de V1. Le détail est dans [`SozaV2.md`](../ai/SozaV2.md). Les décisions d'architecture déjà prises, avant la moindre ligne de code :
 
 - **Hybride local/cloud, pas une IA locale complète.** Détection du mot d'activation et exécution d'actions sur la machine en local (accès OS obligatoire) ; raisonnement dans le cloud ; commandes simples reconnues en local pour la rapidité et le fonctionnement hors ligne.
 - **Principe « local plutôt que cloud »** : Notion reste la source de vérité pour ce qui doit être accessible à distance, le reste (réglages, défauts) vit sur la machine.
