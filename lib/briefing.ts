@@ -4,20 +4,27 @@ import { getUpcomingAgenda } from "./notion/agenda";
 import { getLatestProgress } from "./notion/progress";
 import { getWeather } from "./integrations/weather";
 import { getNews } from "./integrations/news";
-import { scheduledModeFromTime } from "./modes";
 import { addDays, daysBetween, todayInParis } from "./date";
 import type { AgendaItem } from "./types";
 import { getBreak, inBreak, type Break } from "./memory";
-import { ikkakuPrompt } from "./ai/prompts/ikkaku";
-import { jarvisPrompt } from "./ai/prompts/jarvis";
+import { fridayPrompt } from "./ai/prompts/friday";
 
+const BILAN_RULES = `
+- Bilan : si les données indiquent qu'AUCUN bilan n'a été fait hier, dis-le clairement dès le début et précise que ce n'est pas une bonne chose ; ne reprends jamais un ancien bilan comme s'il datait d'hier. S'il y a un bilan d'hier qui mentionne une tâche inachevée ou en cours, propose explicitement de la reprendre aujourd'hui.
+- Pause : si les données indiquent un retour de pause, accueille la reprise sans pression et sans reproche (pas de bilan manquant à signaler) ; rappelle le dernier bilan avant la pause et propose de reprendre là où il en était.`;
+
+// Briefing complet, envoyé sur Telegram.
 const BRIEFING_INSTRUCTION = `
 
-Tu écris le briefing du matin. Rédige un message court et naturel (pas une liste à puces) dans ton ton habituel, à partir des données fournies.
-- Bilan : si les données indiquent qu'AUCUN bilan n'a été fait hier, dis-le clairement dès le début et précise que ce n'est pas une bonne chose ; ne reprends jamais un ancien bilan comme s'il datait d'hier. S'il y a un bilan d'hier qui mentionne une tâche inachevée ou en cours, propose explicitement de la reprendre aujourd'hui.
-- Pause : si les données indiquent un retour de pause, accueille la reprise sans pression et sans reproche (pas de bilan manquant à signaler) ; rappelle le dernier bilan avant la pause et propose de reprendre là où il en était.
+Tu écris le briefing du matin. Rédige un message court et naturel (pas une liste à puces) dans ton ton habituel, à partir des données fournies.${BILAN_RULES}
 - Agenda : chaque rendez-vous vient avec son échéance (aujourd'hui, demain, dans N jours). Présente-le comme un rappel à venir et n'en parle jamais comme s'il avait lieu aujourd'hui, sauf si l'échéance est « aujourd'hui ».
 - Mentionne la météo ; ne cite les actualités que si elles apportent vraiment quelque chose au message.`;
+
+// Version affichée dans l'app : très courte, sans agenda ni actualités (le dashboard les affiche dans ses propres blocs).
+const DASHBOARD_BRIEFING_INSTRUCTION = `
+
+Tu écris le briefing du matin affiché sur le dashboard. Rédige un message très court (2 à 3 phrases, 50 mots maximum) et naturel (pas une liste à puces) dans ton ton habituel, à partir des données fournies. Ne cite ni rendez-vous ni actualités.${BILAN_RULES}
+- Mentionne la météo en quelques mots.`;
 
 const AGENDA_HORIZON_DAYS = 7;
 
@@ -53,6 +60,24 @@ export function agendaLine(items: AgendaItem[], today: string): string {
   return `Agenda des ${AGENDA_HORIZON_DAYS} prochains jours: ${upcoming.join(" · ") || "rien de prévu"}.`;
 }
 
+async function generateBriefing(instruction: string, contextSummary: string, fallback: string): Promise<string> {
+  try {
+    const model = resolveModel();
+
+    const { text } = await generateText({
+      model,
+      system: fridayPrompt + instruction,
+      prompt: `Données du jour:\n${contextSummary}`,
+    });
+
+    return text || fallback;
+  } catch {
+    // Modèle indisponible (quota, panne réseau...) : on garde un briefing basique plutôt que de faire planter le cron.
+    return fallback;
+  }
+}
+
+// Briefing complet envoyé sur Telegram.
 export async function buildBriefing(): Promise<string> {
   const [agenda, progress, weather, news, brk] = await Promise.all([
     getUpcomingAgenda(),
@@ -70,21 +95,12 @@ export async function buildBriefing(): Promise<string> {
     `À suivre: ${news.join(" · ")}`,
   ].join("\n");
 
-  const fallback = `SOZA — briefing\n${contextSummary}`;
+  return generateBriefing(BRIEFING_INSTRUCTION, contextSummary, `SOZA — briefing\n${contextSummary}`);
+}
 
-  try {
-    const mode = await scheduledModeFromTime();
-    const model = resolveModel();
-
-    const { text } = await generateText({
-      model,
-      system: (mode === "ACTIF" ? ikkakuPrompt : jarvisPrompt) + BRIEFING_INSTRUCTION,
-      prompt: `Données du jour:\n${contextSummary}`,
-    });
-
-    return text || fallback;
-  } catch {
-    // Modèle indisponible (quota, panne réseau...) : on garde un briefing basique plutôt que de faire planter le cron.
-    return fallback;
-  }
+// Version courte affichée dans le dashboard (enregistrée par le cron du matin) : bilan et météo seulement.
+export async function buildDashboardBriefing(): Promise<string> {
+  const [progress, weather, brk] = await Promise.all([getLatestProgress(), getWeather(), getBreak()]);
+  const contextSummary = [bilanLine(progress, todayInParis(), brk), `Météo: ${weather}.`].join("\n");
+  return generateBriefing(DASHBOARD_BRIEFING_INSTRUCTION, contextSummary, contextSummary);
 }

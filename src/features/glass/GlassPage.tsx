@@ -9,6 +9,7 @@ import { BriefingCard } from "../widgets/BriefingCard";
 import { MilestonesTimeline } from "../widgets/MilestonesTimeline";
 import { ProjectsCard } from "../widgets/ProjectsCard";
 import { AppUsageCard, NextMilestoneCard, ProjectStatsCard, WeatherCard } from "../widgets/SmallCards";
+import { WatchCard } from "../widgets/WatchCard";
 import { DEFAULT_GLASS, createGlass } from "./glass";
 import "./glass.css";
 
@@ -76,7 +77,7 @@ export function GlassPage() {
       </div>
       <div ref={stageRef} className="glass-stage" data-ready={ready} data-focus={timeline === "open" ? "milestones" : undefined}>
         <div className="glass-col glass-col-a">
-          <Card i={0} size="lg"><ProjectsCard ideas={data.ideas} /></Card>
+          <Card i={0} size="lg"><ProjectsCard ideas={data.ideas} milestones={data.milestones} /></Card>
           <div className="glass-small-row">
             <Card i={1} size="sm"><WeatherCard /></Card>
             <Card i={2} size="sm">
@@ -85,10 +86,10 @@ export function GlassPage() {
             <Card i={3} size="sm"><AppUsageCard /></Card>
             <Card i={4} size="sm"><ProjectStatsCard ideas={data.ideas} /></Card>
           </div>
-          <Card i={5} size="lg" />
           <Card i={8} size="lg" className="glass-timeline">
             {timeline !== "closed" && <MilestonesTimeline milestones={data.milestones} leaving={timeline === "closing"} onClose={closeTimeline} />}
           </Card>
+          <Card i={5} size="lg"><WatchCard articles={data.articles ?? []} /></Card>
         </div>
         <div className="glass-col glass-col-b">
           <Card i={6} size="lg">

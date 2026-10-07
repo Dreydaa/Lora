@@ -4,6 +4,14 @@
   --shift: #ffc56e;
   --jalon: #c9a0ff;
   --late: #ff7a7a;
+  /* Matière commune au calendrier et aux blocs : tuile (remplissage + liseré avec reflet sur l'arête haute), pastille, survol, ressort. */
+  --glass-fill: rgba(255, 255, 255, 0.07);
+  --glass-fill-hover: rgba(255, 255, 255, 0.14);
+  --glass-fill-strong: rgba(255, 255, 255, 0.17);
+  --glass-hairline: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --glass-chip: rgba(255, 255, 255, 0.1);
+  --glass-chip-line: inset 0 0 0 1px rgba(255, 255, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --glass-ease: cubic-bezier(0.25, 1, 0.5, 1);
 }
 .gcal {
   display: flex;
@@ -21,16 +29,17 @@
 .gcal-head h2 { grid-column: 2; grid-row: 1; margin: 0; text-align: center; font-size: 1.5em; font-weight: 600; letter-spacing: -0.01em; }
 .gcal-seg { grid-column: 1; grid-row: 1; justify-self: start; }
 .gcal-nav { grid-column: 3; grid-row: 1; justify-self: end; }
-.gcal-seg, .gcal-nav { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
-.gcal-seg button, .gcal-nav button { padding: 0.35em 0.9em; border-radius: 999px; transition: background 0.15s; }
-.gcal-seg button:hover, .gcal-nav button:hover { background: rgba(255, 255, 255, 0.14); }
+.gcal-seg, .gcal-nav { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--glass-chip); box-shadow: var(--glass-chip-line); }
+.gcal-seg button, .gcal-nav button { padding: 0.35em 0.9em; border-radius: 999px; transition: background 0.15s, transform 0.2s var(--glass-ease); }
+.gcal-seg button:hover, .gcal-nav button:hover { background: var(--glass-fill-hover); }
+.gcal-seg button:active, .gcal-nav button:active { transform: scale(0.96); }
 .gcal-seg button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.28); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
 .gcal button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
 /* Semaine : une colonne par jour, évènements en liste. */
 .gcal-week { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.5em; }
-.gcal-col { display: flex; flex-direction: column; gap: 0.5em; min-height: 0; padding: 0.5em; border-radius: 1.1em; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
-.gcal-col[data-today="true"] { background: rgba(255, 255, 255, 0.17); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45); }
+.gcal-col { display: flex; flex-direction: column; gap: 0.5em; min-height: 0; padding: 0.5em; border-radius: 1.1em; background: var(--glass-fill); box-shadow: var(--glass-hairline); }
+.gcal-col[data-today="true"] { background: var(--glass-fill-strong); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45); }
 .gcal-colhead { display: flex; flex-direction: column; align-items: center; line-height: 1.1; opacity: 0.9; }
 .gcal-colhead span { font-size: 0.8em; opacity: 0.75; }
 .gcal-colhead b { font-size: 1.4em; font-weight: 600; }
@@ -109,4 +118,6 @@
 .gcal-scrim[data-closing="true"] .gcal-pop { animation: gcal-pop-out 0.18s ease-in forwards; }
 @media (prefers-reduced-motion: reduce) {
   .gcal-scrim, .gcal-pop { animation: none !important; }
+  .gcal-seg button, .gcal-nav button { transition: none; }
+  .gcal-seg button:active, .gcal-nav button:active { transform: none; }
 }

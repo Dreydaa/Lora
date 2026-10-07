@@ -1,5 +1,5 @@
 import { notion } from "./client";
-import type { AgendaItem, AgendaType, SozaMode } from "../types";
+import type { AgendaItem, AgendaType } from "../types";
 import { todayInParis } from "../date";
 
 const db = () => {
@@ -32,7 +32,6 @@ export async function getUpcomingAgenda(includeShift = false, limit = 10): Promi
     date: page.properties.Date?.date?.start ?? null,
     end: page.properties.Date?.date?.end ?? null,
     status: page.properties.Statut?.select?.name ?? "À faire",
-    mode: page.properties.Mode?.select?.name === "PAUSE" ? "PAUSE" : "ACTIF",
     type: page.properties.Type?.select?.name === "Shift" ? "Shift" : "Perso",
   }));
 }
@@ -53,7 +52,6 @@ function toDateProperty(start: string, end?: string): any {
 export async function addAgendaItem(
   title: string,
   start: string,
-  mode: SozaMode,
   type: AgendaType = "Perso",
   end?: string,
 ) {
@@ -63,7 +61,6 @@ export async function addAgendaItem(
       Titre: { title: [{ text: { content: title } }] },
       Date: { date: toDateProperty(start, end) },
       Statut: { select: { name: "À faire" } },
-      Mode: { select: { name: mode } },
       Type: { select: { name: type } },
     },
   });
@@ -106,7 +103,7 @@ export async function addShiftSchedule(
   for (let i = 0; i < dates.length; i += CONCURRENCY) {
     const batch = dates.slice(i, i + CONCURRENCY);
     await Promise.all(
-      batch.map((iso) => addAgendaItem("Shift", `${iso}T${startTime}:00`, "PAUSE", "Shift", `${iso}T${endTime}:00`)),
+      batch.map((iso) => addAgendaItem("Shift", `${iso}T${startTime}:00`, "Shift", `${iso}T${endTime}:00`)),
     );
     created += batch.length;
   }

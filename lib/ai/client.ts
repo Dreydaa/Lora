@@ -1,8 +1,6 @@
 import { generateText, isStepCount, type ModelMessage } from "ai";
 import { createGroq } from "@ai-sdk/groq";
-import { detectMode } from "../modes";
-import { ikkakuPrompt } from "./prompts/ikkaku";
-import { jarvisPrompt } from "./prompts/jarvis";
+import { fridayPrompt } from "./prompts/friday";
 import { sozaTools } from "./tools";
 import { getHistory, appendToHistory } from "../memory";
 import { todayInParis } from "../date";
@@ -30,7 +28,6 @@ export async function askSoza(chatId: number, input: string) {
     throw new Error(`askSoza: input must be a non-empty string, got ${typeof input}`);
   }
 
-  const mode = await detectMode(input);
   const model = resolveModel();
 
   const history = await getHistory(chatId);
@@ -38,7 +35,7 @@ export async function askSoza(chatId: number, input: string) {
 
   const { text, steps } = await generateText({
     model,
-    system: (mode === "ACTIF" ? ikkakuPrompt : jarvisPrompt) + DOUBT_INSTRUCTION + dateInstruction(),
+    system: fridayPrompt + DOUBT_INSTRUCTION + dateInstruction(),
     messages,
     tools: sozaTools,
     stopWhen: isStepCount(4),
@@ -64,5 +61,5 @@ export async function askSoza(chatId: number, input: string) {
     { role: "assistant", content: finalText },
   ]);
 
-  return { mode, text: finalText, toolCalls };
+  return { text: finalText, toolCalls };
 }

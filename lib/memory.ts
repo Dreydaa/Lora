@@ -25,8 +25,8 @@ export async function appendToHistory(chatId: number, newMessages: ChatMessage[]
 const LAST_BRIEFING_KEY = "last-briefing";
 const LAST_BRIEFING_TTL_SECONDS = 60 * 60 * 20; // survit jusqu'au lendemain matin (prochain cron)
 
-// Le dashboard affiche le texte réellement envoyé sur Telegram plutôt que d'en régénérer
-// un (via l'IA) à chaque chargement — coûteux et non déterministe pour un simple affichage.
+// Le dashboard affiche la version courte générée par le cron du matin (différente du briefing Telegram)
+// plutôt que d'en régénérer une (via l'IA) à chaque chargement — coûteux et non déterministe pour un simple affichage.
 export async function saveLastBriefing(text: string) {
   await redis.set(LAST_BRIEFING_KEY, text, { ex: LAST_BRIEFING_TTL_SECONDS });
 }

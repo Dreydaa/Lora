@@ -38,7 +38,7 @@ Décision prise (30/09/2026), remplace l'ancienne cible "une seule personnalité
 
 - **Portée du retrait** (vérifiée par grep le 30/09/2026, à revérifier avant d'exécuter — le code peut avoir bougé d'ici la V2) : touche `lib/modes.ts`, `lib/briefing.ts`, `lib/ai/client.ts`, `lib/ai/tools.ts`, `lib/notion/progress.ts`, `lib/notion/agenda.ts`, `lib/types.ts`, `lib/ai/prompts/jarvis.ts` ; un champ Notion **Soza Réglages** (`shiftActive`/`shiftStartHour`/`shiftEndHour`) ; le tool IA `update_mode_schedule`.
 - **Distinct à garder** : le champ Agenda `Type` (Shift/Perso), qui sert uniquement à exclure les blocs de travail du briefing du matin (`getUpcomingAgenda()`), n'a rien à voir avec la personnalité/le ton — probablement à conserver même sans mode ACTIF/PAUSE (à confirmer le moment venu).
-- Concerne aussi `lib/ai/prompts/` (un seul prompt au lieu de deux) et la voix (une seule voix à choisir, chantier 3).
+- Concerne aussi `lib/ai/prompts/` (un seul prompt au lieu de deux) et la voix (une seule voix à choisir, chantier 3). **Chantier 1 fait le 07/10/2026** : prompts fusionnés dans `lib/ai/prompts/friday.ts`, `lib/modes.ts` et tout le code ACTIF/PAUSE retirés ; le tool `update_mode_schedule` est supprimé (l'heure du briefing se règle déjà par conversation). Reste : les colonnes `Mode` dans les bases Notion Agenda et Progression.
 - Pas de collision de nom à craindre avec le futur "mode travail" (protocole 7E3A, chantier 2) : une fois ACTIF/PAUSE retiré proprement du code et des prompts, il ne reste rien avec quoi il pourrait se confondre.
 
 ## Chantier 2 — Système de protocoles
