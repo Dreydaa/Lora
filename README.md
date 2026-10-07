@@ -7,10 +7,11 @@ Notion est la source de vérité pour toutes les données (idées, agenda, jalon
 ## Comment ça marche
 
 1. **Telegram** reçoit un message → `api/telegram-webhook.ts` valide le `chat_id` autorisé et publie immédiatement le job dans **QStash** (aucune tâche longue n'est exécutée dans le webhook lui-même).
-2. **QStash** livre le job à `api/qstash-worker.ts`, qui appelle le modèle (Groq, via le Vercel AI SDK) avec un jeu de tools (`lib/ai/tools.ts`) capables de lire/écrire dans Notion : créer une idée, ajouter un rendez-vous ou un shift à l'agenda, changer le statut d'un projet, enregistrer la progression du jour, changer les horaires du mode pause, etc.
+2. **QStash** livre le job à `api/qstash-worker.ts`, qui appelle le modèle (Groq, via le Vercel AI SDK) avec un jeu de tools (`lib/ai/tools.ts`) capables de lire/écrire dans Notion : créer une idée, ajouter un rendez-vous ou un shift à l'agenda, changer le statut d'un projet, enregistrer le bilan du jour, mettre Soza en pause quelques jours, changer l'heure du briefing, etc.
 3. Deux **crons QStash** déclenchent le briefing du matin (`api/cron-morning.ts`) et le bilan du soir (`api/cron-evening.ts`) aux horaires configurés dans la base Notion **Soza Réglages**.
 4. Une **mémoire courte durée** (Redis, ~10 messages / 6h) permet de garder le contexte d'une conversation Telegram sans tout réinjecter depuis Notion à chaque message.
-5. Un **dashboard Tauri** (app de bureau) affiche ces mêmes données en lecture — le design visuel est en cours de refonte (voir `docs/ai/STATUS.md`), il n'écrit pas encore dans Notion.
+5. Un **dashboard Tauri** (app de bureau) joue une intro en particules (un ruban de Möbius se forme), puis affiche ces mêmes données en lecture dans un tableau de bord en verre liquide (`api/dashboard.ts` agrège Notion). Il n'écrit pas dans Notion : tout se pilote par la conversation Telegram.
+6. Une **pause de plusieurs jours** (« je prends mon week-end ») suspend le briefing et le bilan, et le briefing de reprise n'en fait pas un reproche.
 
 ## Stack
 
@@ -21,15 +22,16 @@ Notion est la source de vérité pour toutes les données (idées, agenda, jalon
 ## Structure du repo
 
 ```
-api/                  Endpoints Vercel : webhook Telegram, worker QStash, crons matin/soir
+api/                  Endpoints Vercel : webhook Telegram, worker QStash, crons matin/soir, dashboard
 lib/
-  ai/                 Client IA, prompts de persona, définition des tools
+  ai/                 Client IA, prompt de personnalité unique (friday.ts), définition des tools
   notion/             Accès aux bases Notion (agenda, idées, jalons, progression, réglages)
   integrations/       Telegram, QStash, météo, actualités
-  memory.ts           Mémoire courte durée (Redis)
-  modes.ts            Logique du mode ACTIF/PAUSE
+  briefing.ts         Construction du briefing du matin (bilan d'hier, agenda à 7 jours, pause)
+  date.ts             Dates et fuseau Europe/Paris (Vercel tourne en UTC)
+  memory.ts           Redis : mémoire courte durée, dernier briefing, pause en cours
 src/                  Dashboard Tauri (React)
-  features/           Un dossier par onglet (agenda, idées, jalons, actualités, réglages, quiz...)
+  features/           glass (bento en verre), widgets, calendar, intro et particles (ruban de Möbius), hub…
 scripts/              Setup Notion/QStash, script d'intégration (`full-mechanics-test.ts`)
 docs/
   ai/                 Contexte et état d'avancement à l'usage de l'assistant IA
@@ -48,6 +50,7 @@ Variables d'environnement attendues (voir `.env`) :
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_ALLOWED_CHAT_ID` |
 | QStash | `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `QSTASH_DEV` |
 | Redis | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
+| Dashboard | `DASHBOARD_API_KEY` (serveur), `VITE_DASHBOARD_API_KEY` et `VITE_API_URL` (embarquées dans le build de l'app) |
 | Divers | `NEWS_RSS_URL_TECH`, `NEWS_RSS_URL_FASHION`, `WEATHER_LAT`, `WEATHER_LON` |
 
 Setup Notion détaillé dans `docs/product/NOTION-SCHEMA.md`.
@@ -57,7 +60,7 @@ Setup Notion détaillé dans `docs/product/NOTION-SCHEMA.md`.
 ```bash
 npm run dev                        # dashboard Tauri en dev (Vite)
 npm run build                      # tsc --noEmit + build Vite
-npm run tauri                      # CLI Tauri
+npm run tauri dev                  # application de bureau en développement (Tauri)
 
 npm run notion:check               # vérifie la connexion Notion
 npm run notion:create              # crée les bases Notion (Agenda, Idées, Jalons, Progression)

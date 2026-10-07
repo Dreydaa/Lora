@@ -30,6 +30,11 @@ a.gw-row-news:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
 .gw-project-main { display: flex; flex-direction: column; min-width: 0; gap: 0.1em; }
 .gw-project .gw-size { margin-top: 0.3em; }
 .gw-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Aperçu des notes sur trois lignes ; progression des jalons = fine barre sous le texte. */
+.gw-notes { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; }
+.gw-progress-row { display: flex; align-items: center; gap: 0.7em; margin-top: 0.2em; }
+.gw-progress { flex: 0 1 12em; height: 0.45em; border-radius: 999px; background: var(--glass-chip); overflow: hidden; }
+.gw-progress i { display: block; height: 100%; border-radius: inherit; background: var(--jalon); }
 .gw-ms[data-tone="late"] { color: var(--late); }
 .gw-ms[data-tone="doing"] { color: var(--perso); }
 .gw-row-sm { padding: 0.45em 0.8em; font-size: 0.92em; }

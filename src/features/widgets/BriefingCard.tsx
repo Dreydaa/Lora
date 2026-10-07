@@ -44,7 +44,7 @@ const Morning = ({ briefing }: { briefing: string }) => (
 function Evening({ agenda, milestones }: { agenda: AgendaItem[]; milestones: Milestone[] }) {
   const today = localDayKey();
   const doneToday = agenda.filter((a) => a.type === "Perso" && a.date && dayKey(a.date) === today);
-  const milestone = milestones.filter((m) => m.status !== "Terminé" && m.dueDate).sort((a, b) => a.dueDate!.localeCompare(b.dueDate!))[0];
+  const milestone = milestones.filter((m) => m.status !== "Terminé" && m.status !== "Validé" && m.dueDate).sort((a, b) => a.dueDate!.localeCompare(b.dueDate!))[0];
   const delay = milestone ? daysBetween(today, dayKey(milestone.dueDate!)) : 0;
 
   return (
