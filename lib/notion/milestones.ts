@@ -6,10 +6,11 @@ const database = () => {
   return process.env.NOTION_MILESTONES_DATABASE_ID;
 };
 
-export async function getMilestones(): Promise<Milestone[]> {
+// Par défaut sans les jalons validés (liste de l'IA) ; le dashboard les inclut pour la progression des projets.
+export async function getMilestones(includeDone = false): Promise<Milestone[]> {
   const data = await notion().databases.query({
     database_id: database(),
-    filter: { property: "Statut", select: { does_not_equal: "Validé" } },
+    ...(includeDone ? {} : { filter: { property: "Statut", select: { does_not_equal: "Validé" } } }),
     sorts: [{ property: "Échéance", direction: "ascending" }],
   });
 

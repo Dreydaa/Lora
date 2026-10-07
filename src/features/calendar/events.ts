@@ -19,7 +19,7 @@ export function buildEvents(agenda: AgendaItem[], milestones: Milestone[]) {
   }
   for (const m of milestones) {
     if (!m.dueDate) continue;
-    const done = m.status === "Terminé";
+    const done = m.status === "Terminé" || m.status === "Validé";
     events.push({ id: m.id, kind: "jalon", title: m.title, day: dayKey(m.dueDate), start: null, end: null, late: !done && dayKey(m.dueDate) < today, done });
   }
   const byDay = new Map<string, CalendarEvent[]>();
