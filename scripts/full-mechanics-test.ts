@@ -4,11 +4,9 @@ import { addIdea, findIdeaByTitle, archiveIdea, setIdeaStatus, updateIdeaNotes, 
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../lib/notion/milestones";
 import { addAgendaItem, addShiftSchedule, getUpcomingAgenda } from "../lib/notion/agenda";
 import { getLatestProgress, saveProgress } from "../lib/notion/progress";
-import { getHistory, appendToHistory } from "../lib/memory";
-import { detectMode, scheduledModeFromTime } from "../lib/modes";
-import { getSettings, updateModeSchedule } from "../lib/notion/settings";
+import { getHistory, appendToHistory, setBreak, getBreak, clearBreak, inBreak } from "../lib/memory";
 import { askSoza, resolveModel } from "../lib/ai/client";
-import { buildBriefing } from "../lib/briefing";
+import { agendaLine, bilanLine, buildBriefing } from "../lib/briefing";
 import { notion } from "../lib/notion/client";
 
 const results: { name: string; ok: boolean; detail?: string }[] = [];
@@ -23,9 +21,6 @@ async function main() {
   console.log("=== 0. Config de base ===");
   record("resolveModel() ne lève pas", (() => { try { resolveModel(); return true; } catch (e) { record("resolveModel error", false, String(e)); return false; } })());
   record("GROQ_MODEL configuré", true, process.env.GROQ_MODEL ?? "openai/gpt-oss-120b");
-  record("detectMode('/mode actif')", (await detectMode("/mode actif")) === "ACTIF");
-  record("detectMode('/mode pause')", (await detectMode("/mode pause")) === "PAUSE");
-  record("detectMode(texte normal) == scheduledModeFromTime()", (await detectMode("salut")) === (await scheduledModeFromTime()));
 
   console.log("\n=== 1. Notion CRUD direct (sans IA) ===");
   const ideaTitle = `[TEST] idée rig ${Date.now()}`;
@@ -80,13 +75,13 @@ async function main() {
 
   console.log("\n=== 3. Agenda ===");
   const agendaTitle = `[TEST] rdv ${Date.now()}`;
-  const agendaItem = await addAgendaItem(agendaTitle, futureDate(2), "ACTIF").catch((e) => { record("addAgendaItem", false, String(e)); return null; });
+  const agendaItem = await addAgendaItem(agendaTitle, futureDate(2)).catch((e) => { record("addAgendaItem", false, String(e)); return null; });
   record("addAgendaItem crée une page", !!agendaItem);
   const upcoming = await getUpcomingAgenda();
   record("getUpcomingAgenda inclut le nouvel item", upcoming.some((a) => a.title === agendaTitle));
 
   const timedTitle = `[TEST] rdv horodaté ${Date.now()}`;
-  const timedItem = await addAgendaItem(timedTitle, `${futureDate(3)}T14:30:00`, "ACTIF", "Perso", `${futureDate(3)}T15:00:00`).catch(() => null);
+  const timedItem = await addAgendaItem(timedTitle, `${futureDate(3)}T14:30:00`, "Perso", `${futureDate(3)}T15:00:00`).catch(() => null);
   record("addAgendaItem accepte une heure de début/fin", !!(timedItem as any)?.properties?.Date?.date?.start?.includes("14:30"));
 
   // Bornée par une plage de dates propre au test (pas juste Type=Shift) pour ne jamais
@@ -119,7 +114,7 @@ async function main() {
   for (const p of shiftItems.results as any[]) await notion().pages.update({ page_id: p.id, archived: true });
 
   console.log("\n=== 4. Progress ===");
-  const savedTrue = await saveProgress("[TEST] bilan avec preuve", "ACTIF").catch((e) => { record("saveProgress", false, String(e)); return null; });
+  const savedTrue = await saveProgress("[TEST] bilan avec preuve").catch((e) => { record("saveProgress", false, String(e)); return null; });
   record("saveProgress enregistre le bilan", !!savedTrue);
   const afterTrue = await getLatestProgress();
   record("getLatestProgress reflète le nouveau bilan", afterTrue.review === "[TEST] bilan avec preuve");
@@ -149,42 +144,31 @@ async function main() {
   }
 
   console.log("\n=== 7. Briefing (fallback + LLM) ===");
+  const today0 = "2026-10-07";
+  const item = (title: string, date: string | null) => ({ id: "x", title, date, status: "À faire", type: "Perso" as const });
+  record("bilanLine: bilan d'hier repris", bilanLine({ review: "ok", date: "2026-10-06" }, today0) === "Bilan d'hier: ok.");
+  record("bilanLine: bilan saisi après minuit compte pour hier", bilanLine({ review: "ok", date: "2026-10-07" }, today0).includes("ok"));
+  record("bilanLine: ancien bilan présenté comme manquant", bilanLine({ review: "vieux", date: "2026-10-03" }, today0).includes("AUCUN") && !bilanLine({ review: "vieux", date: "2026-10-03" }, today0).includes("vieux"));
+  record("bilanLine: aucun bilan jamais", bilanLine({ review: "Aucun bilan", date: null }, today0).includes("AUCUN"));
+  const agenda0 = agendaLine([item("Dentiste", "2026-10-07"), item("Coiffeur", "2026-10-08T14:30:00"), item("Cinéma", "2026-10-11"), item("Mariage", "2026-11-20")], today0);
+  record("agendaLine: échéances explicites", agenda0.includes("Dentiste (aujourd'hui)") && agenda0.includes("Coiffeur (demain à 14:30)") && agenda0.includes("Cinéma (dans 4 jours, dimanche 11/10)"), agenda0);
+  record("agendaLine: rien au-delà de 7 jours", !agenda0.includes("Mariage"));
+  record("agendaLine: agenda vide", agendaLine([], today0).includes("rien de prévu"));
+  const brk0 = { start: "2026-10-10", end: "2026-10-11" };
+  const back0 = bilanLine({ review: "rig fini", date: "2026-10-09" }, "2026-10-12", brk0);
+  record("pause: retour sans reproche, dernier bilan rappelé", back0.includes("pas un manquement") && back0.includes("rig fini") && !back0.includes("AUCUN"));
+  record("pause: sans pause, la même situation = AUCUN bilan", bilanLine({ review: "rig fini", date: "2026-10-09" }, "2026-10-12", null).includes("AUCUN"));
+  record("pause: inBreak bornes incluses", inBreak(brk0, "2026-10-10") && inBreak(brk0, "2026-10-11") && !inBreak(brk0, "2026-10-12") && !inBreak(null, "2026-10-10"));
+  await setBreak("2000-01-01", "2000-01-02");
+  const storedBreak = await getBreak();
+  record("pause: round-trip Redis", storedBreak?.start === "2000-01-01" && storedBreak?.end === "2000-01-02");
+  await clearBreak();
+  record("pause: clearBreak supprime la clé", (await getBreak()) === null);
   try {
     const briefing = await buildBriefing();
     record("buildBriefing retourne un texte non vide", !!briefing?.trim(), briefing.slice(0, 150));
   } catch (e) {
     record("buildBriefing", false, String(e));
-  }
-
-  console.log("\n=== 8. Config dynamique du mode (Notion Réglages) ===");
-  const originalSettings = await getSettings();
-  try {
-    const today = new Date().toISOString().slice(0, 10);
-    const tomorrow = futureDate(1);
-
-    // Changement immédiat : fenêtre pause désactivée dès aujourd'hui → toujours ACTIF.
-    await updateModeSchedule({ shiftActive: false, effectiveDate: today });
-    const modeAfterDisable = await scheduledModeFromTime(new Date(new Date().setHours(6, 0, 0, 0)));
-    record("shiftActive=false (effet aujourd'hui) → toujours ACTIF, même à 6h", modeAfterDisable === "ACTIF");
-
-    // Changement différé : ne doit pas s'appliquer avant la date effective.
-    await updateModeSchedule({ shiftActive: true, effectiveDate: tomorrow });
-    const settingsAfterPending = await getSettings();
-    record("Changement différé stocké sans écraser la valeur actuelle", settingsAfterPending.shiftActive === false && settingsAfterPending.pendingChangeDate === tomorrow);
-    const modeStillDisabled = await scheduledModeFromTime(new Date(new Date().setHours(6, 0, 0, 0)));
-    record("Changement différé (demain) n'affecte pas encore aujourd'hui", modeStillDisabled === "ACTIF");
-  } catch (e) {
-    record("update_mode_schedule", false, String(e));
-  } finally {
-    // Restauration de la config d'origine.
-    await updateModeSchedule({
-      shiftActive: originalSettings.shiftActive,
-      effectiveDate: new Date().toISOString().slice(0, 10),
-      shiftStartHour: originalSettings.shiftStartHour,
-      shiftEndHour: originalSettings.shiftEndHour,
-    });
-    const restored = await getSettings();
-    record("Config restaurée à l'état d'origine", restored.shiftActive === originalSettings.shiftActive && restored.pendingChangeDate === null);
   }
 
   console.log("\n=== Nettoyage des données de test ===");

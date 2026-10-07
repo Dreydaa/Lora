@@ -1,10 +1,16 @@
 import * as THREE from "three";
 import { buildPath, FRAME_H, FRAME_W, PATH_SAMPLES } from "./path";
 import { RIBBON_SIZE, RIBBON_SPIN, buildRibbonPoints, ribbonPosition } from "../particles/ribbon";
+import { DEFAULT_BACKGROUND, createBackground } from "../particles/background";
+import { createGlow } from "../particles/glow";
+import { createParticleLook } from "../particles/look";
+import { DEFAULT_PARTICLES, colorParticles } from "../particles/palette";
+import { mountParticlePanel } from "../particles/particlePanel";
 
 export interface IntroOptions {
-  background?: string;
   particleColor?: string;
+  // Démarre directement sur le ruban formé (animation sautée).
+  skip?: boolean;
 }
 
 const COUNT = 4500;
@@ -33,10 +39,10 @@ function gaussian() {
   return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
 }
 
-export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0", particleColor = "#ffffff" }: IntroOptions = {}) {
+export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: IntroOptions = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(background);
+  renderer.setClearColor(DEFAULT_BACKGROUND.colorDark);
 
   const scene = new THREE.Scene();
   scene.add(new THREE.AmbientLight("#ffffff", 1.1));
@@ -44,17 +50,29 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
   sun.position.set(-300, 400, 600);
   scene.add(sun);
 
+  const bg = createBackground();
+  scene.add(bg.mesh);
+
   const camera = new THREE.PerspectiveCamera(FOV, 1, 10, 6000);
 
   const geometry = new THREE.SphereGeometry(1, 16, 12);
-  const material = new THREE.MeshStandardMaterial({ color: particleColor, roughness: 0.45, metalness: 0 });
+  const material = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.45, metalness: 0 });
   const mesh = new THREE.InstancedMesh(geometry, material, COUNT);
+  colorParticles(mesh, particleColor ? [particleColor] : undefined);
+  const look = createParticleLook(mesh);
+  look.setSettings(DEFAULT_PARTICLES);
+  const glow = createGlow(mesh);
+  // Réglage en direct des particules : /?glass&skip&settings
+  const unmountPanel = new URLSearchParams(window.location.search).has("settings") ? mountParticlePanel(mesh, glow, look) : undefined;
   mesh.frustumCulled = false;
   scene.add(mesh);
+  scene.add(glow.points);
 
   const { table, length } = buildPath();
   const spawnWindow = length / PATH_SPEED;
   const morphStart = spawnWindow + LOOP_HOLD_SECONDS;
+  // Durée totale : le ruban est complet à cet instant.
+  const duration = morphStart + MORPH_STAGGER_SECONDS + MORPH_SECONDS;
 
   const delay = new Float32Array(COUNT);
   const speed = new Float32Array(COUNT);
@@ -83,7 +101,7 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
 
   const dummy = new THREE.Object3D();
   const ribbonPos = new THREE.Vector3();
-  const startedAt = performance.now();
+  const startedAt = performance.now() - (skip ? duration * 1000 : 0);
   let ribbonScale = 1;
   let frame = 0;
 
@@ -101,12 +119,15 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
     ribbonScale = Math.min(visibleW, visibleH) / FRAME_H;
+    bg.resize(camera, ribbonScale);
   };
   resize();
   window.addEventListener("resize", resize);
 
   const render = () => {
     const t = (performance.now() - startedAt) / 1000;
+    // L'ombre apparaît avec le ruban, pas avant.
+    bg.setShadowAmount(easeInOutCubic(Math.min(Math.max((t - morphStart - MORPH_STAGGER_SECONDS * 0.5) / (MORPH_SECONDS + 0.6), 0), 1)));
     const spin = t * RIBBON_SPIN;
     const spinCos = Math.cos(spin);
     const spinSin = Math.sin(spin);
@@ -155,14 +176,20 @@ export function createIntro(canvas: HTMLCanvasElement, { background = "#2757d0",
   render();
 
   return {
-    setBackground: (color: string) => renderer.setClearColor(color),
-    setParticleColor: (color: string) => material.color.set(color),
+    duration,
+    setParticleColor: (color: string) => {
+      colorParticles(mesh, [color]);
+    },
     dispose: () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
+      unmountPanel?.();
       geometry.dispose();
       material.dispose();
       mesh.dispose();
+      glow.dispose();
+      look.dispose();
+      bg.dispose();
       renderer.dispose();
     },
   };

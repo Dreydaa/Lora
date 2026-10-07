@@ -1,13 +1,18 @@
 import { generateText, isStepCount, type ModelMessage } from "ai";
 import { createGroq } from "@ai-sdk/groq";
-import { detectMode } from "../modes";
-import { ikkakuPrompt } from "./prompts/ikkaku";
-import { jarvisPrompt } from "./prompts/jarvis";
+import { fridayPrompt } from "./prompts/friday";
 import { sozaTools } from "./tools";
 import { getHistory, appendToHistory } from "../memory";
+import { todayInParis } from "../date";
 
 const DOUBT_INSTRUCTION = `
 Quand l'utilisateur mentionne quelque chose qui pourrait être une idée de projet ou un jalon, n'utilise create_idea ou create_milestone que si tu es raisonnablement sûr que c'est son intention. Si c'est ambigu, n'appelle pas l'outil — pose d'abord une question courte pour confirmer.`;
+
+// Sans la date du jour, le modèle ne peut pas convertir « demain » ou « ce week-end » en dates réelles pour les outils.
+function dateInstruction() {
+  const weekday = new Intl.DateTimeFormat("fr-FR", { weekday: "long", timeZone: "Europe/Paris" }).format(new Date());
+  return `\n\nDate du jour : ${weekday} ${todayInParis()} (heure de Paris).`;
+}
 
 export function resolveModel() {
   if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing");
@@ -23,7 +28,6 @@ export async function askSoza(chatId: number, input: string) {
     throw new Error(`askSoza: input must be a non-empty string, got ${typeof input}`);
   }
 
-  const mode = await detectMode(input);
   const model = resolveModel();
 
   const history = await getHistory(chatId);
@@ -31,7 +35,7 @@ export async function askSoza(chatId: number, input: string) {
 
   const { text, steps } = await generateText({
     model,
-    system: (mode === "ACTIF" ? ikkakuPrompt : jarvisPrompt) + DOUBT_INSTRUCTION,
+    system: fridayPrompt + DOUBT_INSTRUCTION + dateInstruction(),
     messages,
     tools: sozaTools,
     stopWhen: isStepCount(4),
@@ -57,5 +61,5 @@ export async function askSoza(chatId: number, input: string) {
     { role: "assistant", content: finalText },
   ]);
 
-  return { mode, text: finalText, toolCalls };
+  return { text: finalText, toolCalls };
 }

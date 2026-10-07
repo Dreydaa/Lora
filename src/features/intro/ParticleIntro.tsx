@@ -1,12 +1,21 @@
 import { useEffect, useRef } from "react";
 import { createIntro, type IntroOptions } from "./introScene";
 
-export function ParticleIntro(options: IntroOptions) {
+interface Props extends IntroOptions {
+  // Appelé quand le ruban est complet (tout de suite si l'animation est sautée).
+  onDone?: () => void;
+}
+
+export function ParticleIntro({ onDone, ...options }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const intro = createIntro(canvasRef.current!, options);
-    return () => intro.dispose();
+    const timer = window.setTimeout(() => onDone?.(), options.skip ? 0 : intro.duration * 1000);
+    return () => {
+      clearTimeout(timer);
+      intro.dispose();
+    };
   }, []);
 
   return (
