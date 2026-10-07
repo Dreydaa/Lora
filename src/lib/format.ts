@@ -19,8 +19,8 @@ export const nowIso = (now = new Date()) => `${toKey(now)}T${pad(now.getHours())
 export const daysBetween = (from: string, to: string) => Math.round((parseKey(to).getTime() - parseKey(from).getTime()) / 86_400_000);
 
 // Semaine commençant le lundi (index 0).
-export const weekdayIndex = (key: string) => (parseKey(key).getDay() + 6) % 7;
-export const startOfWeek = (key: string) => addDays(key, -weekdayIndex(key));
+const weekdayIndex = (key: string) => (parseKey(key).getDay() + 6) % 7;
+const startOfWeek = (key: string) => addDays(key, -weekdayIndex(key));
 export const weekDays = (key: string) => Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(key), i));
 
 export function formatDay(key: string, options: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "short" }) {

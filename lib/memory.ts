@@ -6,7 +6,7 @@ const redis = Redis.fromEnv();
 const MAX_MESSAGES = 10;
 const TTL_SECONDS = 60 * 60 * 6; // 6h de contexte glissant
 
-export type ChatMessage = { role: "user" | "assistant"; content: string };
+type ChatMessage = { role: "user" | "assistant"; content: string };
 
 function key(chatId: number) {
   return `history:${chatId}`;
