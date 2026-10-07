@@ -34,7 +34,7 @@ Soza devient un système hybride, **pas une IA locale complète** : le mot d'act
 
 ## Chantier 1 — Retirer le mode ACTIF/PAUSE, garder une seule personnalité
 
-Décision prise (30/09/2026), remplace l'ancienne cible "une seule personnalité en gardant les modes" — le système de mode est retiré, pas juste fusionné. Aujourd'hui deux personas selon le mode : Ikkaku (ACTIF, coach strict) et Jarvis (PAUSE, calme/protecteur), choisies dans `lib/ai/client.ts` et `lib/briefing.ts` (`mode === "ACTIF" ? ikkakuPrompt : jarvisPrompt`).
+Décision prise (30/09/2026), remplace l'ancienne cible "une seule personnalité en gardant les modes" — le système de mode est retiré, pas juste fusionné. **Fait le 07/10/2026** (en fin de V1, voir `STATUS.md`, section « Personnalité unique — Friday ») : il y avait deux personas selon le mode, Ikkaku (ACTIF, coach strict) et Jarvis (PAUSE, calme/protecteur) ; elles sont fusionnées dans `lib/ai/prompts/friday.ts`.
 
 - **Portée du retrait** (vérifiée par grep le 30/09/2026, à revérifier avant d'exécuter — le code peut avoir bougé d'ici la V2) : touche `lib/modes.ts`, `lib/briefing.ts`, `lib/ai/client.ts`, `lib/ai/tools.ts`, `lib/notion/progress.ts`, `lib/notion/agenda.ts`, `lib/types.ts`, `lib/ai/prompts/jarvis.ts` ; un champ Notion **Soza Réglages** (`shiftActive`/`shiftStartHour`/`shiftEndHour`) ; le tool IA `update_mode_schedule`.
 - **Distinct à garder** : le champ Agenda `Type` (Shift/Perso), qui sert uniquement à exclure les blocs de travail du briefing du matin (`getUpcomingAgenda()`), n'a rien à voir avec la personnalité/le ton — probablement à conserver même sans mode ACTIF/PAUSE (à confirmer le moment venu).
@@ -46,7 +46,7 @@ Décision prise (30/09/2026), remplace l'ancienne cible "une seule personnalité
 Un protocole est une **séquence nommée d'actions** (lancer une app, en fermer une, appeler une API externe). Primitif commun à toute cette liste (protocoles ET commandes vocales comme "lancer/fermer une app" ou "on se met au boulot") — un moteur générique unique vaut mieux que du code par protocole, vu que la liste grandit déjà (6H9K sans détails = d'autres viendront).
 
 **Déclenchement et rendu (décidé 01/10/2026)** :
-- Détection **stricte** sur Telegram (phrase-clé exacte, ex. "Protocole 2B", pas une recherche de mot-clé dans une phrase libre) — même mécanisme que la commande existante `/mode actif|pause` dans `lib/modes.ts` (regex ancrée, court-circuite le LLM) : à étendre plutôt que réinventer.
+- Détection **stricte** sur Telegram (phrase-clé exacte, ex. "Protocole 2B", pas une recherche de mot-clé dans une phrase libre) — même principe que l'ancienne commande `/mode actif|pause` (regex ancrée qui court-circuitait le LLM). **Cette commande a disparu avec `lib/modes.ts` le 07/10/2026** : le mécanisme est à réintroduire (le webhook passe aujourd'hui tout message texte au worker et au modèle), pas à « étendre ».
 - Rendu : une phrase de début ("Lancement du protocole 2B") puis une phrase de fin une fois toutes les étapes terminées — pas de message par étape intermédiaire. Phrase de fin : générique si tout a réussi, détail de ce qui a échoué (quelle étape, pourquoi) sinon — implique que chaque étape vérifie et remonte son propre statut, pas juste un enchaînement de commandes lancées à l'aveugle.
 
 **Protocole 2B** : lancement du PC via l'API communautaire Meross (sinon on saute à l'étape suivante), puis lancement de Sunshine + Playnite + si possible Parsec, pour jouer à distance depuis la Ayn Thor. Points ouverts :
@@ -77,6 +77,8 @@ Un protocole est une **séquence nommée d'actions** (lancer une app, en fermer 
 Quand l'utilisateur dit qu'il prend une pause de X jours (ex. un week-end pour se ressourcer), Soza doit le comprendre et l'intégrer : ne pas relancer/mettre la pression pendant la période, ne pas compter ces jours comme un abandon, et reprendre proprement au retour. Motivation : l'utilisateur a eu l'impression de perdre le fil à un moment.
 
 Pistes : nouveau tool IA type `set_break` (dates début/fin) persisté dans Notion (base Réglages ou Agenda) ; briefings/bilans suspendus sur la période ; message de reprise avec récap de là où il en était. Simplifié par le retrait du streak (déjà fait en V1, 30/09/2026) : plus rien à "casser" numériquement pendant une pause, reste la question du silence des briefings/bilans sur la période.
+
+**Version minimale faite le 06/10/2026 (en V1, à cause d'un besoin réel)** : outils `set_break` (dates de début et de fin) et `cancel_break`, pause stockée dans Redis (clé `break`, durée de vie jusqu'à 3 jours après la fin). Pendant la pause, `api/cron-morning.ts` et `api/cron-evening.ts` n'envoient rien. Le briefing du lendemain de la fin accueille la reprise : `bilanLine()` n'annonce pas de bilan manquant et rappelle le dernier bilan d'avant la pause. Le prompt de conversation reçoit désormais la date du jour (sinon « ce week-end » ne peut pas être converti en dates). **Reste de ce chantier** : afficher la pause dans le dashboard, la persister dans Notion si on veut la voir ailleurs que dans Redis.
 
 ## Chantier 5 — Widget en barre des tâches, activable à la voix, app fermée
 
