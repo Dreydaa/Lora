@@ -50,17 +50,19 @@ export interface ParticleSettings extends GlowSettings, HologramSettings {
 }
 
 export const DEFAULT_PARTICLES: ParticleSettings = {
-  colors: ["#00BFFF", "#06d0c2", "#0e6761"],
+  colors: ["#ffffff", "#e9e9e9", "#cfcfcf"], // blanc et deux nuances de blanc neutre (anciennes : #00BFFF, #06d0c2, #0e6761)
   enabled: [true, true, true],
   particleOpacity: 1,
-  glowStrength: 0.15,
-  glowSize: 7,
-  glowSoftness: 3,
-  glowFlicker: 0.35,
+  // Réglages du 07/10/2026 (panneau ?settings) : billes en fil de fer, mélange additif, halo coupé.
+  // Avant : glow 0.15 / 7 / 3 / 0.35, holoStrength 0.3, holoAdditive 0.05, holoWireframe false.
+  glowStrength: 0,
+  glowSize: 1,
+  glowSoftness: 0.5,
+  glowFlicker: 0,
   glowFlickerSpeed: 0,
   glowScan: 0,
-  holoStrength: 0.3,
-  holoAdditive: 0.05,
+  holoStrength: 3,
+  holoAdditive: 1,
   holoRim: 0.6,
   holoDepthFade: 0.5,
   holoScan: 0.35,
@@ -70,7 +72,7 @@ export const DEFAULT_PARTICLES: ParticleSettings = {
   holoSweepPeriod: 5,
   holoFlicker: 0.12,
   holoGlitch: 0,
-  holoWireframe: false,
+  holoWireframe: true,
   holoWireDetail: 0,
   holoSize: 1,
 };

@@ -60,11 +60,13 @@ export interface BackgroundSettings {
 }
 
 export const DEFAULT_BACKGROUND: BackgroundSettings = {
-  colorDark: "#030711",
-  colorLow: "#302361",
-  colorMid: "#a46060",
-  colorHigh: "#d8d2ab",
-  colorLight: "#f8eefb",
+  // Fond uni #2757D0 : les cinq tons identiques aplatissent l'éclat de rayons, qui reste en place mais ne se voit plus.
+  // Ancienne palette : #030711, #302361, #a46060, #d8d2ab, #f8eefb (voir l'historique git pour le reste des réglages).
+  colorDark: "#2757d0",
+  colorLow: "#2757d0",
+  colorMid: "#2757d0",
+  colorHigh: "#2757d0",
+  colorLight: "#2757d0",
   centerX: 0.517,
   centerY: 0.5,
   rotation: 0,
@@ -86,7 +88,7 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
   shadowY: -258,
   shadowWidth: 466,
   shadowHeight: 0.23,
-  shadowOpacity: 1,
+  shadowOpacity: 0, // pas d'ombre colorée sous le ruban sur le fond uni (ancienne valeur : 1)
   shadowCoreStrength: 0.58,
   shadowCoreFalloff: 2.2,
   shadowSoftStrength: 0.37,
