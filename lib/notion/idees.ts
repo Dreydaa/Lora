@@ -68,9 +68,9 @@ export async function archiveIdea(pageId: string) {
   await setIdeaStatus(pageId, "Archivée");
 }
 
-const NOTES_PREVIEW_CHARS = 160; // le dashboard n'affiche qu'un aperçu : inutile d'envoyer toute la synthèse
+const NOTES_PREVIEW_CHARS = 420; // le dashboard n'affiche qu'un aperçu : inutile d'envoyer toute la synthèse
 
-export async function getAllIdeas(): Promise<{ id: string; title: string; size: IdeaSize; status: IdeaStatus; notes: string; since: string | null }[]> {
+export async function getAllIdeas(): Promise<{ id: string; title: string; size: IdeaSize; status: IdeaStatus; notes: string; since: string | null; updated: string }[]> {
   const data = await notion().databases.query({
     database_id: database(),
     sorts: [{ property: "Date d'entrée", direction: "descending" }],
@@ -83,6 +83,7 @@ export async function getAllIdeas(): Promise<{ id: string; title: string; size: 
     status: page.properties.Statut?.select?.name ?? "Brute",
     notes: (page.properties.Notes?.rich_text ?? []).map((t: any) => t.plain_text).join("").slice(0, NOTES_PREVIEW_CHARS),
     since: page.properties["Date d'entrée"]?.date?.start ?? null,
+    updated: page.last_edited_time,
   }));
 }
 

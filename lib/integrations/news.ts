@@ -12,7 +12,7 @@ const feeds = (): Feed[] =>
     process.env.NEWS_RSS_URL_FASHION ? { label: "Mode", url: process.env.NEWS_RSS_URL_FASHION } : null,
   ].filter((f): f is Feed => f !== null);
 
-export const formatArticle = (a: Article) => `[${a.tag}] ${a.title}`;
+const formatArticle =(a: Article) => `[${a.tag}] ${a.title}`;
 
 // Certains flux (TechCrunch) laissent des entités dans les titres : « &#8216;Alibaba&#8217; ». Une entité inconnue est laissée telle quelle.
 const NAMED_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };

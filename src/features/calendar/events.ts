@@ -1,7 +1,7 @@
 import type { AgendaItem, Milestone } from "../../../lib/types";
 import { dayKey, localDayKey, shortHour, timeOf } from "../../lib/format";
 
-export type EventKind = "perso" | "shift" | "jalon";
+type EventKind = "perso" | "shift" | "jalon";
 export type CalendarEvent = { id: string; kind: EventKind; title: string; day: string; start: string | null; end: string | null; late: boolean; done: boolean };
 
 export const KIND_LABEL: Record<EventKind, string> = { perso: "Perso", shift: "Shift", jalon: "Jalon" };
@@ -19,7 +19,7 @@ export function buildEvents(agenda: AgendaItem[], milestones: Milestone[]) {
   }
   for (const m of milestones) {
     if (!m.dueDate) continue;
-    const done = m.status === "Terminé";
+    const done = m.status === "Terminé" || m.status === "Validé";
     events.push({ id: m.id, kind: "jalon", title: m.title, day: dayKey(m.dueDate), start: null, end: null, late: !done && dayKey(m.dueDate) < today, done });
   }
   const byDay = new Map<string, CalendarEvent[]>();
@@ -34,6 +34,3 @@ export function eventTime(e: CalendarEvent) {
   return e.end ? `${shortHour(e.start)} – ${shortHour(e.end)}` : shortHour(e.start);
 }
 
-export function countByKind(events: CalendarEvent[]) {
-  return { perso: events.filter((e) => e.kind === "perso").length, shift: events.filter((e) => e.kind === "shift").length };
-}

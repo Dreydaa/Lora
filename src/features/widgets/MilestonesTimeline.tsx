@@ -5,10 +5,10 @@ import { Logo } from "../calendar/Logo";
 import { iconFor } from "../calendar/taskIcons";
 import "./widgets.css";
 
-export type Tone = "done" | "late" | "doing" | "todo";
+type Tone = "done" | "late" | "doing" | "todo";
 
 export const toneOf = (m: Milestone, today: string): Tone => {
-  if (m.status === "Terminé") return "done";
+  if (m.status === "Terminé" || m.status === "Validé") return "done"; // « Validé » côté Notion, « Terminé » dans les données factices
   if (m.status === "En retard" || (m.dueDate && dayKey(m.dueDate) < today)) return "late";
   return m.status === "En cours" ? "doing" : "todo";
 };

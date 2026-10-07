@@ -76,7 +76,7 @@ export function WeatherCard() {
 
 // ───── Temps par application ─────
 // Pas encore de source (il faudra un suivi côté Tauri/Rust) : sans données réelles, on affiche un exemple.
-export type AppUsage = { app: string; minutes: number; color: string };
+type AppUsage = { app: string; minutes: number; color: string };
 const SAMPLE_USAGE: AppUsage[] = [
   { app: "Blender", minutes: 130, color: `#${siBlender.hex}` },
   { app: "VS Code", minutes: 100, color: "#007acc" }, // simple-icons n'a plus le logo VS Code

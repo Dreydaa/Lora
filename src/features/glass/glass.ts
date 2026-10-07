@@ -1,4 +1,4 @@
-export interface GlassSettings {
+interface GlassSettings {
   blur: number;
   saturate: number;
   brightness: number;
@@ -58,6 +58,8 @@ export const DEFAULT_GLASS: GlassSettings = {
 const MOCKUP_W = 1440;
 const MOCKUP_H = 1024;
 const SETTLE_MS = 120;
+// Écart de taille (en proportion) au-delà duquel le reflet de la carte, étiré, est masqué le temps de la régénérer.
+const MAX_STRETCH = 0.12;
 const NS = "http://www.w3.org/2000/svg";
 const hex = (c: string) => `${parseInt(c.slice(1, 3), 16)},${parseInt(c.slice(3, 5), 16)},${parseInt(c.slice(5, 7), 16)}`;
 
@@ -98,7 +100,7 @@ function bezelProfile(c: number) {
 
 // Deux cartes par verre : déplacement (R = X, G = Y, 128 = neutre) et reflet spéculaire du biseau,
 // éclairé depuis specAngle (fort côté lumière, faible côté opposé, nul sur les flancs).
-export function glassMaps(w: number, h: number, radius: number, bezel: number, s: GlassSettings, u: number) {
+function glassMaps(w: number, h: number, radius: number, bezel: number, s: GlassSettings, u: number) {
   const prof = bezelProfile(s.curve);
   const light = ((s.specAngle * Math.PI) / 180);
   const lx = -Math.sin(light);
@@ -221,7 +223,7 @@ export function createGlass(stage: HTMLElement) {
     cards.forEach((card, i) => {
       const { width: w, height: h } = card.getBoundingClientRect();
       const ready = w > 0 && h > 0;
-      const refract = REFRACTIVE && s.refraction !== 0 && ready;
+      const wantsRefraction = REFRACTIVE && s.refraction !== 0 && ready;
       if (ready) {
         const radius = parseFloat(getComputedStyle(card).borderTopLeftRadius);
         const bezel = Math.max(1, s.bezel * u);
@@ -232,18 +234,27 @@ export function createGlass(stage: HTMLElement) {
           el.setAttribute("width", String(w));
           el.setAttribute("height", String(h));
         }
-        if (card.dataset.mapKey !== key && !now && card.dataset.mapKey) pending = true;
+        // Pendant un redimensionnement, aucune carte n'est régénérée (même celle qui n'a pas encore de cartes :
+        // une carte qui naît à quelques pixels de haut aurait un reflet minuscule, ensuite étiré sur toute sa hauteur).
+        if (card.dataset.mapKey !== key && !now) pending = true;
         else if (card.dataset.mapKey !== key) {
           const maps = glassMaps(w, h, radius, bezel, s, u);
           image.setAttribute("href", maps.disp);
           card.style.setProperty("--g-spec-img", `url(${maps.spec})`);
           card.dataset.mapKey = key;
+          card.dataset.mapW = String(w);
+          card.dataset.mapH = String(h);
         }
+        // Reflet trop étiré (ou absent) : masqué par le CSS jusqu'à la régénération.
+        const mapped = !!card.dataset.mapKey;
+        const stretch = mapped ? Math.max(Math.abs(w / Number(card.dataset.mapW) - 1), Math.abs(h / Number(card.dataset.mapH) - 1)) : Infinity;
+        card.dataset.stale = String(stretch > MAX_STRETCH);
         const scales = [1 + s.dispersion, 1, 1 - s.dispersion];
         filter.querySelectorAll("feDisplacementMap").forEach((m, c) => m.setAttribute("scale", String(shift * scales[c])));
       }
       const filters = `blur(${s.blur * u}px) saturate(${s.saturate}) brightness(${s.brightness})`;
-      card.style.backdropFilter = refract ? `url(#gf${i}) ${filters}` : filters;
+      // Sans carte de déplacement (carte qui vient d'apparaître), flou simple : pas de réfraction dans le vide.
+      card.style.backdropFilter = wantsRefraction && card.dataset.mapKey ? `url(#gf${i}) ${filters}` : filters;
     });
     clearTimeout(settleTimer);
     if (pending) settleTimer = window.setTimeout(() => render(true), SETTLE_MS);
