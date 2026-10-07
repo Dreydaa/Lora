@@ -4,7 +4,7 @@ import { BURST_PROFILE_SIZE, burstProfile } from "./burstProfile";
 // Tous les réglages du fond. Les valeurs par défaut sont celles de la config validée ; le panneau
 // de réglage (backgroundPanel.ts, dev uniquement) les modifie en direct. Le profil des rayons
 // vient de la photo de référence (docs/product/soza-fond-eclat-325x238.jpg).
-export interface BackgroundSettings {
+interface BackgroundSettings {
   // Palette (sRGB), du plus sombre au plus clair : la luminosité de l'éclat est convertie en
   // couleur par interpolation entre ces cinq tons, répartis à 0, 25, 50, 75 et 100 %.
   colorDark: string;
@@ -365,5 +365,3 @@ export function createBackground(initial: Partial<BackgroundSettings> = {}) {
     },
   };
 }
-
-export type Background = ReturnType<typeof createBackground>;

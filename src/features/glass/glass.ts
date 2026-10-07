@@ -1,4 +1,4 @@
-export interface GlassSettings {
+interface GlassSettings {
   blur: number;
   saturate: number;
   brightness: number;
@@ -100,7 +100,7 @@ function bezelProfile(c: number) {
 
 // Deux cartes par verre : déplacement (R = X, G = Y, 128 = neutre) et reflet spéculaire du biseau,
 // éclairé depuis specAngle (fort côté lumière, faible côté opposé, nul sur les flancs).
-export function glassMaps(w: number, h: number, radius: number, bezel: number, s: GlassSettings, u: number) {
+function glassMaps(w: number, h: number, radius: number, bezel: number, s: GlassSettings, u: number) {
   const prof = bezelProfile(s.curve);
   const light = ((s.specAngle * Math.PI) / 180);
   const lx = -Math.sin(light);

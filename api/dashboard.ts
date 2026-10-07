@@ -2,7 +2,7 @@ import { getUpcomingAgenda } from "../lib/notion/agenda";
 import { getMilestones } from "../lib/notion/milestones";
 import { getAllIdeas } from "../lib/notion/idees";
 import { getSettings } from "../lib/notion/settings";
-import { DASHBOARD_TITLES_PER_FEED, formatArticle, getArticles } from "../lib/integrations/news";
+import { DASHBOARD_TITLES_PER_FEED, getArticles } from "../lib/integrations/news";
 import { getLastBriefing } from "../lib/memory";
 import { assertDashboardKey } from "../lib/validation";
 
@@ -46,9 +46,7 @@ export default async function handler(request: Request) {
           pendingChangeDate: settings.pendingChangeDate,
         },
         briefing: briefing ?? "Pas encore de briefing aujourd'hui.",
-        news: articles.map(formatArticle),
         articles,
-        quiz: "", // pas encore implémenté côté backend (cf. docs/ai/STATUS.md)
       },
       { headers: CORS_HEADERS },
     );

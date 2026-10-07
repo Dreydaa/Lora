@@ -3,10 +3,10 @@ import * as THREE from "three";
 // Ruban de Möbius paramétrique, partagé entre l'intro (état final) et le hub statique du dashboard.
 export const RIBBON_RADIUS = 230;
 export const RIBBON_HALF_WIDTH = 75;
-export const RIBBON_THICKNESS = 3;
+const RIBBON_THICKNESS = 3;
 export const RIBBON_SIZE = 0.75;
-export const RIBBON_WOBBLE = 2.5;
-export const RIBBON_TILT = THREE.MathUtils.degToRad(58);
+const RIBBON_WOBBLE = 2.5;
+const RIBBON_TILT = THREE.MathUtils.degToRad(58);
 export const RIBBON_SPIN = 0.5;
 
 const tiltCos = Math.cos(RIBBON_TILT);
