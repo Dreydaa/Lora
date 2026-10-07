@@ -83,7 +83,10 @@
   border-radius: inherit;
   background: var(--g-spec-img) center / 100% 100% no-repeat;
   pointer-events: none;
+  transition: opacity 0.25s ease;
 }
+/* Pendant le remodelage du bento : le reflet étiré (bords blancs épaissis) est masqué, il revient une fois régénéré. */
+.glass[data-stale="true"]::before { opacity: 0; }
 
 /* Grain fin. */
 .glass::after {

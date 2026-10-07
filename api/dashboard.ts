@@ -25,7 +25,7 @@ export default async function handler(request: Request) {
 
     const [agenda, milestones, ideas, settings, articles, briefing] = await Promise.all([
       getUpcomingAgenda(true, 60),
-      getMilestones(),
+      getMilestones(true),
       getAllIdeas(),
       getSettings(),
       getArticles(DASHBOARD_TITLES_PER_FEED),

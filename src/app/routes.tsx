@@ -8,5 +8,8 @@ export function Routes() {
   if (params.has("intro")) return <ParticleIntro />;
   if (params.has("glass")) return <GlassPage />;
   if (params.has("hub")) return <div style={{ position: "fixed", inset: 0 }}><HubRibbon /></div>;
-  return <DashboardPage />;
+  // Ancien dashboard plat, gardé le temps du nettoyage (voir STATUS.md).
+  if (params.has("flat")) return <DashboardPage />;
+  // Page d'accueil de l'app Tauri (pas de paramètre d'URL dans la fenêtre) : intro puis dashboard en verre.
+  return <GlassPage />;
 }
