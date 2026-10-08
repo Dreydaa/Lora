@@ -26,7 +26,8 @@ export function BriefingCard({ briefing, eveningBriefing, settings, now }: Props
           {morning ? settings.morningTime : settings.eveningTime}
         </span>
       </header>
-      <Text text={morning ? briefing : eveningBriefing} />
+      {/* Le backend déployé peut être plus ancien que l'app : un champ absent ne doit pas faire planter l'écran. */}
+      <Text text={(morning ? briefing : eveningBriefing) || (morning ? "Pas encore de briefing aujourd'hui." : "Pas encore de briefing ce soir.")} />
     </div>
   );
 }
