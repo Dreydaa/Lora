@@ -67,7 +67,7 @@ npm run tauri dev                  # application de bureau en développement (Ta
 npm run tauri build                # installeur Windows : src-tauri/target/release/bundle/nsis/
 
 npm test                           # tests rapides : unit + integration + regression (moins de 1 s)
-npm run test:acceptance            # scénarios dans un vrai navigateur (~100 s)
+npm run test:acceptance            # scénarios dans un vrai navigateur (~2 min)
 npm run test:rust                  # tests Rust
 npm run test:all                   # tout enchaîner
 npm run test:live                  # seul test contre les vraies APIs (à lancer à la main)
