@@ -6,7 +6,7 @@ import { addAgendaItem, addShiftSchedule, getUpcomingAgenda } from "../lib/notio
 import { getLatestProgress, saveProgress } from "../lib/notion/progress";
 import { getHistory, appendToHistory, setBreak, getBreak, clearBreak, inBreak } from "../lib/memory";
 import { askSoza, resolveModel } from "../lib/ai/client";
-import { agendaLine, bilanLine, buildBriefing, dayLine, milestoneLine } from "../lib/briefing";
+import { agendaLine, bilanLine, buildMorningBriefings, dayLine, milestoneLine } from "../lib/briefing";
 import { notion } from "../lib/notion/client";
 
 const results: { name: string; ok: boolean; detail?: string }[] = [];
@@ -173,10 +173,10 @@ async function main() {
   await clearBreak();
   record("pause: clearBreak supprime la clé", (await getBreak()) === null);
   try {
-    const briefing = await buildBriefing();
-    record("buildBriefing retourne un texte non vide", !!briefing?.trim(), briefing.slice(0, 150));
+    const briefing = (await buildMorningBriefings()).telegram;
+    record("buildMorningBriefings retourne un texte non vide", !!briefing?.trim(), briefing.slice(0, 150));
   } catch (e) {
-    record("buildBriefing", false, String(e));
+    record("buildMorningBriefings", false, String(e));
   }
 
   console.log("\n=== Nettoyage des données de test ===");

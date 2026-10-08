@@ -1,4 +1,5 @@
-import { isAllowedChat, telegramUpdateSchema } from "../lib/validation";
+import { isAllowedChat } from "../lib/auth";
+import { telegramUpdateSchema } from "../lib/validation";
 import { publishWorkerJob } from "../lib/integrations/qstash";
 
 export const config = {

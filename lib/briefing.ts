@@ -110,50 +110,36 @@ async function generateBriefing(instruction: string, contextSummary: string, fal
   }
 }
 
-// Briefing complet envoyé sur Telegram.
-export async function buildBriefing(): Promise<string> {
-  const [agenda, progress, weather, news, brk] = await Promise.all([
-    getUpcomingAgenda(),
-    getLatestProgress(),
-    getWeather(),
-    getNews(),
-    getBreak(),
-  ]);
+// Chaque cron charge ses données une seule fois pour les deux versions du texte (Telegram complète, dashboard courte) :
+// moitié moins de requêtes Notion et d'appels météo, ce qui compte avec la limite d'environ 3 requêtes par seconde de Notion.
+export type Briefings = { telegram: string; dashboard: string };
 
+// Matin. Telegram : bilan, météo, agenda des 7 jours, actualités. Dashboard : bilan et météo seulement.
+export async function buildMorningBriefings(): Promise<Briefings> {
+  const [agenda, progress, weather, news, brk] = await Promise.all([getUpcomingAgenda(), getLatestProgress(), getWeather(), getNews(), getBreak()]);
   const today = todayInParis();
-  const contextSummary = [
-    bilanLine(progress, today, brk),
-    `Météo: ${weather}.`,
-    agendaLine(agenda, today),
-    `À suivre: ${news.join(" · ")}`,
-  ].join("\n");
-
-  return generateBriefing(BRIEFING_INSTRUCTION, contextSummary, `SOZA — briefing\n${contextSummary}`);
+  const short = [bilanLine(progress, today, brk), `Météo: ${weather}.`].join("\n");
+  const full = [short, agendaLine(agenda, today), `À suivre: ${news.join(" · ")}`].join("\n");
+  const [telegram, dashboard] = await Promise.all([
+    generateBriefing(BRIEFING_INSTRUCTION, full, `SOZA — briefing\n${full}`),
+    generateBriefing(DASHBOARD_BRIEFING_INSTRUCTION, short, short),
+  ]);
+  return { telegram, dashboard };
 }
 
 const EVENING_FALLBACK = "SOZA — bilan du soir\nDis-moi ce que tu as accompli aujourd'hui, même en une phrase — je m'en servirai demain matin pour te relancer sur la suite.";
 
-// Briefing du soir envoyé sur Telegram : journée, prochain jalon, agenda des 7 jours, puis demande du bilan.
-export async function buildEveningBriefing(): Promise<string> {
+// Soir, sans météo ni actualités. Telegram : journée, prochain jalon, agenda des 7 jours, puis demande du bilan.
+// Dashboard : journée et prochain jalon seulement.
+export async function buildEveningBriefings(): Promise<Briefings> {
   const today = todayInParis();
   const [items, milestones, agenda] = await Promise.all([getAgendaOn(today), getMilestones(), getUpcomingAgenda()]);
-  const contextSummary = [dayLine(items), milestoneLine(milestones, today), agendaLine(agenda, today)].join("\n");
-  const text = await generateBriefing(EVENING_INSTRUCTION, contextSummary, EVENING_FALLBACK);
+  const short = [dayLine(items), milestoneLine(milestones, today)].join("\n");
+  const full = [short, agendaLine(agenda, today)].join("\n");
+  const [text, dashboard] = await Promise.all([
+    generateBriefing(EVENING_INSTRUCTION, full, EVENING_FALLBACK),
+    generateBriefing(DASHBOARD_EVENING_INSTRUCTION, short, short),
+  ]);
   // Le briefing du matin dépend du bilan : si le modèle l'a oublié dans sa question finale, on la lui rajoute.
-  return /bilan/i.test(text) ? text : `${text}\nEt ton bilan du jour, Boss : qu'as-tu accompli ?`;
-}
-
-// Version courte affichée dans le dashboard le soir (enregistrée par le cron du soir) : journée et prochain jalon.
-export async function buildDashboardEveningBriefing(): Promise<string> {
-  const today = todayInParis();
-  const [items, milestones] = await Promise.all([getAgendaOn(today), getMilestones()]);
-  const contextSummary = [dayLine(items), milestoneLine(milestones, today)].join("\n");
-  return generateBriefing(DASHBOARD_EVENING_INSTRUCTION, contextSummary, contextSummary);
-}
-
-// Version courte affichée dans le dashboard (enregistrée par le cron du matin) : bilan et météo seulement.
-export async function buildDashboardBriefing(): Promise<string> {
-  const [progress, weather, brk] = await Promise.all([getLatestProgress(), getWeather(), getBreak()]);
-  const contextSummary = [bilanLine(progress, todayInParis(), brk), `Météo: ${weather}.`].join("\n");
-  return generateBriefing(DASHBOARD_BRIEFING_INSTRUCTION, contextSummary, contextSummary);
+  return { telegram: /bilan/i.test(text) ? text : `${text}\nEt ton bilan du jour, Boss : qu'as-tu accompli ?`, dashboard };
 }

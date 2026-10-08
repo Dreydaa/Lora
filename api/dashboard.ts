@@ -4,7 +4,7 @@ import { getAllIdeas } from "../lib/notion/idees";
 import { getSettings } from "../lib/notion/settings";
 import { DASHBOARD_TITLES_PER_FEED, getArticles } from "../lib/integrations/news";
 import { getLastBriefing } from "../lib/memory";
-import { assertDashboardKey } from "../lib/validation";
+import { assertDashboardKey } from "../lib/auth";
 
 export const config = {
   runtime: "edge",
