@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { AppWindow, Code, Folder, Globe, Terminal } from "lucide-react";
 import { useEffect, useState } from "react";
-import { siBlender, siDiscord, siFigma, siFirefoxbrowser, siGooglechrome, siNotion, siObsstudio, siSpotify, siSteam, siTelegram } from "simple-icons";
+import { siBitwarden, siBlender, siBrave, siDiscord, siFigma, siFirefoxbrowser, siGooglechrome, siNotion, siObsstudio, siSpotify, siSteam, siTelegram } from "simple-icons";
 import { localDayKey } from "../../lib/format";
 import { brand, glyph, type TaskIcon } from "../calendar/taskIcons";
 
@@ -14,6 +14,8 @@ const APPS: Record<string, { name: string; icon: TaskIcon }> = {
   blender: { name: "Blender", icon: brand(siBlender) },
   code: { name: "VS Code", icon: glyph("vscode", "VS Code", "#007acc", Code) }, // simple-icons n'a plus le logo VS Code
   chrome: { name: "Chrome", icon: brand(siGooglechrome) },
+  brave: { name: "Brave", icon: brand(siBrave) },
+  bitwarden: { name: "Bitwarden", icon: brand(siBitwarden) },
   firefox: { name: "Firefox", icon: brand(siFirefoxbrowser) },
   msedge: { name: "Edge", icon: glyph("edge", "Edge", "#0078d4", Globe) },
   figma: { name: "Figma", icon: brand(siFigma) },
