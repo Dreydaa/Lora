@@ -49,7 +49,8 @@ export const mockData: DashboardData = {
     { id: "i5", title: "Bot Discord", size: "Petit", status: "Archivée", since: day(-60) },
     { id: "i6", title: "Personnage 3D", size: "Grand", status: "En cours", notes: "Personnage stylisé animé : modélisation, UV, rig puis cycle idle.", since: day(-8), updated: day(0) },
   ],
-  settings: { shiftActive: true, shiftStartHour: 4, shiftEndHour: 15, morningTime: "06:00", eveningTime: "20:00", pendingChangeDate: null },
+  settings: { morningTime: "06:00", eveningTime: "20:00" },
   briefing: "Shift de 5h à 13h, récupère avant de t'y remettre. Le jalon « UV + textures » a un jour de retard : c'est ton objectif ce soir.",
+  eveningBriefing: "Deux tâches sur trois bouclées, Boss. Il reste le jalon « UV + textures », avec un jour de retard : rien d'irrattrapable.",
   articles,
 };

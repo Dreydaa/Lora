@@ -14,3 +14,11 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-autostart = "2.7.0"
 tauri-plugin-opener = "2"
 user-idle = "0.6.0"
+
+# Exécutable plus petit (la vitesse du Rust n'est pas le goulot : un thread qui dort 5 s). panic reste en "unwind" :
+# avec "abort", une panique du thread de suivi arrêterait toute l'app.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

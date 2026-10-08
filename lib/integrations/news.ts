@@ -16,7 +16,7 @@ const formatArticle =(a: Article) => `[${a.tag}] ${a.title}`;
 
 // Certains flux (TechCrunch) laissent des entités dans les titres : « &#8216;Alibaba&#8217; ». Une entité inconnue est laissée telle quelle.
 const NAMED_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
-const decodeEntities = (s: string) =>
+export const decodeEntities = (s: string) =>
   s.replace(/&(?:#(\d+)|#x([0-9a-f]+)|(\w+));/gi, (m, dec, hex, name) =>
     dec ? String.fromCodePoint(+dec) : hex ? String.fromCodePoint(parseInt(hex, 16)) : (NAMED_ENTITIES[name.toLowerCase()] ?? m),
   );
