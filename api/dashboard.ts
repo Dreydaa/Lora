@@ -39,12 +39,8 @@ export default async function handler(request: Request) {
         milestones,
         ideas,
         settings: {
-          shiftActive: settings.shiftActive,
-          shiftStartHour: settings.shiftStartHour,
-          shiftEndHour: settings.shiftEndHour,
           morningTime: settings.morningTime,
           eveningTime: settings.eveningTime,
-          pendingChangeDate: settings.pendingChangeDate,
         },
         briefing: briefing ?? "Pas encore de briefing aujourd'hui.",
         eveningBriefing: eveningBriefing ?? "Pas encore de briefing ce soir.",
