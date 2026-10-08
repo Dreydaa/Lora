@@ -6,6 +6,8 @@ import { dashboardStore } from "../../stores/dashboardStore";
 import { GlassCalendar } from "../calendar/GlassCalendar";
 import { ParticleIntro } from "../intro/ParticleIntro";
 import { BriefingCard } from "../widgets/BriefingCard";
+import { AppUsageDetail } from "../widgets/AppUsageDetail";
+import { useAppUsage } from "../widgets/appUsage";
 import { MilestonesTimeline } from "../widgets/MilestonesTimeline";
 import { ProjectsCard } from "../widgets/ProjectsCard";
 import { AppUsageCard, NextMilestoneCard, ProjectStatsCard, WeatherCard } from "../widgets/SmallCards";
@@ -27,7 +29,9 @@ const Card = ({ i, size, className = "", children }: { i: number; size: "lg" | "
   </div>
 );
 
-// Ligne du temps des jalons : "closing" laisse jouer le remodelage inverse avant de retirer son contenu.
+// Carte de détail ajoutée au clic sur « Prochain jalon » (ligne du temps) ou « Écran » (applications) : "closing" laisse
+// jouer le remodelage inverse avant de retirer son contenu.
+type Panel = "milestones" | "usage";
 type Timeline = "closed" | "open" | "closing";
 const FOCUS_MS = 600; // = durée des transitions de grille dans glass.css
 
@@ -36,18 +40,23 @@ export function GlassPage() {
   const [skip] = useState(skipIntro);
   const [ready, setReady] = useState(false);
   const [timeline, setTimeline] = useState<Timeline>("closed");
+  const [panel, setPanel] = useState<Panel>("milestones");
   const closeTimer = useRef(0);
   const data = useDashboardData();
   const now = useNow();
+  const usage = useAppUsage();
 
-  const openTimeline = () => {
+  const openTimeline = (next: Panel) => {
     clearTimeout(closeTimer.current);
+    setPanel(next);
     setTimeline("open");
   };
   const closeTimeline = () => {
     setTimeline("closing");
     closeTimer.current = window.setTimeout(() => setTimeline("closed"), FOCUS_MS);
   };
+  // Un second clic sur le bloc ouvert referme ; un clic sur l'autre bloc change le contenu sans refermer.
+  const toggle = (target: Panel) => (timeline === "open" && panel === target ? closeTimeline() : openTimeline(target));
 
   useEffect(() => {
     if (timeline !== "open") return;
@@ -75,19 +84,21 @@ export function GlassPage() {
       <div className="glass-bg">
         <ParticleIntro skip={skip} onDone={() => setReady(true)} />
       </div>
-      <div ref={stageRef} className="glass-stage" data-ready={ready} data-focus={timeline === "open" ? "milestones" : undefined}>
+      <div ref={stageRef} className="glass-stage" data-ready={ready} data-focus={timeline === "open" ? panel : undefined}>
         <div className="glass-col glass-col-a">
           <Card i={0} size="lg"><ProjectsCard ideas={data.ideas} milestones={data.milestones} /></Card>
           <div className="glass-small-row">
             <Card i={1} size="sm"><WeatherCard /></Card>
             <Card i={2} size="sm">
-              <NextMilestoneCard milestones={data.milestones} open={timeline === "open"} onToggle={timeline === "open" ? closeTimeline : openTimeline} />
+              <NextMilestoneCard milestones={data.milestones} open={timeline === "open" && panel === "milestones"} onToggle={() => toggle("milestones")} />
             </Card>
-            <Card i={3} size="sm"><AppUsageCard /></Card>
+            <Card i={3} size="sm"><AppUsageCard usage={usage} open={timeline === "open" && panel === "usage"} onToggle={() => toggle("usage")} /></Card>
             <Card i={4} size="sm"><ProjectStatsCard ideas={data.ideas} /></Card>
           </div>
           <Card i={8} size="lg" className="glass-timeline">
-            {timeline !== "closed" && <MilestonesTimeline milestones={data.milestones} leaving={timeline === "closing"} onClose={closeTimeline} />}
+            {timeline !== "closed" && (panel === "milestones"
+              ? <MilestonesTimeline key="milestones" milestones={data.milestones} leaving={timeline === "closing"} onClose={closeTimeline} />
+              : <AppUsageDetail key="usage" usage={usage} leaving={timeline === "closing"} onClose={closeTimeline} />)}
           </Card>
           <Card i={5} size="lg"><WatchCard articles={data.articles ?? []} /></Card>
         </div>

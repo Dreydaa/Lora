@@ -1,9 +1,9 @@
 import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Maximize2, Minimize2, Sun, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { siBlender, siFigma, siGooglechrome } from "simple-icons";
 import type { Milestone } from "../../../lib/types";
 import { dayKey, daysBetween, localDayKey } from "../../lib/format";
 import type { Idea } from "../../types/dashboard";
+import { duration, rankApps, type Usage } from "./appUsage";
 import { nextMilestone, toneOf } from "./MilestonesTimeline";
 import "./widgets.css";
 
@@ -74,29 +74,22 @@ export function WeatherCard() {
   );
 }
 
-// ───── Temps par application ─────
-// Pas encore de source (il faudra un suivi côté Tauri/Rust) : sans données réelles, on affiche un exemple.
-type AppUsage = { app: string; minutes: number; color: string };
-const SAMPLE_USAGE: AppUsage[] = [
-  { app: "Blender", minutes: 130, color: `#${siBlender.hex}` },
-  { app: "VS Code", minutes: 100, color: "#007acc" }, // simple-icons n'a plus le logo VS Code
-  { app: "Chrome", minutes: 65, color: `#${siGooglechrome.hex}` },
-  { app: "Figma", minutes: 25, color: `#${siFigma.hex}` },
-];
-const duration = (m: number) => `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`;
+// ───── Temps par application (cliquable : ouvre le détail, voir GlassPage) ─────
+// Mesure du jour par le suivi Rust ; hors de l'app Tauri (navigateur), rien n'est mesuré.
+const BAR_APPS = 5;
 
-export function AppUsageCard({ usage }: { usage?: AppUsage[] }) {
-  const rows = usage ?? SAMPLE_USAGE;
-  const total = rows.reduce((sum, r) => sum + r.minutes, 0);
+export function AppUsageCard({ usage, open, onToggle }: { usage: Usage | null; open: boolean; onToggle: () => void }) {
+  const apps = rankApps(usage, 1);
+  const total = apps.reduce((sum, a) => sum + a.seconds, 0);
   return (
-    <div className="gw gw-mini">
-      <span className="gw-label">Écran{!usage && <em className="gw-tag">Exemple</em>}</span>
-      <b className="gw-total">{duration(total)}</b>
-      <div className="gw-bar" role="img" aria-label={rows.map((r) => `${r.app} ${duration(r.minutes)}`).join(", ")}>
-        {rows.map((r) => <i key={r.app} title={`${r.app} · ${duration(r.minutes)}`} style={{ flex: r.minutes, background: r.color }} />)}
+    <button className="gw gw-mini gw-button" onClick={onToggle} aria-expanded={open} aria-label={open ? "Fermer le détail du temps d'écran" : "Ouvrir le détail du temps d'écran"}>
+      <span className="gw-label">Écran{open ? <Minimize2 size="1.1em" aria-hidden="true" /> : <Maximize2 size="1.1em" aria-hidden="true" />}</span>
+      <b className="gw-total">{usage ? duration(total) : "—"}</b>
+      <div className="gw-bar" role="img" aria-label={apps.map((a) => `${a.name} ${duration(a.seconds)}`).join(", ")}>
+        {apps.slice(0, BAR_APPS).map((a) => <i key={a.exe} title={`${a.name} · ${duration(a.seconds)}`} style={{ flex: a.seconds, background: a.icon.color }} />)}
       </div>
-      <span className="gw-sub">{rows[0].app} · {duration(rows[0].minutes)}</span>
-    </div>
+      <span className="gw-sub">{apps[0] ? `${apps[0].name} · ${duration(apps[0].seconds)}` : usage ? "Rien de mesuré" : "Dans l'app Soza"}</span>
+    </button>
   );
 }
 
