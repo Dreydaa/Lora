@@ -4,7 +4,7 @@ import { getAllIdeas } from "../lib/notion/idees";
 import { getSettings } from "../lib/notion/settings";
 import { DASHBOARD_TITLES_PER_FEED, getArticles } from "../lib/integrations/news";
 import { getLastBriefing } from "../lib/memory";
-import { assertDashboardKey } from "../lib/validation";
+import { assertDashboardKey } from "../lib/auth";
 
 export const config = {
   runtime: "edge",
@@ -23,13 +23,14 @@ export default async function handler(request: Request) {
   try {
     assertDashboardKey(request);
 
-    const [agenda, milestones, ideas, settings, articles, briefing] = await Promise.all([
+    const [agenda, milestones, ideas, settings, articles, briefing, eveningBriefing] = await Promise.all([
       getUpcomingAgenda(true, 60),
       getMilestones(true),
       getAllIdeas(),
       getSettings(),
       getArticles(DASHBOARD_TITLES_PER_FEED),
       getLastBriefing(),
+      getLastBriefing("evening"),
     ]);
 
     return Response.json(
@@ -38,14 +39,11 @@ export default async function handler(request: Request) {
         milestones,
         ideas,
         settings: {
-          shiftActive: settings.shiftActive,
-          shiftStartHour: settings.shiftStartHour,
-          shiftEndHour: settings.shiftEndHour,
           morningTime: settings.morningTime,
           eveningTime: settings.eveningTime,
-          pendingChangeDate: settings.pendingChangeDate,
         },
         briefing: briefing ?? "Pas encore de briefing aujourd'hui.",
+        eveningBriefing: eveningBriefing ?? "Pas encore de briefing ce soir.",
         articles,
       },
       { headers: CORS_HEADERS },

@@ -1,4 +1,4 @@
-// Crée la base Notion "Soza Réglages" (config dynamique : fenêtre pause, horaires briefing/bilan)
+// Crée la base Notion "Soza Réglages" (config dynamique : horaires briefing/bilan)
 // et y insère la ligne de config unique avec des valeurs par défaut.
 import { Client } from "@notionhq/client";
 
@@ -12,11 +12,6 @@ async function main() {
     title: [{ type: "text", text: { content: "Soza Réglages" } }],
     properties: {
       Nom: { title: {} },
-      "Fenêtre pause active": { checkbox: {} },
-      "Heure début pause": { number: { format: "number" } },
-      "Heure fin pause": { number: { format: "number" } },
-      "Date de changement": { date: {} },
-      "Nouvelle valeur fenêtre pause": { checkbox: {} },
       "Heure briefing matin": { rich_text: {} },
       "Heure bilan soir": { rich_text: {} },
       "QStash id briefing": { rich_text: {} },
@@ -30,9 +25,6 @@ async function main() {
     parent: { database_id: database.id },
     properties: {
       Nom: { title: [{ text: { content: "Config" } }] },
-      "Fenêtre pause active": { checkbox: true },
-      "Heure début pause": { number: 4 },
-      "Heure fin pause": { number: 15 },
       "Heure briefing matin": { rich_text: [{ text: { content: "06:00" } }] },
       "Heure bilan soir": { rich_text: [{ text: { content: "20:00" } }] },
     },
