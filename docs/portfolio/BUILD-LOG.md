@@ -1,6 +1,6 @@
 # Soza — étude de cas et journal de construction
 
-Soza est un assistant personnel piloté par Telegram, doublé d'une application de bureau, construit de zéro en trois semaines (16 septembre → 7 octobre 2026). Ce document raconte **comment** : l'architecture, les choix et leurs compromis, les bugs et leurs causes racines, ce qui a été essayé puis abandonné, et la méthode de travail.
+Soza est un assistant personnel piloté par Telegram, doublé d'une application de bureau, construit de zéro en trois semaines (16 septembre → 8 octobre 2026). Ce document raconte **comment** : l'architecture, les choix et leurs compromis, les bugs et leurs causes racines, ce qui a été essayé puis abandonné, et la méthode de travail.
 
 Il se lit à trois niveaux :
 
@@ -23,7 +23,7 @@ L'état d'avancement détaillé et daté vit dans [`docs/ai/STATUS.md`](../ai/ST
 - il envoie un **briefing le matin** (météo, agenda, bilan de la veille) et demande un **bilan le soir**, à des horaires modifiables en conversation ;
 - une **application de bureau** (Tauri + React) affiche tout cela dans un tableau de bord en « verre liquide » devant un ruban de Möbius en particules animé en temps réel.
 
-**Statut.** Backend en production et utilisé au quotidien. Le dashboard en verre est devenu la page d'accueil de l'app (intro en particules, puis cartes) ; il reste du nettoyage et quelques blocs sur données d'exemple. Une V2 (assistant vocal local, protocoles, gestes) est cadrée mais volontairement pas commencée.
+**Statut.** Backend en production et utilisé au quotidien. L'application de bureau a un installeur Windows, mesure le temps d'écran réel et ouvre sur l'intro en particules puis le dashboard en verre ; 286 tests couvrent le projet. Reste à valider l'app installée dans la durée (démarrage automatique, zone de notification, fluidité). Une V2 (assistant vocal local, protocoles, gestes) est cadrée mais volontairement pas commencée.
 
 **Un cadrage qui a évolué.** Soza est née comme un coach de discipline à deux personnalités (une exigeante, une protectrice, selon les horaires de travail). Le 07/10, l'utilisateur tenant sa cadence de travail, ce cadrage a été abandonné : une seule personnalité (« Friday »), plus de mode ACTIF/PAUSE, le produit se rapprochant d'un assistant du type Jarvis/FRIDAY. Le retrait a touché le backend (modes, prompts, outils, accès Notion, briefing, API du dashboard), les scripts et le front.
 
@@ -31,22 +31,25 @@ L'état d'avancement détaillé et daté vit dans [`docs/ai/STATUS.md`](../ai/ST
 
 | | |
 | --- | --- |
-| Durée | 3 semaines (premier commit le 16/09/2026, dernier le 07/10/2026) |
-| Historique | 37 commits de travail (hors fusions de pull requests) |
-| Code suivi par git | ~4 850 lignes de TypeScript/CSS/Rust : `api/` 174, `lib/` 1 098, `src/` 3 199, `scripts/` 367, Rust 17 |
+| Durée | 3 semaines (premier commit le 16/09/2026, dernier le 08/10/2026) |
+| Historique | 61 commits |
+| Code suivi par git | ~4 950 lignes de TypeScript/CSS/Rust : `api/` 173, `lib/` 1 153, `src/` 3 049, `scripts/` 440, Rust 151 ; plus 2 169 lignes de tests |
+| Tests | 286 : 263 rapides (unitaires, intégration, régression — rejoués le 08/10, ~1 s), 20 scénarios dans un vrai navigateur, 3 en Rust |
 | Endpoints serverless | 5 (webhook Telegram, worker, cron matin, cron soir, dashboard) |
 | Outils IA exposés au modèle | 13 |
 | Bases Notion | 5 (Idées, Agenda, Jalons, Progression, Réglages) |
 | Fournisseur LLM | 1 (Groq) — un second a été essayé puis retiré |
-| Dépendances d'exécution | 15, dont `three`, `zod`, `ai` (Vercel AI SDK), `@upstash/*`, `@notionhq/client` |
+| Dépendances d'exécution | 13 (5 inutilisées retirées le 08/10), dont `three`, `zod`, `ai` (Vercel AI SDK), `@upstash/*`, `@notionhq/client` |
 
-Chiffres tirés de `git log` et du dépôt au 07/10/2026.
+Chiffres tirés de `git log` et du dépôt au 08/10/2026. Les 286 tests (263 rapides, 20 scénarios navigateur, 3 en Rust) ont été rejoués le 08/10/2026 pour ce document.
 
 ### Compétences démontrées
 
 - **Architecture serverless asynchrone** : file de jobs, webhooks, crons pilotables par API, reprise sur échec.
 - **Intégration de LLM en production** : appel d'outils (tool calling) avec validation de schéma, conception de prompts, gestion des intentions ambiguës, mémoire de conversation, repli quand le modèle est indisponible.
-- **Fiabilité** : fuseaux horaires, dérives de configuration entre environnements, bugs silencieux, tests d'intégration contre les vraies APIs.
+- **Fiabilité** : fuseaux horaires, dérives de configuration entre environnements, bugs silencieux, repli quand un backend est plus ancien que l'app.
+- **Qualité logicielle** : 286 tests en quatre familles (unitaire, intégration, régression par famille de bugs, acceptation dans un vrai navigateur) plus Rust ; tests qui n'utilisent jamais de vrais services ; un test de régression vérifié en réintroduisant le bug.
+- **Rust et application de bureau** : thread de suivi du temps d'écran, zone de notification, démarrage automatique, installeur, réduction de 33 % de l'exécutable.
 - **Front et graphisme temps réel** : React/Vite/Tauri, WebGL avec three.js, shaders GLSL, filtres SVG, CSS Grid animée.
 - **Jugement produit** : fonctionnalités retirées volontairement plutôt que conservées par inertie, limites documentées plutôt que cachées.
 - **Rigueur de méthode** : décisions datées et motivées, distinction écrite entre « vérifié » et « non vérifié », garde-fous contre la dispersion.
@@ -64,6 +67,7 @@ Chiffres tirés de `git log` et du dépôt au 07/10/2026.
 | 30/09 | **Dashboard branché** | Nouvel endpoint agrégé `api/dashboard.ts` ; le front passe des données factices aux vraies données Notion. |
 | 06/10 | **Dashboard en verre et correctifs** | Disposition « bento » de la maquette, calendrier, blocs, frise des jalons ; correctif du briefing (bilan manquant, rappels d'agenda) ; pauses de plusieurs jours. |
 | 07/10 | **Une seule personnalité, dashboard par défaut, mise en ligne** | Les deux personnalités sont fusionnées en une seule (« Friday ») et le mode ACTIF/PAUSE est retiré de tout le code ; le dashboard en verre devient la page d'accueil de l'app ; le fond passe à un aplat bleu avec des particules blanches en fil de fer ; la fusion sur `main` déclenche le déploiement de production qui met enfin en ligne les correctifs de la veille. |
+| 08/10 | **Une application qui s'installe, qui mesure et qui se teste** | Le bloc « Écran » devient réel : un thread Rust mesure l'application au premier plan (données gardées sur la machine) et le détail s'ouvre au clic ; démarrage automatique avec Windows et zone de notification ; installeur Windows ; le briefing du soir est rédigé par Soza ; les colonnes Notion obsolètes sont supprimées et les 52 idées reçoivent une catégorie ; 286 tests ; passe d'optimisation mesurée (exécutable −33 %, 5 dépendances en moins, requêtes Notion des crons réduites) ; la fusion de la PR sur `main` met le tout en production. |
 | à partir de 30/09 | **V2 cadrée** | Assistant vocal local, protocoles, puis (06/10) gestes de la main : documenté, pas démarré. Le premier chantier (personnalité unique) a été fait le 07/10, en fin de V1. |
 
 ---
@@ -81,7 +85,9 @@ QStash Schedules ──▶ api/cron-morning.ts / api/cron-evening.ts ──▶ N
 
 Dashboard Tauri (React) ──▶ api/dashboard.ts ──▶ Notion (lecture agrégée) + Redis (dernier briefing)
 
-Redis : mémoire de conversation (10 messages, 6 h), dernier briefing, pause en cours
+Redis : mémoire de conversation (10 messages, 6 h), derniers briefings (matin et soir), pause en cours
+
+Application de bureau (Rust) : suivi du temps d'écran en local (jamais envoyé), zone de notification, démarrage avec Windows
 ```
 
 ### Principes directeurs
@@ -97,8 +103,9 @@ Redis : mémoire de conversation (10 messages, 6 h), dernier briefing, pause en 
 api/        5 endpoints serverless (edge) : webhook, worker, crons, dashboard
 lib/        cœur métier : IA (client, outils, prompts), accès Notion, intégrations, mémoire Redis, dates, briefing
 src/        application de bureau : features/ (dashboard, calendar, widgets, glass, intro, particles, hub…)
-src-tauri/  coque Rust minimale (17 lignes) qui héberge la vue web
-scripts/    configuration Notion/QStash, suite de tests d'intégration
+src-tauri/  application de bureau en Rust (151 lignes) : héberge la vue web, mesure le temps d'écran, zone de notification, démarrage automatique
+tests/      unit, integration, regression, acceptance + faux Notion, faux Redis et réseau bloqué
+scripts/    configuration et migration Notion/QStash, test contre les vraies APIs
 docs/       état du projet, contexte IA, schéma Notion, V2, ce journal
 ```
 
@@ -122,6 +129,8 @@ Le modèle ne « répond » pas seulement : il agit, via 13 outils (créer une i
 
 **Le briefing : faits en code, rédaction par le modèle.** Voir l'étude de cas dans [Bugs et causes racines](#bugs-et-causes-racines). Si le modèle est indisponible (quota, panne), un briefing basique est envoyé plutôt que de faire échouer le cron.
 
+**Le briefing du soir, avec ses garde-fous (08/10).** Le soir aussi, Soza rédige : la journée (tâches faites sur le total), le prochain jalon, l'agenda des 7 jours, puis la question du bilan. Les faits sont calculés dans le code, et le prompt interdit d'inventer du travail ou de conclure qu'une journée est improductive parce que l'agenda est vide. Si le texte ne contient pas le mot « bilan », une question de bilan est ajoutée, car le briefing du matin en dépend ; si le modèle est indisponible, la phrase fixe d'origine part quand même. Une version courte (deux à trois phrases) est gardée pour le dashboard.
+
 ---
 
 ## Décisions et compromis
@@ -139,6 +148,9 @@ Le modèle ne « répond » pas seulement : il agit, via 13 outils (créer une i
 | **Pas de vidéo pour l'intro** | Export vidéo depuis Blender | Une vidéo qui bascule vers un canvas crée un raccord visible et n'est pas réactive | Intro codée à la main |
 | **Rendu du ruban en three.js, pas depuis Blender** | Embarquer une scène Blender | Une scène Blender ne s'embarque pas comme fond d'une app Tauri ; l'équation paramétrique est plus légère et variable en temps réel | Blender ne sert qu'au prototypage |
 | **Fenêtre verrouillée en 1440 ou 1920 de large** | Mise en page responsive complète | Une app de bureau n'a pas besoin d'un mode mobile ; la grille est mise à l'échelle | Pas d'usage sur petit écran |
+| **Temps d'écran mesuré en Rust, gardé sur la machine** | L'envoyer à Notion ou au backend | Ce qu'on fait sur son ordinateur est une donnée sensible : elle n'a pas à quitter la machine, et un fichier local évite tout réseau | Visible seulement dans l'app, Windows uniquement |
+| **Fermer la fenêtre la masque** | Quitter l'application | Le suivi et le démarrage automatique supposent une app qui reste vivante ; « Quitter » est explicite dans la zone de notification | L'app reste en mémoire |
+| **Des tests sans aucun vrai service** | Tester contre les vrais Notion, Redis, Groq | Rapides (moins d'une seconde pour 263 tests), reproductibles, sans risque pour les vraies données ; tout appel réseau non prévu fait échouer le test | Un seul test (`test:live`), lancé à la main, valide les vraies APIs |
 
 ### Ce qui a été retiré, et pourquoi
 
@@ -147,6 +159,9 @@ Savoir retirer est autant une compétence que savoir ajouter. Chaque retrait est
 - **Le « Proof of Work »** (preuve tangible d'une journée : lien, capture, export 3D, commit) : jugé trop lourd à l'usage, remplacé par un contrôle de cohérence conversationnel, puis supprimé.
 - **Le streak (compteur de jours consécutifs)** : retiré *en entier*, pas seulement son affichage. La machinerie qui le justifiait (contrôle d'horaire, vérification de cohérence) est partie avec, `record_progress` redevenant un simple enregistrement, et la colonne a été supprimée de la base Notion de production plutôt que laissée morte.
 - **Le mode ACTIF/PAUSE et les deux personnalités (07/10/2026)** : un mode qui basculait le ton du modèle selon les horaires de travail. Retiré en entier : le module de détection, le type, le champ dans Notion et dans l'API, l'outil qui le pilotait, les composants du dashboard. L'utilisateur tenait sa cadence de travail : le mécanisme n'avait plus d'utilité pour lui, et un mécanisme inutilisé reste du code à maintenir et à tester.
+- **Les réglages de shift (08/10/2026)** : le code, la réponse de l'API, le type du dashboard et les colonnes Notion correspondantes. Les colonnes ont été supprimées par un script de migration qui **simule d'abord** (aucune écriture), affiche ce qu'il ferait, puis s'applique avec `--apply` et relit les schémas ; il est idempotent. Supprimer une colonne efface ses valeurs sans retour possible, et le code avait été nettoyé *avant* qu'il soit écrit, pour que l'ordre avec le déploiement n'ait pas d'importance.
+- **L'ancien dashboard plat et son code mort (07/10/2026)** : 20 fichiers, repérés par une cartographie des imports à partir du point d'entrée plutôt que « à l'œil ». Et 5 dépendances inutilisées le 08/10, le build du front restant identique à l'octet près.
+- **La dégradation visuelle de l'interface après un jalon manqué** : envisagée, puis abandonnée le 08/10, hors V1 comme hors V2. Une décision explicite vaut mieux qu'une idée qui traîne dans la liste des « à faire ».
 - **Le second fournisseur LLM (Gemini)**, la refonte visuelle « éditoriale » du dashboard (repartie de zéro depuis Figma), le parallax du fond, une première version du fond en poussière à quatre couches, la mise en page mobile.
 
 ---
@@ -179,6 +194,21 @@ Le premier déploiement tentait d'envoyer `node_modules` et la cible de compilat
 **8. Un correctif écrit n'est pas un correctif livré.**
 Le lendemain du correctif ci-dessus, le briefing avait encore l'ancien comportement. Cause : les commits étaient sur une branche de travail, et la production se déploie depuis `main` ; la liste des déploiements montrait un dernier déploiement de production vieux de 7 jours. Indice décisif dans le texte lui-même : il citait un évènement à 23 jours, que le nouveau code aurait filtré. Résolu le 07/10 : la fusion de la pull request sur `main` a déclenché un déploiement de production, observé « Ready » dans la liste des déploiements. *Leçon : « terminé » veut dire déployé et observé en production, pas seulement mergé en local ; et un symptôme vous dit quelle version de votre code tourne.*
 
+**9. Un écran blanc quand le backend est plus ancien que l'app.**
+Le front lit `eveningBriefing` dans la réponse de `/api/dashboard`. Avec un backend déployé avant l'ajout de ce champ, le composant lisait `undefined.split` et tout l'écran devenait blanc après l'heure du bilan. Correction : un texte de repli quand le briefing manque. *Leçon : le front et le backend se déploient séparément ; un champ absent d'une réponse ne doit jamais faire planter l'affichage.*
+
+**10. Des liens qui ne faisaient rien dans l'application.**
+Sans dossier de capacités, Tauri 2 refuse toute commande de plugin (`opener.open_url not allowed`) : les liens d'articles ne faisaient rien. Correction : une capacité donnant à la fenêtre principale la seule permission d'ouvrir des URL `https://`. *Leçon : un refus par défaut est un choix de sécurité, pas un bug ; on accorde le minimum.*
+
+**11. Une trace blanche à l'ouverture d'une carte.**
+Une carte naissait à quelques pixels de haut et recevait un reflet de bord généré à cette taille, étiré ensuite sur toute sa hauteur : des bords blancs épaissis. Correction : aucune carte n'est générée pendant un redimensionnement, le reflet d'une carte étirée de plus de 12 % est masqué, et la réfraction n'est appliquée qu'une fois la carte de déplacement prête. Vérifié image par image (à 120 ms, 450 ms, 800 ms, 1,6 s). *Leçon : un effet calculé à une taille n'est pas valable à une autre ; une animation se vérifie sur ses images intermédiaires, pas sur son état final.*
+
+**12. Un build qui échoue sur des versions décalées.**
+`cargo add` avait monté la crate Tauri à 2.12.1 alors que les paquets npm restaient en 2.11. Correction : aligner les deux paquets npm sur 2.12.1. *Leçon : les dépendances jumelles côté Rust et côté JavaScript doivent suivre la même version.*
+
+**13. Des entités HTML visibles dans les titres d'articles.**
+Certains flux RSS laissent `&#8216;` dans leurs titres, que React affiche tel quel. Correction : une fonction `decodeEntities` appliquée juste après l'extraction, qui laisse intacte une entité inconnue. *Leçon : une donnée externe se nettoie à l'entrée, pas à l'affichage.*
+
 ---
 
 ## Front : le dashboard et l'avatar
@@ -203,24 +233,46 @@ Chaque carte du dashboard est un panneau de verre qui **réfracte** réellement 
 La disposition « bento » est une CSS Grid en unités `fr`. Un clic sur « Prochain jalon » ajoute une carte (la frise des jalons) : la colonne passe de 3 à 4 lignes, les autres cartes se redimensionnent, et tout s'anime avec `grid-template-rows` seul, sans calcul de position ni marge animée. La carte supplémentaire existe en permanence, repliée à hauteur nulle, et s'ouvre.
 
 ### Le calendrier et les icônes
-Vue mois ou semaine, navigation, détail du jour, couleurs par type d'évènement. Les logos des tâches sont devinés **par mots-clés dans le titre** (une ligne par icône), testés sur 28 titres types, dont des faux amis (« Révision vélo », « Séance de muscu »). Limite connue et documentée : Notion n'a pas de champ « catégorie » ; la version fiable demanderait de modifier le schéma et le backend.
+Vue mois ou semaine, navigation, détail du jour, couleurs par type d'évènement. Les logos des tâches sont devinés **par mots-clés dans le titre** (une ligne par icône), testés sur 28 titres types, dont des faux amis (« Révision vélo », « Séance de muscu »). Limite connue et documentée : Notion n'avait pas de champ « catégorie ». La version fiable existe maintenant côté données (une colonne « Catégorie » à 15 options, ajoutée par la migration, et renseignée pour les 52 idées d'après leur contenu), mais le code ne la lit pas encore : les logos viennent toujours des mots-clés.
+
+### Le temps d'écran, du système d'exploitation à l'écran
+Le bloc « Écran » mesure le vrai temps passé par application, sans rien envoyer en dehors de la machine :
+- un **thread Rust** interroge toutes les 5 secondes l'application au premier plan (clé = nom de l'exécutable), ignore la machine inactive depuis 5 minutes et la fenêtre de Soza elle-même ;
+- les secondes par jour et par application restent en mémoire et sont sauvegardées toutes les 30 secondes dans un petit fichier local ;
+- une commande Tauri renvoie l'historique au front, qui classe les applications et affiche le jour ou les 7 derniers jours, avec le logo de chaque application ;
+- un clic sur le bloc ouvre le détail dans la même carte que la frise des jalons, qui change de contenu sans se refermer quand on passe d'un bloc à l'autre.
+
+Autour de ce suivi, l'application **démarre avec Windows** (fenêtre masquée dans ce cas), **se réduit dans la zone de notification** (clic gauche : l'afficher ; clic droit : menu « Afficher » / « Quitter » qui sauvegarde avant d'arrêter) et dispose d'un **installeur** Windows de 2,18 Mo, sans droits administrateur. En développement, rien n'est inscrit au démarrage : sinon Windows lancerait l'exécutable de debug sans serveur de développement.
 
 ### Comment c'était vérifié
-Captures et mesures automatisées (Playwright headless, rendu logiciel), build de production, console sans erreur. Mention honnête dans l'état du projet : l'animation et les effets dynamiques n'ont été vus qu'en images fixes par ces outils.
+Captures et mesures automatisées (Playwright, rendu logiciel), puis **dans la vraie fenêtre WebView2** : `tauri dev` et un build de production affichent le dashboard avec les vraies données, sans erreur de console, de politique de sécurité ni de réseau. 20 scénarios d'acceptation tournent dans un vrai navigateur sur l'application réelle avec un faux backend. Limites écrites dans l'état du projet : l'animation et les effets dynamiques n'ont été vus qu'en images fixes par les outils automatiques, et l'installeur n'a été ni lancé ni installé.
 
 ---
 
 ## Qualité, tests, sécurité
 
 ### Tests
-- **Suite d'intégration** (`scripts/full-mechanics-test.ts`) qui exerce les **vraies APIs** (Notion, Redis, QStash, Groq) : 37 vérifications à la dernière exécution complète. Chaque donnée créée porte le préfixe `[TEST]` et est nettoyée ensuite. Elle a remplacé dix scripts de test ad hoc qui traînaient.
-- **Assertions pures** (sans réseau) ajoutées pour la logique de bilan, d'agenda et de pause : bilan d'hier, bilan saisi après minuit, ancien bilan, retour de pause, bornes à 7 jours, aller-retour Redis de la pause. Rapides, déterministes, rejouables à tout moment.
-- Vérification de types stricte (`tsc --noEmit`) à chaque étape.
+286 tests en quatre familles plus du Rust, ajoutés le 08/10, en fin de V1 :
+
+| Famille | Ce qu'elle couvre | Rapidité |
+| --- | --- | --- |
+| **Unitaires** | dates, lignes du briefing (bilan, agenda, journée, jalon), flux RSS, validation et accès, logos par mots-clés, classement du temps d'écran, calendrier, mémoire Redis | instantané |
+| **Intégration** | webhook Telegram (secret, `chat_id`, publication dans la file), worker (signature, réponse), crons du matin et du soir, `/api/dashboard` : le vrai code tourne de bout en bout, seuls Notion, Redis, Telegram, Groq et le réseau sont simulés | instantané |
+| **Régression** | un fichier par **famille de bugs déjà corrigés** : paramètres `null` de Groq, fuseau horaire, bilan périmé et rappels d'agenda, URL de livraison QStash, garde-fous fermés par défaut, requêtes Notion, champs retirés du payload, plafonds de requêtes des crons | instantané |
+| **Acceptation** | 20 scénarios utilisateur dans un vrai navigateur (Playwright) : dashboard complet, briefings, détail Écran, bascule Écran ↔ Jalons, liens, calendrier, backend en panne ou clé refusée, intro | ~2 min |
+| **Rust** | 3 tests | — |
+
+Principes qui valent d'être retenus :
+- **Aucun test n'utilise le `.env` ni un vrai service** : variables factices, et tout appel réseau non prévu fait échouer le test. Un seul script, lancé à la main, appelle les vraies APIs (`test:live`, la suite historique, 37 vérifications au 30/09, qui avait elle-même remplacé dix scripts ad hoc).
+- **Un test de régression se vérifie en réintroduisant le bug** : l'un des tests d'acceptation a été validé en remettant l'ancien code, sur lequel il échoue bien. Un test qui ne peut pas échouer ne protège de rien.
+- **Les bugs sont rangés par famille**, pas par date : chaque bug du chapitre précédent a son garde-fou.
+- Les 263 tests rapides tournent en moins d'une seconde ; la vérification de types stricte (`tsc --noEmit`) accompagne chaque étape.
 
 ### Sécurité
 - **Trois barrières successives sur le webhook Telegram** : la méthode doit être POST, un secret partagé doit figurer dans l'en-tête (`x-telegram-bot-api-secret-token`), puis le `chat_id` doit être celui de l'utilisateur autorisé. Un message d'un autre utilisateur reçoit une réponse « ignoré » sans aucune action ni erreur révélatrice. Le corps de la requête est aussi validé par un schéma Zod avant d'être utilisé.
 - Les crons exigent une signature QStash valide, ou un secret en `Bearer` pour un déclenchement manuel.
 - L'endpoint du dashboard est protégé par une clé. **Compromis assumé** : cette clé est embarquée dans le build de l'application, ce qui est acceptable en usage mono-utilisateur mais ne le serait pas pour un produit public.
+- **Application de bureau** : politique de sécurité de contenu (CSP) stricte en production, limitée à l'application, à l'API de production, au service météo et à la communication interne de Tauri ; un appel vers un autre site est bloqué (vérifié). L'ouverture de liens est une permission explicite, limitée à `https://`.
 
 ### Observabilité
 Les appels d'outils sont journalisés avec leurs paramètres ; la suite d'intégration vérifie le comportement bout en bout.
@@ -231,14 +283,14 @@ Les appels d'outils sont journalisés avec leurs paramètres ; la suite d'intég
 
 Les relecteurs expérimentés y regarderont en premier ; autant les dire.
 
-- **Pas de tests unitaires isolés** : uniquement des assertions pures ciblées et une suite d'intégration contre les vraies APIs.
+- **Des zones non testées automatiquement** : le suivi réel de la fenêtre active (il dépend du système d'exploitation), le rendu visuel du verre et des particules (WebGL logiciel), le menu de la zone de notification et le démarrage automatique (visibles seulement dans l'app installée).
 - **Le texte produit par le modèle n'est pas testé automatiquement** : seul le contexte qui lui est envoyé l'est. La qualité de rédaction se juge à l'usage.
 - **Pas de limitation de débit** au-delà du filtre `chat_id` : risque faible en usage à un utilisateur, à traiter si le bot devient accessible à d'autres.
 - **Un seul projet « En cours » à la fois** : limite choisie pour la simplicité, documentée plutôt que contournée.
 - **Dépendance à des services tiers gratuits** (Vercel, QStash, Upstash, Notion, Groq) avec leurs quotas.
-- **Détection des icônes par mots-clés** : fragile par construction.
-- **Application de bureau : packaging et distribution non documentés ni vérifiés** ; elle a été développée et testée en mode développement (`npm run tauri dev`).
-- **Des blocs du dashboard affichent encore des exemples** (temps par application), signalés comme tels à l'écran.
+- **Détection des icônes par mots-clés** : fragile par construction. La colonne « Catégorie » existe dans Notion mais le code ne la lit pas encore.
+- **L'installeur existe mais n'a été ni lancé ni installé** : démarrage automatique, zone de notification et suivi du temps d'écran restent à valider dans l'app installée, et la fluidité (4 500 particules et 9 verres à réfraction) n'est pas mesurée sur la durée, en particulier le CPU quand la fenêtre est masquée.
+- **Le suivi du temps d'écran ne mesure que Windows et que l'application Tauri** (dans un navigateur le bloc affiche « — »), et seulement tant que Soza tourne.
 
 ---
 
@@ -252,6 +304,8 @@ Les relecteurs expérimentés y regarderont en premier ; autant les dire.
 
 **Développement assisté par IA.** Le projet a été mené avec un assistant de code IA (Claude Code), guidé par des fichiers de contexte versionnés dans le dépôt (`CLAUDE.md`, `docs/ai/`). Les règles de sécurité (validation du `chat_id`, aucune tâche longue dans le webhook) y sont écrites noir sur blanc. Le dépôt montre aussi les limites de ce mode de travail : un correctif « fini » mais jamais déployé (voir bug 8), un modèle auquel on avait oublié de donner la date du jour (voir plus haut).
 
+**Les pièges de l'outillage.** Un `\n` dans une chaîne TypeScript écrite par un script collé dans le shell devenait un vrai saut de ligne (arrivé deux fois, dans deux fichiers) : désormais, `tsc --noEmit` après tout script de ce genre. Autre piège de dev noté : `tauri dev` relance le serveur de développement sur un port fixe, et un serveur déjà ouvert fait échouer le démarrage.
+
 **Ce que l'historique montre.** 8 commits en un jour pour trouver un fond « à l'œil », contre un résultat mesuré (0,978 de corrélation) quand une référence a été fournie. Itérer contre une référence converge ; itérer contre une impression, beaucoup moins.
 
 ---
@@ -262,8 +316,9 @@ La V2 rapproche Soza d'un assistant du type Jarvis/FRIDAY : une seule personnali
 
 - **Hybride local/cloud, pas une IA locale complète.** Détection du mot d'activation et exécution d'actions sur la machine en local (accès OS obligatoire) ; raisonnement dans le cloud ; commandes simples reconnues en local pour la rapidité et le fonctionnement hors ligne.
 - **Principe « local plutôt que cloud »** : Notion reste la source de vérité pour ce qui doit être accessible à distance, le reste (réglages, défauts) vit sur la machine.
+- **Les fondations de l'agent local existent déjà**, posées en V1 par le suivi du temps d'écran : un thread Rust résident, une icône de zone de notification, le démarrage avec Windows et un installeur. La V2 s'y greffe.
 - **Deux canaux d'entrée distincts** : la voix en local, Telegram à distance. Un protocole qui démarre un PC éteint ne peut pas passer par la voix locale, puisque le micro est éteint avec la machine.
-- **Détection stricte des commandes à effet réel**, sur le modèle de la commande `/mode` existante, pour qu'une phrase qui *parle* d'un protocole ne le déclenche jamais.
+- **Détection stricte des commandes à effet réel**, sur le modèle de l'ancienne commande `/mode` (supprimée avec le mode ACTIF/PAUSE, à réintroduire), pour qu'une phrase qui *parle* d'un protocole ne le déclenche jamais.
 - **Gestes de la main par caméra**, avec un détecteur de mains dont le rendu de contrôle est le prérequis de tout geste, un geste d'engagement contre les déclenchements accidentels, et un traitement 100 % local.
 - **Sécurité traitée avant la fonctionnalité** : exécuter des actions sur une machine réelle depuis une commande à distance est sensible, le modèle de menace est posé en premier.
 
@@ -283,7 +338,10 @@ Des patterns concrets, chacun lisible dans un fichier précis :
 | Agrégation d'un endpoint pour un front | `api/dashboard.ts` |
 | Mesh instancié et position calculée par une équation | `src/features/particles/ribbon.ts` |
 | Filtre SVG appliqué à l'arrière-plan d'un élément | `src/features/glass/glass.ts` |
+| Faux services et réseau bloqué pour des tests reproductibles | `tests/helpers/` |
+| Un test de régression par famille de bugs | `tests/regression/` |
+| Mesure en tâche de fond côté Rust, exposée par une commande | `src-tauri/src/main.rs` |
 
-Pour le lancer : voir le [`README.md`](../../README.md) (variables d'environnement, commandes `npm run dev`, `npm run tauri dev`, scripts de configuration Notion et QStash).
+Pour le lancer : voir le [`README.md`](../../README.md) (variables d'environnement, commandes `npm run dev`, `npm run tauri dev`, `npm test`, scripts de configuration Notion et QStash).
 
 **Trois habitudes à reprendre de ce projet** : écrire pourquoi on retire quelque chose en même temps qu'on le retire ; séparer « calculé » de « rédigé » quand on utilise un LLM ; ne jamais déclarer terminé ce qui n'a pas été observé là où il tourne vraiment.

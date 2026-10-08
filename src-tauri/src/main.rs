@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, fs, path::PathBuf, sync::Mutex, thread, time::D
 use tauri::{
   menu::{Menu, MenuItem},
   tray::{MouseButton, MouseButtonState, TrayIconEvent},
-  AppHandle, Manager, State, WindowEvent,
+  AppHandle, Emitter, Manager, State, WebviewWindow, WindowEvent,
 };
 
 // Temps d'écran : jour local -> exécutable (minuscules, sans .exe) -> secondes. Sauvé dans usage.json (dossier de données de l'app).
@@ -11,6 +11,9 @@ type Usage = BTreeMap<String, BTreeMap<String, u64>>;
 struct UsageState { data: Mutex<Usage>, file: PathBuf }
 
 const AUTOSTART_ARG: &str = "--autostart";
+// Le front (src/lib/visibility.ts) met son rendu en pause quand la fenêtre est masquée dans la zone de notification :
+// la page ne le sait pas toute seule (document.visibilityState reste "visible").
+const VISIBILITY_EVENT: &str = "soza://visibility";
 const SAMPLE_SECS: u64 = 5; // pas d'échantillonnage : la précision du suivi
 const IDLE_SECS: u64 = 300; // sans clavier ni souris depuis 5 min, l'écran ne compte plus
 const SAVE_EVERY: u64 = 6; // sauvegarde toutes les 6 mesures (30 s)
@@ -25,6 +28,11 @@ impl UsageState {
     let json = serde_json::to_string(&*self.data.lock().unwrap()).unwrap_or_default();
     if let Err(e) = fs::write(&self.file, json) { eprintln!("[usage] sauvegarde impossible : {e}"); }
   }
+}
+
+#[tauri::command]
+fn window_visible(window: WebviewWindow) -> bool {
+  window.is_visible().unwrap_or(true)
 }
 
 #[tauri::command]
@@ -44,7 +52,7 @@ fn track(usage: &Mutex<Usage>, own_pid: u64) -> bool {
 }
 
 fn show_main(app: &AppHandle) {
-  if let Some(window) = app.get_webview_window("main") { let _ = window.show(); let _ = window.set_focus(); }
+  if let Some(window) = app.get_webview_window("main") { let _ = window.show(); let _ = window.set_focus(); let _ = window.emit(VISIBILITY_EVENT, true); }
 }
 
 fn main() {
@@ -52,7 +60,7 @@ fn main() {
     .plugin(tauri_plugin_opener::init())
     // Lancée par Windows à l'ouverture de session avec --autostart : la fenêtre reste masquée (icône de la zone de notification).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
-    .invoke_handler(tauri::generate_handler![app_usage])
+    .invoke_handler(tauri::generate_handler![app_usage, window_visible])
     .setup(|app| {
       // Inscription au démarrage de Windows, seulement pour l'app installée : en dev, elle pointerait vers l'exécutable de debug.
       // Inscrite une seule fois par lancement sans toucher au choix de l'utilisateur (Gestionnaire des tâches > Démarrage).
@@ -100,7 +108,7 @@ fn main() {
       });
       Ok(())
     })
-    .on_window_event(|window, event| if let WindowEvent::CloseRequested { api, .. } = event { api.prevent_close(); let _ = window.hide(); })
+    .on_window_event(|window, event| if let WindowEvent::CloseRequested { api, .. } = event { api.prevent_close(); let _ = window.hide(); let _ = window.emit(VISIBILITY_EVENT, false); })
     .run(tauri::generate_context!())
     .expect("error while running Soza");
 }

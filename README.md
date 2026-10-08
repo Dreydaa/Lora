@@ -1,6 +1,6 @@
 # Soza
 
-Assistant personnel piloté par Telegram, pour un unique utilisateur. Soza aide à garder une discipline de travail sur son projet en cours sans ignorer la fatigue liée aux shifts physiques (horaires de travail postés).
+Assistant personnel piloté par Telegram, pour un unique utilisateur, doublé d'une application de bureau Windows. Soza aide à garder une discipline de travail sur son projet en cours, avec une seule personnalité (« Friday »).
 
 Notion est la source de vérité pour toutes les données (idées, agenda, jalons, progression, réglages). Soza ne fait qu'y lire et écrire.
 
@@ -8,16 +8,17 @@ Notion est la source de vérité pour toutes les données (idées, agenda, jalon
 
 1. **Telegram** reçoit un message → `api/telegram-webhook.ts` valide le `chat_id` autorisé et publie immédiatement le job dans **QStash** (aucune tâche longue n'est exécutée dans le webhook lui-même).
 2. **QStash** livre le job à `api/qstash-worker.ts`, qui appelle le modèle (Groq, via le Vercel AI SDK) avec un jeu de tools (`lib/ai/tools.ts`) capables de lire/écrire dans Notion : créer une idée, ajouter un rendez-vous ou un shift à l'agenda, changer le statut d'un projet, enregistrer le bilan du jour, mettre Soza en pause quelques jours, changer l'heure du briefing, etc.
-3. Deux **crons QStash** déclenchent le briefing du matin (`api/cron-morning.ts`) et le bilan du soir (`api/cron-evening.ts`) aux horaires configurés dans la base Notion **Soza Réglages**.
+3. Deux **crons QStash** déclenchent le briefing du matin (`api/cron-morning.ts`) et le bilan du soir (`api/cron-evening.ts`) aux horaires configurés dans la base Notion **Soza Réglages**. Chaque texte est rédigé par le modèle avec la personnalité de Soza (le soir : la journée, le prochain jalon, l'agenda, puis la question du bilan) ; une version courte est gardée dans Redis pour le dashboard.
 4. Une **mémoire courte durée** (Redis, ~10 messages / 6h) permet de garder le contexte d'une conversation Telegram sans tout réinjecter depuis Notion à chaque message.
-5. Un **dashboard Tauri** (app de bureau) joue une intro en particules (un ruban de Möbius se forme), puis affiche ces mêmes données en lecture dans un tableau de bord en verre liquide (`api/dashboard.ts` agrège Notion). Il n'écrit pas dans Notion : tout se pilote par la conversation Telegram.
+5. Un **dashboard Tauri** (app de bureau) joue une intro en particules (un ruban de Möbius se forme), puis affiche ces mêmes données en lecture dans un tableau de bord en verre liquide (`api/dashboard.ts` agrège Notion). Il n'écrit pas dans Notion : tout se pilote par la conversation Telegram. Côté Rust, l'app mesure le temps passé par application (les données restent sur la machine), démarre avec Windows et se réduit dans la zone de notification ; `npm run tauri build` produit un installeur Windows (NSIS).
 6. Une **pause de plusieurs jours** (« je prends mon week-end ») suspend le briefing et le bilan, et le briefing de reprise n'en fait pas un reproche.
 
 ## Stack
 
 - **Backend** : fonctions Vercel (Edge Runtime) en TypeScript, `@upstash/qstash`, `@upstash/redis`, `@notionhq/client`.
 - **IA** : Groq via `ai` (Vercel AI SDK) + `zod` pour la validation des paramètres de tool calls.
-- **Frontend / dashboard** : React + Vite, packagé en application de bureau avec Tauri (`src-tauri/`).
+- **Frontend / dashboard** : React + Vite, three.js pour le ruban en particules, packagé en application de bureau avec Tauri (`src-tauri/`, Rust : suivi du temps d'écran, zone de notification, démarrage automatique).
+- **Tests** : Vitest (unitaires, intégration, régression, acceptation dans un vrai navigateur via Playwright) et `cargo test` pour le Rust.
 
 ## Structure du repo
 
@@ -32,7 +33,9 @@ lib/
   memory.ts           Redis : mémoire courte durée, dernier briefing, pause en cours
 src/                  Dashboard Tauri (React)
   features/           glass (bento en verre), widgets, calendar, intro et particles (ruban de Möbius), hub…
-scripts/              Setup Notion/QStash, script d'intégration (`full-mechanics-test.ts`)
+src-tauri/            Application de bureau (Rust) : fenêtre, temps d'écran, zone de notification, démarrage automatique
+tests/                unit, integration, regression, acceptance (+ helpers : faux Notion, faux Redis, réseau bloqué)
+scripts/              Setup et migration Notion/QStash, test contre les vraies APIs (`full-mechanics-test.ts`)
 docs/
   ai/                 Contexte et état d'avancement à l'usage de l'assistant IA
   product/            Schéma Notion, notes d'UI
@@ -61,6 +64,13 @@ Setup Notion détaillé dans `docs/product/NOTION-SCHEMA.md`.
 npm run dev                        # dashboard Tauri en dev (Vite)
 npm run build                      # tsc --noEmit + build Vite
 npm run tauri dev                  # application de bureau en développement (Tauri)
+npm run tauri build                # installeur Windows : src-tauri/target/release/bundle/nsis/
+
+npm test                           # tests rapides : unit + integration + regression (moins de 1 s)
+npm run test:acceptance            # scénarios dans un vrai navigateur (~2 min)
+npm run test:rust                  # tests Rust
+npm run test:all                   # tout enchaîner
+npm run test:live                  # seul test contre les vraies APIs (à lancer à la main)
 
 npm run notion:check               # vérifie la connexion Notion
 npm run notion:create              # crée les bases Notion (Agenda, Idées, Jalons, Progression)
@@ -70,7 +80,7 @@ npm run notion:migrate-agenda-type # migration du champ Type sur Agenda
 npm run qstash:setup-schedules     # configure les schedules QStash (briefing/bilan)
 ```
 
-Le script `scripts/full-mechanics-test.ts` (lancé via `tsx --env-file=.env scripts/full-mechanics-test.ts`) fait office de suite de tests d'intégration contre les vraies APIs (Notion, Redis, QStash) ; il n'y a pas de tests unitaires isolés.
+Les tests (`npm test`, `test:acceptance`, `test:rust`) n'utilisent jamais le `.env` ni de vrais services : variables factices, et tout appel réseau non prévu fait échouer le test. Seul `npm run test:live` (`scripts/full-mechanics-test.ts`) appelle les vraies APIs (Notion, Redis, QStash, Groq).
 
 ## État du projet
 

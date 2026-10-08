@@ -13,6 +13,14 @@ const tiltCos = Math.cos(RIBBON_TILT);
 const tiltSin = Math.sin(RIBBON_TILT);
 
 // Nuage de points sur le ruban, dans son repère local (anneau dans le plan XY).
+// Réglages de coût du rendu, communs à l'intro et au hub. Mesuré le 08/10/2026 : ce qui coûte, c'est le nombre d'images
+// par seconde (143 % d'un cœur sans plafond sur un écran à haute fréquence, 8 % à 30 images par seconde), pas le nombre de
+// particules : 3600 au lieu de 4500 ne changeait rien au CPU, donc le visuel validé est gardé.
+export const PARTICLE_COUNT = 4500;
+export const MAX_PIXEL_RATIO = 1.5;
+// Cadence au repos (ruban formé) : il tourne lentement, 30 images par seconde suffisent.
+export const REST_FPS = 30;
+
 export function buildRibbonPoints(count: number) {
   const points = new Float32Array(count * 3);
   const wobblePhase = new Float32Array(count);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assertDashboardKey, isAllowedChat } from "../../lib/auth";
-import { telegramUpdateSchema, workerJobSchema } from "../../lib/validation";
+import { z } from "zod";
+import { readTelegramMessage, readWorkerJob } from "../../lib/validation";
 
 const request = (headers: Record<string, string> = {}) => new Request("https://soza.test/api/dashboard", { headers });
 
@@ -16,31 +17,79 @@ describe("isAllowedChat (seul le chat autorisé peut parler à Soza)", () => {
   });
 });
 
-describe("telegramUpdateSchema", () => {
-  it("accepte un message texte", () => {
-    const parsed = telegramUpdateSchema.safeParse({ update_id: 1, message: { chat: { id: 42 }, text: "salut", message_id: 7 } });
-    expect(parsed.success).toBe(true);
+describe("readTelegramMessage", () => {
+  const update = (message: unknown) => ({ update_id: 1, message });
+  it("renvoie le message texte avec ses identifiants", () => {
+    expect(readTelegramMessage(update({ chat: { id: 42 }, text: "salut", message_id: 7 }))).toEqual({ chatId: 42, text: "salut", messageId: 7 });
   });
-  it("accepte une mise à jour sans message (ex. édition) pour l'ignorer ensuite", () => {
-    expect(telegramUpdateSchema.safeParse({ update_id: 1 }).success).toBe(true);
+  it("ignore une mise à jour sans message (ex. édition)", () => expect(readTelegramMessage({ update_id: 1 })).toBeNull());
+  it("ignore un message sans texte (photo, sticker) ou au texte vide", () => {
+    expect(readTelegramMessage(update({ chat: { id: 42 }, message_id: 7 }))).toBeNull();
+    expect(readTelegramMessage(update({ chat: { id: 42 }, text: "", message_id: 7 }))).toBeNull();
   });
-  it("rejette une charge utile mal formée", () => {
-    expect(telegramUpdateSchema.safeParse({ update_id: "x" }).success).toBe(false);
-    expect(telegramUpdateSchema.safeParse({ update_id: 1, message: { chat: {}, message_id: 1 } }).success).toBe(false);
-    expect(telegramUpdateSchema.safeParse(null).success).toBe(false);
+  it.each([
+    ["null", null],
+    ["un texte", "salut"],
+    ["update_id absent", { message: { chat: { id: 1 }, text: "x", message_id: 1 } }],
+    ["update_id en texte", { update_id: "1" }],
+    ["chat sans id", update({ chat: {}, text: "x", message_id: 1 })],
+    ["chat_id en texte", update({ chat: { id: "42" }, text: "x", message_id: 1 })],
+    ["message_id manquant", update({ chat: { id: 1 }, text: "x" })],
+    ["texte qui n'est pas du texte", update({ chat: { id: 1 }, text: 12, message_id: 1 })],
+    ["message null", update(null)],
+  ])("rejette une charge mal formée : %s", (_label, body) => expect(readTelegramMessage(body)).toBeNull());
+  it("ignore les champs en trop", () => {
+    expect(readTelegramMessage({ update_id: 1, extra: true, message: { chat: { id: 1, type: "private" }, text: "x", message_id: 2, date: 123 } })).toEqual({ chatId: 1, text: "x", messageId: 2 });
   });
 });
 
-describe("workerJobSchema", () => {
+describe("readWorkerJob", () => {
   const job = { chatId: 42, text: "salut", messageId: 1 };
-  it("accepte un travail valide", () => expect(workerJobSchema.safeParse(job).success).toBe(true));
+  it("accepte un travail valide", () => expect(readWorkerJob(job)).toEqual(job));
   it("limite le texte à 4096 caractères, la limite réelle de Telegram", () => {
-    expect(workerJobSchema.safeParse({ ...job, text: "a".repeat(4096) }).success).toBe(true);
-    expect(workerJobSchema.safeParse({ ...job, text: "a".repeat(4097) }).success).toBe(false);
+    expect(readWorkerJob({ ...job, text: "a".repeat(4096) })).not.toBeNull();
+    expect(readWorkerJob({ ...job, text: "a".repeat(4097) })).toBeNull();
   });
-  it("refuse un texte vide ou un champ manquant", () => {
-    expect(workerJobSchema.safeParse({ ...job, text: "" }).success).toBe(false);
-    expect(workerJobSchema.safeParse({ chatId: 42, text: "x" }).success).toBe(false);
+  it("refuse un texte vide, un champ manquant ou d'un mauvais type", () => {
+    expect(readWorkerJob({ ...job, text: "" })).toBeNull();
+    expect(readWorkerJob({ chatId: 42, text: "x" })).toBeNull();
+    expect(readWorkerJob({ ...job, chatId: "42" })).toBeNull();
+    expect(readWorkerJob(null)).toBeNull();
+  });
+});
+
+// Équivalence avec l'ancienne validation par Zod (remplacée le 08/10/2026 pour alléger le webhook) : mêmes verdicts.
+describe("équivalence avec les anciens schémas Zod", () => {
+  const telegramUpdateSchema = z.object({
+    update_id: z.number(),
+    message: z.object({ chat: z.object({ id: z.number() }), text: z.string().optional(), message_id: z.number() }).optional(),
+  });
+  const workerJobSchema = z.object({ chatId: z.number(), text: z.string().min(1).max(4096), messageId: z.number() });
+
+  const telegramInputs: unknown[] = [
+    null, undefined, 0, "x", [], {}, { update_id: 1 }, { update_id: "1" }, { update_id: 1.5, message: { chat: { id: 1 }, text: "x", message_id: 1 } },
+    { update_id: 1, message: null }, { update_id: 1, message: {} }, { update_id: 1, message: { chat: { id: 1 }, message_id: 1 } },
+    { update_id: 1, message: { chat: { id: 1 }, text: "x", message_id: 1 } }, { update_id: 1, message: { chat: { id: -5 }, text: "x", message_id: 1 } },
+    { update_id: 1, message: { chat: { id: 1 }, text: "", message_id: 1 } }, { update_id: 1, message: { chat: { id: 1 }, text: 3, message_id: 1 } },
+    { update_id: 1, message: { chat: { id: "1" }, text: "x", message_id: 1 } }, { update_id: 1, message: { chat: { id: 1 }, text: "x" } },
+    { update_id: 1, message: { chat: null, text: "x", message_id: 1 } }, { update_id: 1, message: { chat: { id: 1 }, text: null, message_id: 1 } },
+    { update_id: 1, message: { chat: { id: 1 }, text: "x", message_id: 1, extra: 1 }, other: true },
+  ];
+  it.each(telegramInputs.map((input, i) => [i, input] as const))("update Telegram #%i : même verdict que Zod", (_i, input) => {
+    // Zod accepte aussi les messages sans texte ou au texte vide, que le webhook ignore ensuite : le verdict à comparer est
+    // « un message texte exploitable ».
+    const parsed = telegramUpdateSchema.safeParse(input);
+    const usable = parsed.success && !!parsed.data.message?.text;
+    expect(readTelegramMessage(input) !== null).toBe(usable);
+  });
+
+  const jobInputs: unknown[] = [
+    null, {}, { chatId: 1, text: "x", messageId: 1 }, { chatId: 1, text: "", messageId: 1 }, { chatId: 1, text: "a".repeat(4096), messageId: 1 },
+    { chatId: 1, text: "a".repeat(4097), messageId: 1 }, { chatId: "1", text: "x", messageId: 1 }, { chatId: 1, text: 5, messageId: 1 },
+    { chatId: 1, text: "x" }, { chatId: 1, messageId: 1 }, { chatId: 1, text: "x", messageId: "1", extra: true },
+  ];
+  it.each(jobInputs.map((input, i) => [i, input] as const))("travail #%i : même verdict que Zod", (_i, input) => {
+    expect(readWorkerJob(input) !== null).toBe(workerJobSchema.safeParse(input).success);
   });
 });
 
