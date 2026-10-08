@@ -51,5 +51,6 @@ export const mockData: DashboardData = {
   ],
   settings: { shiftActive: true, shiftStartHour: 4, shiftEndHour: 15, morningTime: "06:00", eveningTime: "20:00", pendingChangeDate: null },
   briefing: "Shift de 5h à 13h, récupère avant de t'y remettre. Le jalon « UV + textures » a un jour de retard : c'est ton objectif ce soir.",
+  eveningBriefing: "Deux tâches sur trois bouclées, Boss. Il reste le jalon « UV + textures », avec un jour de retard : rien d'irrattrapable.",
   articles,
 };

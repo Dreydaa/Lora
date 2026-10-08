@@ -23,13 +23,14 @@ export default async function handler(request: Request) {
   try {
     assertDashboardKey(request);
 
-    const [agenda, milestones, ideas, settings, articles, briefing] = await Promise.all([
+    const [agenda, milestones, ideas, settings, articles, briefing, eveningBriefing] = await Promise.all([
       getUpcomingAgenda(true, 60),
       getMilestones(true),
       getAllIdeas(),
       getSettings(),
       getArticles(DASHBOARD_TITLES_PER_FEED),
       getLastBriefing(),
+      getLastBriefing("evening"),
     ]);
 
     return Response.json(
@@ -46,6 +47,7 @@ export default async function handler(request: Request) {
           pendingChangeDate: settings.pendingChangeDate,
         },
         briefing: briefing ?? "Pas encore de briefing aujourd'hui.",
+        eveningBriefing: eveningBriefing ?? "Pas encore de briefing ce soir.",
         articles,
       },
       { headers: CORS_HEADERS },

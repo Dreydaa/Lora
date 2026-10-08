@@ -1,11 +1,12 @@
 import { generateText } from "ai";
 import { resolveModel } from "./ai/client";
-import { getUpcomingAgenda } from "./notion/agenda";
+import { getAgendaOn, getUpcomingAgenda } from "./notion/agenda";
+import { getMilestones } from "./notion/milestones";
 import { getLatestProgress } from "./notion/progress";
 import { getWeather } from "./integrations/weather";
 import { getNews } from "./integrations/news";
 import { addDays, daysBetween, todayInParis } from "./date";
-import type { AgendaItem } from "./types";
+import type { AgendaItem, Milestone } from "./types";
 import { getBreak, inBreak, type Break } from "./memory";
 import { fridayPrompt } from "./ai/prompts/friday";
 
@@ -25,6 +26,20 @@ const DASHBOARD_BRIEFING_INSTRUCTION = `
 
 Tu écris le briefing du matin affiché sur le dashboard. Rédige un message très court (2 à 3 phrases, 50 mots maximum) et naturel (pas une liste à puces) dans ton ton habituel, à partir des données fournies. Ne cite ni rendez-vous ni actualités.${BILAN_RULES}
 - Mentionne la météo en quelques mots.`;
+
+// Briefing du soir envoyé sur Telegram : fait le point sur la journée puis demande le bilan (le briefing du matin s'en sert).
+const EVENING_INSTRUCTION = `
+
+Tu écris le briefing du soir. Rédige un message court et naturel (pas une liste à puces) dans ton ton habituel, à partir des données fournies : fais le point sur la journée (tâches faites et restantes, sans rien inventer), mentionne le prochain jalon et, seulement si c'est utile, un rendez-vous des prochains jours.
+- Agenda : chaque rendez-vous vient avec son échéance (aujourd'hui, demain, dans N jours). N'en parle jamais comme s'il avait lieu aujourd'hui, sauf si l'échéance est « aujourd'hui ».
+- Ne parle ni de météo ni d'actualités.
+- Tu ne connais que les données fournies : n'invente jamais de travail accompli, de tâche en cours ou de « points à finaliser ». Un agenda vide ne prouve pas que rien n'a été fait (le vrai travail n'est pas toujours à l'agenda) : n'en déduis jamais que la journée a été improductive, et n'énumère pas ce qui est absent (pas de « aucun jalon, aucun rendez-vous… »), une phrase légère suffit.
+- Termine par une vraie question qui demande le bilan du jour : une phrase suffit, même courte, et tu t'en serviras demain matin pour le relancer sur la suite.`;
+
+// Version affichée dans l'app le soir : très courte, sans rendez-vous (le calendrier les affiche) ni demande de bilan (elle part sur Telegram).
+const DASHBOARD_EVENING_INSTRUCTION = `
+
+Tu écris le briefing du soir affiché sur le dashboard. Rédige un message très court (2 à 3 phrases, 50 mots maximum) et naturel (pas une liste à puces) dans ton ton habituel, à partir des données fournies : la journée écoulée (tâches faites et restantes, sans rien inventer) et le prochain jalon. Ne cite ni rendez-vous, ni météo, ni actualités. Un agenda vide ne prouve pas que rien n'a été fait : n'en déduis jamais que la journée a été improductive, et n'énumère pas ce qui est absent.`;
 
 const AGENDA_HORIZON_DAYS = 7;
 
@@ -58,6 +73,24 @@ export function agendaLine(items: AgendaItem[], today: string): string {
       return `${item.title} (${dayLabel(start.slice(0, 10), today)}${time})`;
     });
   return `Agenda des ${AGENDA_HORIZON_DAYS} prochains jours: ${upcoming.join(" · ") || "rien de prévu"}.`;
+}
+
+// La journée écoulée : tâches faites sur le total, et ce qui reste (les blocs Shift ne sont pas comptés).
+export function dayLine(items: AgendaItem[]): string {
+  if (!items.length) return "Journée: rien n'était prévu à l'agenda.";
+  const left = items.filter((item) => item.status !== "Fait");
+  return `Journée: ${items.length - left.length}/${items.length} tâche(s) faite(s).${left.length ? ` Restent à faire: ${left.map((item) => item.title).join(" · ")}.` : ""}`;
+}
+
+// Prochain jalon non validé (le plus ancien d'abord : un jalon en retard passe avant).
+export function milestoneLine(milestones: Milestone[], today: string): string {
+  const next = milestones
+    .filter((m) => m.dueDate && m.status !== "Validé" && m.status !== "Terminé")
+    .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!))[0];
+  if (!next) return "Prochain jalon: aucun.";
+  const day = next.dueDate!.slice(0, 10);
+  const late = daysBetween(today, day) < 0;
+  return `Prochain jalon: ${next.title} (${late ? `en retard de ${daysBetween(day, today)} jour(s)` : dayLabel(day, today)}).`;
 }
 
 async function generateBriefing(instruction: string, contextSummary: string, fallback: string): Promise<string> {
@@ -96,6 +129,26 @@ export async function buildBriefing(): Promise<string> {
   ].join("\n");
 
   return generateBriefing(BRIEFING_INSTRUCTION, contextSummary, `SOZA — briefing\n${contextSummary}`);
+}
+
+const EVENING_FALLBACK = "SOZA — bilan du soir\nDis-moi ce que tu as accompli aujourd'hui, même en une phrase — je m'en servirai demain matin pour te relancer sur la suite.";
+
+// Briefing du soir envoyé sur Telegram : journée, prochain jalon, agenda des 7 jours, puis demande du bilan.
+export async function buildEveningBriefing(): Promise<string> {
+  const today = todayInParis();
+  const [items, milestones, agenda] = await Promise.all([getAgendaOn(today), getMilestones(), getUpcomingAgenda()]);
+  const contextSummary = [dayLine(items), milestoneLine(milestones, today), agendaLine(agenda, today)].join("\n");
+  const text = await generateBriefing(EVENING_INSTRUCTION, contextSummary, EVENING_FALLBACK);
+  // Le briefing du matin dépend du bilan : si le modèle l'a oublié dans sa question finale, on la lui rajoute.
+  return /bilan/i.test(text) ? text : `${text}\nEt ton bilan du jour, Boss : qu'as-tu accompli ?`;
+}
+
+// Version courte affichée dans le dashboard le soir (enregistrée par le cron du soir) : journée et prochain jalon.
+export async function buildDashboardEveningBriefing(): Promise<string> {
+  const today = todayInParis();
+  const [items, milestones] = await Promise.all([getAgendaOn(today), getMilestones()]);
+  const contextSummary = [dayLine(items), milestoneLine(milestones, today)].join("\n");
+  return generateBriefing(DASHBOARD_EVENING_INSTRUCTION, contextSummary, contextSummary);
 }
 
 // Version courte affichée dans le dashboard (enregistrée par le cron du matin) : bilan et météo seulement.

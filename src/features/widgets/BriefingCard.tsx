@@ -1,10 +1,8 @@
 import { Moon, Sunrise } from "lucide-react";
-import type { AgendaItem, Milestone } from "../../../lib/types";
-import { daysBetween, dayKey, localDayKey } from "../../lib/format";
 import type { DashboardSettings } from "../../types/dashboard";
 import "./widgets.css";
 
-type Props = { briefing: string; settings: DashboardSettings; agenda: AgendaItem[]; milestones: Milestone[]; now: Date };
+type Props = { briefing: string; eveningBriefing: string; settings: DashboardSettings; now: Date };
 
 const minutes = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number);
@@ -17,7 +15,7 @@ const isMorning = (s: DashboardSettings, now: Date) => {
   return t >= minutes(s.morningTime) && t < minutes(s.eveningTime);
 };
 
-export function BriefingCard({ briefing, settings, agenda, milestones, now }: Props) {
+export function BriefingCard({ briefing, eveningBriefing, settings, now }: Props) {
   const morning = isMorning(settings, now);
   return (
     <div className="gw">
@@ -28,33 +26,14 @@ export function BriefingCard({ briefing, settings, agenda, milestones, now }: Pr
           {morning ? settings.morningTime : settings.eveningTime}
         </span>
       </header>
-      {morning ? <Morning briefing={briefing} /> : <Evening agenda={agenda} milestones={milestones} />}
+      <Text text={morning ? briefing : eveningBriefing} />
     </div>
   );
 }
 
-// Texte généré par le backend au cron du matin (dernier briefing en cache) : court, sans agenda ni actualités.
-const Morning = ({ briefing }: { briefing: string }) => (
+// Texte généré par le backend au cron du matin ou du soir (dernier briefing en cache) : court, sans agenda ni actualités.
+const Text = ({ text }: { text: string }) => (
   <div className="gw-text">
-    {briefing.split("\n").filter(Boolean).map((line, i) => <p key={i}>{line}</p>)}
+    {text.split("\n").filter(Boolean).map((line, i) => <p key={i}>{line}</p>)}
   </div>
 );
-
-// Pas de texte généré le soir côté backend : deux phrases construites ici (journée écoulée + prochain jalon), sans liste de rendez-vous.
-function Evening({ agenda, milestones }: { agenda: AgendaItem[]; milestones: Milestone[] }) {
-  const today = localDayKey();
-  const doneToday = agenda.filter((a) => a.type === "Perso" && a.date && dayKey(a.date) === today);
-  const milestone = milestones.filter((m) => m.status !== "Terminé" && m.status !== "Validé" && m.dueDate).sort((a, b) => a.dueDate!.localeCompare(b.dueDate!))[0];
-  const delay = milestone ? daysBetween(today, dayKey(milestone.dueDate!)) : 0;
-
-  return (
-    <div className="gw-text">
-      <p>{doneToday.length ? `Journée : ${doneToday.filter((a) => a.status === "Fait").length}/${doneToday.length} tâches faites.` : "Journée libre, rien de prévu."}</p>
-      {milestone && (
-        <p>
-          {delay < 0 ? "Jalon en retard" : "Prochain jalon"} : {milestone.title} ({delay < 0 ? `${-delay} j de retard` : delay === 0 ? "aujourd'hui" : `J-${delay}`}).
-        </p>
-      )}
-    </div>
-  );
-}

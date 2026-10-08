@@ -6,7 +6,7 @@ import { addAgendaItem, addShiftSchedule, getUpcomingAgenda } from "../lib/notio
 import { getLatestProgress, saveProgress } from "../lib/notion/progress";
 import { getHistory, appendToHistory, setBreak, getBreak, clearBreak, inBreak } from "../lib/memory";
 import { askSoza, resolveModel } from "../lib/ai/client";
-import { agendaLine, bilanLine, buildBriefing } from "../lib/briefing";
+import { agendaLine, bilanLine, buildBriefing, dayLine, milestoneLine } from "../lib/briefing";
 import { notion } from "../lib/notion/client";
 
 const results: { name: string; ok: boolean; detail?: string }[] = [];
@@ -154,6 +154,14 @@ async function main() {
   record("agendaLine: échéances explicites", agenda0.includes("Dentiste (aujourd'hui)") && agenda0.includes("Coiffeur (demain à 14:30)") && agenda0.includes("Cinéma (dans 4 jours, dimanche 11/10)"), agenda0);
   record("agendaLine: rien au-delà de 7 jours", !agenda0.includes("Mariage"));
   record("agendaLine: agenda vide", agendaLine([], today0).includes("rien de prévu"));
+  const done = (title: string, status: string) => ({ ...item(title, today0), status });
+  record("dayLine: faites sur total + restantes", dayLine([done("A", "Fait"), done("B", "À faire"), done("C", "Fait")]) === "Journée: 2/3 tâche(s) faite(s). Restent à faire: B.");
+  record("dayLine: tout fait, rien à lister", !dayLine([done("A", "Fait")]).includes("Restent"));
+  record("dayLine: journée vide", dayLine([]).includes("rien n'était prévu"));
+  const ms = (title: string, dueDate: string, status = "À faire") => ({ id: "m", title, dueDate, status });
+  record("milestoneLine: le jalon en retard passe avant", milestoneLine([ms("Futur", "2026-10-12"), ms("Retard", "2026-10-05")], today0) === "Prochain jalon: Retard (en retard de 2 jour(s)).");
+  record("milestoneLine: échéance explicite, validé ignoré", milestoneLine([ms("Fini", "2026-10-06", "Validé"), ms("Demain", "2026-10-08")], today0).includes("Demain (demain)"));
+  record("milestoneLine: aucun jalon", milestoneLine([], today0).includes("aucun"));
   const brk0 = { start: "2026-10-10", end: "2026-10-11" };
   const back0 = bilanLine({ review: "rig fini", date: "2026-10-09" }, "2026-10-12", brk0);
   record("pause: retour sans reproche, dernier bilan rappelé", back0.includes("pas un manquement") && back0.includes("rig fini") && !back0.includes("AUCUN"));

@@ -1,6 +1,6 @@
 import { notion } from "./client";
 import type { AgendaItem, AgendaType } from "../types";
-import { todayInParis } from "../date";
+import { addDays, todayInParis } from "../date";
 
 const db = () => {
   if (!process.env.NOTION_AGENDA_DATABASE_ID) throw new Error("NOTION_AGENDA_DATABASE_ID is missing");
@@ -33,6 +33,31 @@ export async function getUpcomingAgenda(includeShift = false, limit = 10): Promi
     end: page.properties.Date?.date?.end ?? null,
     status: page.properties.Statut?.select?.name ?? "À faire",
     type: page.properties.Type?.select?.name === "Shift" ? "Shift" : "Perso",
+  }));
+}
+
+// Tâches d'un jour donné, faites ou non (hors Shift) : le briefing du soir compte ce qui a été fait.
+export async function getAgendaOn(day: string): Promise<AgendaItem[]> {
+  const data = await notion().databases.query({
+    database_id: db(),
+    filter: {
+      and: [
+        { property: "Date", date: { on_or_after: day } },
+        { property: "Date", date: { before: addDays(day, 1) } },
+        { property: "Type", select: { does_not_equal: "Shift" } },
+      ],
+    },
+    sorts: [{ property: "Date", direction: "ascending" }],
+    page_size: 20,
+  });
+
+  return data.results.map((page: any) => ({
+    id: page.id,
+    title: page.properties.Titre?.title?.[0]?.plain_text ?? "Sans titre",
+    date: page.properties.Date?.date?.start ?? null,
+    end: page.properties.Date?.date?.end ?? null,
+    status: page.properties.Statut?.select?.name ?? "À faire",
+    type: "Perso",
   }));
 }
 
