@@ -15,6 +15,11 @@ const SAMPLE_SECS: u64 = 5; // pas d'échantillonnage : la précision du suivi
 const IDLE_SECS: u64 = 300; // sans clavier ni souris depuis 5 min, l'écran ne compte plus
 const SAVE_EVERY: u64 = 6; // sauvegarde toutes les 6 mesures (30 s)
 
+// Fichier absent ou illisible : on repart de zéro plutôt que de bloquer le démarrage.
+fn load(file: &PathBuf) -> Usage {
+  fs::read_to_string(file).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+}
+
 impl UsageState {
   fn save(&self) {
     let json = serde_json::to_string(&*self.data.lock().unwrap()).unwrap_or_default();
@@ -80,8 +85,7 @@ fn main() {
       let dir = app.path().app_data_dir()?;
       fs::create_dir_all(&dir)?;
       let file = dir.join("usage.json");
-      let saved: Usage = fs::read_to_string(&file).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
-      app.manage(UsageState { data: Mutex::new(saved), file });
+      app.manage(UsageState { data: Mutex::new(load(&file)), file });
 
       // Le suivi tourne tant que Soza tourne, même fenêtre masquée dans la zone de notification.
       let handle = app.handle().clone();
@@ -99,4 +103,41 @@ fn main() {
     .on_window_event(|window, event| if let WindowEvent::CloseRequested { api, .. } = event { api.prevent_close(); let _ = window.hide(); })
     .run(tauri::generate_context!())
     .expect("error while running Soza");
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn temp_file(name: &str) -> PathBuf {
+    std::env::temp_dir().join(format!("soza-test-{}-{name}.json", std::process::id()))
+  }
+
+  #[test]
+  fn usage_survives_a_save_and_reload() {
+    let file = temp_file("roundtrip");
+    let mut data = Usage::new();
+    data.entry("2026-10-08".into()).or_default().insert("blender".into(), 7200);
+    let state = UsageState { data: Mutex::new(data.clone()), file: file.clone() };
+    state.save();
+    assert_eq!(load(&file), data);
+    let _ = fs::remove_file(file);
+  }
+
+  #[test]
+  fn missing_or_corrupt_file_starts_empty() {
+    assert!(load(&temp_file("missing")).is_empty());
+    let file = temp_file("corrupt");
+    fs::write(&file, "{ pas du json").unwrap();
+    assert!(load(&file).is_empty());
+    let _ = fs::remove_file(file);
+  }
+
+  #[test]
+  fn json_format_is_day_then_app_then_seconds() {
+    // Le front (appUsage.ts) lit exactement ce format : jour local -> exécutable -> secondes.
+    let parsed: Usage = serde_json::from_str(r#"{"2026-10-08":{"blender":7200,"code":60}}"#).unwrap();
+    assert_eq!(parsed["2026-10-08"]["blender"], 7200);
+    assert_eq!(parsed["2026-10-08"]["code"], 60);
+  }
 }
