@@ -4,8 +4,8 @@ import { siBlender, siFigma, siGithub, siNotion, type SimpleIcon } from "simple-
 // Pastille d'une tâche : logo de marque (simple-icons) ou pictogramme (lucide) coloré.
 export type TaskIcon = { id: string; label: string; color: string; brand?: SimpleIcon; glyph?: LucideIcon };
 
-const brand = (icon: SimpleIcon): TaskIcon => ({ id: icon.slug, label: icon.title, color: `#${icon.hex}`, brand: icon });
-const glyph = (id: string, label: string, color: string, icon: LucideIcon): TaskIcon => ({ id, label, color, glyph: icon });
+export const brand = (icon: SimpleIcon): TaskIcon => ({ id: icon.slug, label: icon.title, color: `#${icon.hex}`, brand: icon });
+export const glyph = (id: string, label: string, color: string, icon: LucideIcon): TaskIcon => ({ id, label, color, glyph: icon });
 
 // Icône devinée par mots-clés dans le titre (Notion n'a pas de champ catégorie).
 // Pour en ajouter une : une ligne ici ; la première qui correspond gagne, donc le plus précis en haut.

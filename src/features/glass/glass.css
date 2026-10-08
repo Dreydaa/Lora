@@ -25,10 +25,10 @@
 .glass-col-a > :nth-child(3) { grid-row: 5; }
 .glass-col-a > :nth-child(4) { grid-row: 7; }
 
-/* Mode « jalons » : la nouvelle carte (270) s'insère sous les petits blocs, la carte vide du bas passe de 288 à 140
+/* Mode « détail » (jalons ou écran, même carte) : la nouvelle carte (270) s'insère sous les petits blocs, la carte vide du bas passe de 288 à 140
    et Projets de 383 à 230 ; les petits blocs et la colonne de droite ne bougent pas. Durée = FOCUS_MS dans GlassPage.tsx. */
 .glass-col { transition: grid-template-rows 0.6s cubic-bezier(0.25, 1, 0.5, 1); }
-.glass-stage[data-focus="milestones"] .glass-col-a { grid-template-rows: 230fr var(--gap) 160fr var(--gap) 270fr var(--gap) 140fr; }
+.glass-stage[data-focus] .glass-col-a { grid-template-rows: 230fr var(--gap) 160fr var(--gap) 270fr var(--gap) 140fr; }
 @media (prefers-reduced-motion: reduce) { .glass-col { transition: none; } }
 .glass-small-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--g-gap) * var(--u)); min-height: 0; }
 
