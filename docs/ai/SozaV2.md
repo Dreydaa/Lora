@@ -84,9 +84,13 @@ Pistes : nouveau tool IA type `set_break` (dates début/fin) persisté dans Noti
 
 Prolonge l'étape 5 de l'"Ordre de réalisation" de l'avatar dans `STATUS.md` (widget de bureau en fenêtre Tauri secondaire). Ajout : Soza tourne en arrière-plan (icône zone de notification / tray Tauri) et s'active par commande vocale même quand la fenêtre principale est fermée. Dépend du chantier 3 (STT, écoute en arrière-plan testée et validée en mode "app ouverte" d'abord) et du chantier 6 (coût en ressources d'une écoute permanente).
 
+**Premiers éléments faits en V1 (08/10/2026)** : l'application de bureau a déjà un **thread Rust résident** (`src-tauri/src/main.rs`) qui mesure l'application au premier plan toutes les 5 s, une **icône de zone de notification** (clic gauche : afficher la fenêtre ; clic droit : « Afficher Soza » / « Quitter »), le **démarrage automatique avec Windows** (`--autostart` : fenêtre masquée) et un **installeur NSIS**. Ce sont les fondations de l'agent local de ce chantier et du chantier 3. **Reste** : l'écoute vocale en arrière-plan et le widget animé ; le suivi du temps d'écran, le menu de la zone de notification et le démarrage automatique ne sont pas encore vérifiés dans l'app installée.
+
 ## Chantier 6 — Optimisation du dossier et du code (performances)
 
 Objectif : ne pas consommer trop de ressources, surtout avec un widget/écoute résidents. Pistes à vérifier par mesure, pas à l'aveugle : code mort listé dans `STATUS.md` ("Nettoyage pré-existant"), dépendances inutilisées, poids du bundle, coût CPU/GPU du système de particules (nombre de particules, `devicePixelRatio`, pause du rendu quand la fenêtre est masquée), taille des dossiers (`node_modules`, `src-tauri/target`, `dist`), empreinte mémoire de l'app Tauri en tray.
+
+**Première passe faite en V1 (08/10/2026), mesurée** : exécutable de release de 9,75 à 6,55 Mo (−33 %), 5 dépendances inutilisées retirées, fonction `/api/dashboard` de 925 à 482 ko (séparation de la validation Zod et du contrôle d'accès), requêtes Notion des crons réduites (matin 3 à 2, soir 5 à 3). **Restent, non faites car elles changent le visuel ou le comportement** : mettre en pause les boucles three.js quand la fenêtre est masquée (le CPU fenêtre masquée n'a pas pu être mesuré), un rendu plus léger, retirer Zod du webhook, découper le chunk JS. Détail dans `STATUS.md`, section « Qualité / robustesse ».
 
 ## Chantier 7 — Gérer plusieurs projets en même temps
 
