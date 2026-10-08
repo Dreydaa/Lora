@@ -1,5 +1,5 @@
 import { isAllowedChat } from "../lib/auth";
-import { telegramUpdateSchema } from "../lib/validation";
+import { readTelegramMessage } from "../lib/validation";
 import { publishWorkerJob } from "../lib/integrations/qstash";
 
 export const config = {
@@ -15,15 +15,9 @@ export default async function handler(request: Request) {
     process.env.TELEGRAM_WEBHOOK_SECRET
   )
     return new Response("Unauthorized", { status: 401 });
-  const parsed = telegramUpdateSchema.safeParse(await request.json());
-  if (!parsed.success) return new Response("Ignored", { status: 200 });
-  const message = parsed.data.message;
-  if (!message?.text || !isAllowedChat(message.chat.id))
+  const message = readTelegramMessage(await request.json());
+  if (!message || !isAllowedChat(message.chatId))
     return new Response("Ignored", { status: 200 });
-  await publishWorkerJob({
-    chatId: message.chat.id,
-    text: message.text,
-    messageId: message.message_id,
-  });
+  await publishWorkerJob(message);
   return new Response("OK", { status: 200 });
 }

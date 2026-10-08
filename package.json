@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@ai-sdk/groq": "^4.0.46",
-    "@notionhq/client": "^2.2.15",
+    "@notionhq/client": "^4.0.2",
     "@tauri-apps/api": "^2.12.1",
     "@tauri-apps/plugin-opener": "^2.2.6",
     "@upstash/qstash": "^2.8.0",

@@ -1,7 +1,7 @@
 import { Receiver } from "@upstash/qstash";
 import { askSoza } from "../lib/ai/client";
 import { sendTelegram } from "../lib/integrations/telegram";
-import { workerJobSchema } from "../lib/validation";
+import { readWorkerJob } from "../lib/validation";
 
 export const config = {
   runtime: "edge",
@@ -25,11 +25,11 @@ export default async function handler(request: Request) {
     const rawBody = await request.text();
     if (!(await verify(request, rawBody))) return new Response("Unauthorized", { status: 401 });
 
-    const parsed = workerJobSchema.safeParse(JSON.parse(rawBody));
-    if (!parsed.success) return new Response("Invalid job", { status: 400 });
+    const job = readWorkerJob(JSON.parse(rawBody));
+    if (!job) return new Response("Invalid job", { status: 400 });
 
-    const result = await askSoza(parsed.data.chatId, parsed.data.text);
-    await sendTelegram(parsed.data.chatId, result.text);
+    const result = await askSoza(job.chatId, job.text);
+    await sendTelegram(job.chatId, result.text);
 
     return Response.json({ ok: true });
   } catch (error) {
