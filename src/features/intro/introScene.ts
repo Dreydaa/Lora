@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { buildPath, FRAME_H, FRAME_W, PATH_SAMPLES } from "./path";
-import { RIBBON_SIZE, RIBBON_SPIN, buildRibbonPoints, ribbonPosition } from "../particles/ribbon";
+import { createFrameLoop } from "../particles/frameLoop";
+import { MAX_PIXEL_RATIO, PARTICLE_COUNT, REST_FPS, RIBBON_SIZE, RIBBON_SPIN, buildRibbonPoints, ribbonPosition } from "../particles/ribbon";
 import { DEFAULT_BACKGROUND, createBackground } from "../particles/background";
 import { createGlow } from "../particles/glow";
 import { createParticleLook } from "../particles/look";
@@ -13,7 +14,7 @@ export interface IntroOptions {
   skip?: boolean;
 }
 
-const COUNT = 4500;
+const COUNT = PARTICLE_COUNT;
 const FOV = 35;
 
 // Flux sur la courbe (unités de scène par seconde, 1512 = largeur du cadre caméra).
@@ -41,7 +42,7 @@ function gaussian() {
 
 export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: IntroOptions = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
   renderer.setClearColor(DEFAULT_BACKGROUND.colorDark);
 
   const scene = new THREE.Scene();
@@ -103,7 +104,6 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: 
   const ribbonPos = new THREE.Vector3();
   const startedAt = performance.now() - (skip ? duration * 1000 : 0);
   let ribbonScale = 1;
-  let frame = 0;
 
   // Le tracé occupe toute la largeur du cadre 16:9 ; sur les fenêtres plus larges on élargit
   // le champ pour garder la hauteur, sur les fenêtres plus hautes on garde la largeur.
@@ -171,9 +171,10 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: 
     }
     mesh.instanceMatrix.needsUpdate = true;
     renderer.render(scene, camera);
-    frame = requestAnimationFrame(render);
   };
   render();
+  // Pleine cadence pendant l'animation, puis REST_FPS une fois le ruban formé ; rien du tout fenêtre masquée.
+  const loop = createFrameLoop(render, () => (performance.now() - startedAt >= duration * 1000 ? REST_FPS : Infinity));
 
   return {
     duration,
@@ -181,7 +182,7 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: 
       colorParticles(mesh, [color]);
     },
     dispose: () => {
-      cancelAnimationFrame(frame);
+      loop.dispose();
       window.removeEventListener("resize", resize);
       unmountPanel?.();
       geometry.dispose();

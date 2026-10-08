@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { RIBBON_HALF_WIDTH, RIBBON_RADIUS, RIBBON_SIZE, RIBBON_SPIN, buildRibbonPoints, ribbonPosition } from "../particles/ribbon";
+import { createFrameLoop } from "../particles/frameLoop";
+import { MAX_PIXEL_RATIO, PARTICLE_COUNT, REST_FPS, RIBBON_HALF_WIDTH, RIBBON_RADIUS, RIBBON_SIZE, RIBBON_SPIN, buildRibbonPoints, ribbonPosition } from "../particles/ribbon";
 import { DEFAULT_BACKGROUND, createBackground } from "../particles/background";
 import { createGlow } from "../particles/glow";
 import { createParticleLook } from "../particles/look";
@@ -9,7 +10,7 @@ export interface HubOptions {
   particleColor?: string;
 }
 
-const COUNT = 4500;
+const COUNT = PARTICLE_COUNT;
 const FOV = 35;
 
 // Cadre carré autour du ruban, avec marge pour ne pas le rogner en rotation.
@@ -18,7 +19,7 @@ const FRAME = (RIBBON_RADIUS + RIBBON_HALF_WIDTH) * 2 * 1.2;
 // Hub statique du dashboard : le même ruban que l'état final de l'intro, mais seul, au repos.
 export function createHub(canvas: HTMLCanvasElement, { particleColor }: HubOptions = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
   renderer.setClearColor(DEFAULT_BACKGROUND.colorDark);
 
   const scene = new THREE.Scene();
@@ -49,7 +50,6 @@ export function createHub(canvas: HTMLCanvasElement, { particleColor }: HubOptio
   const ribbonPos = new THREE.Vector3();
   const startedAt = performance.now();
   let ribbonScale = 1;
-  let frame = 0;
 
   const resize = () => {
     const w = canvas.clientWidth;
@@ -85,16 +85,16 @@ export function createHub(canvas: HTMLCanvasElement, { particleColor }: HubOptio
     }
     mesh.instanceMatrix.needsUpdate = true;
     renderer.render(scene, camera);
-    frame = requestAnimationFrame(render);
   };
   render();
+  const loop = createFrameLoop(render, () => REST_FPS); // le hub est toujours au repos
 
   return {
     setParticleColor: (color: string) => {
       colorParticles(mesh, [color]);
     },
     dispose: () => {
-      cancelAnimationFrame(frame);
+      loop.dispose();
       window.removeEventListener("resize", resize);
       geometry.dispose();
       material.dispose();
