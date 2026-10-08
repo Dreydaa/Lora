@@ -8,11 +8,6 @@ const database = () => {
 
 export type SozaSettings = {
   pageId: string;
-  shiftActive: boolean;
-  shiftStartHour: number;
-  shiftEndHour: number;
-  pendingChangeDate: string | null;
-  pendingChangeValue: boolean | null;
   morningTime: string;
   eveningTime: string;
   morningScheduleId: string | null;
@@ -26,11 +21,6 @@ function richText(page: any, prop: string): string {
 function parseSettings(page: any): SozaSettings {
   return {
     pageId: page.id,
-    shiftActive: page.properties["Fenêtre pause active"]?.checkbox ?? true,
-    shiftStartHour: page.properties["Heure début pause"]?.number ?? 4,
-    shiftEndHour: page.properties["Heure fin pause"]?.number ?? 15,
-    pendingChangeDate: page.properties["Date de changement"]?.date?.start ?? null,
-    pendingChangeValue: page.properties["Nouvelle valeur fenêtre pause"]?.checkbox ?? null,
     morningTime: richText(page, "Heure briefing matin") || "06:00",
     eveningTime: richText(page, "Heure bilan soir") || "20:00",
     morningScheduleId: richText(page, "QStash id briefing") || null,
