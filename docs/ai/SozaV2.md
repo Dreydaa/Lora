@@ -2,7 +2,7 @@
 
 Document séparé de `STATUS.md` : ce fichier ne couvre que la V2 (préparatifs et décisions prises à l'avance), pas l'état d'avancement de la V1 en cours. `STATUS.md` reste la seule source pour "où en est le projet maintenant".
 
-**Statut : rien n'est implémenté. Aucun chantier de ce fichier ne démarre avant que la V1 soit complètement finie** (dashboard branché sur le vrai backend + nettoyage du code mort, design Figma intégré, intro branchée à l'app — voir `STATUS.md`). Seule exception : la documentation portfolio (`docs/portfolio/BUILD-LOG.md`), déjà en cours en continu.
+**Statut : rien n'est implémenté. La V1 est terminée (déclarée par l'utilisateur le 09/10/2026, voir `STATUS.md`, « Clôture de la V1 ») ; la V2 démarrera plus tard, à sa décision.** Avant de commencer : relire dans `STATUS.md` ce qui était non vérifié à la clôture et les 2 tests d'acceptation de cadence à remettre au vert.
 
 ## Pourquoi cette direction (décidé 30/09/2026)
 
@@ -105,7 +105,7 @@ Seul chantier de ce fichier **déjà en cours**, pas bloqué par la fin de la V1
 
 ## Chantier 9 — Interaction par gestes de la main (caméra)
 
-Ajouté le 06/10/2026. **Surdev assumé** par l'utilisateur : défi personnel pour construire l'agent qu'il veut vraiment, plus proche de Jarvis/FRIDAY. Reste de la V2 (aucun code avant la fin de la V1), et la liste d'actions est volontairement ouverte — il en ajoutera au fur et à mesure.
+Ajouté le 06/10/2026. **Surdev assumé** par l'utilisateur : défi personnel pour construire l'agent qu'il veut vraiment, plus proche de Jarvis/FRIDAY. Reste de la V2 (aucun code avant le début de la V2), et la liste d'actions est volontairement ouverte — il en ajoutera au fur et à mesure.
 
 **Actions voulues (liste de départ)** :
 1. Faire défiler (scroll) une page.
@@ -150,4 +150,4 @@ Le but est de voir en direct si le suivi est fiable avant de construire les gest
 
 ## Garde-fou
 
-Tous les chantiers ci-dessus (sauf le 8) attendent la fin de la V1 : dashboard branché sur le vrai backend + nettoyage du code mort, design Figma livré et intégré, intro branchée à l'app (voir `STATUS.md` pour l'état exact). Ne pas commencer un chantier de ce fichier en parallèle du socle V1, sous peine de ne jamais le finir.
+La V1 est terminée (09/10/2026) : le socle attendu par ce fichier est en place (dashboard branché sur le vrai backend, design intégré, intro branchée, code mort supprimé). Quand la V2 démarrera : choisir **un seul chantier à la fois**, dans l'ordre déjà décidé (l'écoute et les actions d'abord, la voix de sortie ensuite, du plus simple au plus dur), et ne pas en ouvrir un second avant d'avoir fini le premier, sous peine de ne jamais finir ni l'un ni l'autre.
