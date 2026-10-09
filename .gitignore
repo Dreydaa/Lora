@@ -16,3 +16,6 @@ Thumbs.db
 
 .vercel
 .env*
+
+# Config locale de Claude Code (hooks, lancement) : propre a chaque poste
+.claude/
