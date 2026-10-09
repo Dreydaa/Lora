@@ -18,8 +18,8 @@ const tiltSin = Math.sin(RIBBON_TILT);
 // particules : 3600 au lieu de 4500 ne changeait rien au CPU, donc le visuel validé est gardé.
 export const PARTICLE_COUNT = 4500;
 export const MAX_PIXEL_RATIO = 1.5;
-// Cadence au repos (ruban formé) : il tourne lentement, 30 images par seconde suffisent.
-export const REST_FPS = 30;
+// Cadence au repos (ruban formé). 30 donnait une animation saccadée dans l'app (08/10/2026) : 60 suit un écran standard.
+export const REST_FPS = 60;
 
 export function buildRibbonPoints(count: number) {
   const points = new Float32Array(count * 3);

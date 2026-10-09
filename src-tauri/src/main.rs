@@ -51,6 +51,18 @@ fn track(usage: &Mutex<Usage>, own_pid: u64) -> bool {
   true
 }
 
+// Barre de titre Windows 11 fondue dans le fond bleu #2757D0 (DWMWA_CAPTION_COLOR / BORDER / TEXT, COLORREF = 0x00BBGGRR).
+// Ignoré sans erreur avant Windows 11 (build 22000) : la barre garde alors sa couleur par défaut.
+#[cfg(windows)]
+fn tint_title_bar(window: &WebviewWindow) {
+  #[link(name = "dwmapi")]
+  extern "system" { fn DwmSetWindowAttribute(hwnd: *mut std::ffi::c_void, attr: u32, value: *const std::ffi::c_void, size: u32) -> i32; }
+  let Ok(hwnd) = window.hwnd() else { return };
+  for (attr, color) in [(34u32, 0x00D0_5727u32), (35, 0x00D0_5727), (36, 0x00FF_FFFF)] {
+    unsafe { DwmSetWindowAttribute(hwnd.0, attr, &color as *const u32 as *const _, 4); }
+  }
+}
+
 fn show_main(app: &AppHandle) {
   if let Some(window) = app.get_webview_window("main") { let _ = window.show(); let _ = window.set_focus(); let _ = window.emit(VISIBILITY_EVENT, true); }
 }
@@ -70,6 +82,8 @@ fn main() {
         let launch = app.autolaunch();
         if !launch.is_enabled().unwrap_or(true) { let _ = launch.enable(); }
       }
+      #[cfg(windows)]
+      if let Some(window) = app.get_webview_window("main") { tint_title_bar(&window); }
       if std::env::args().any(|a| a == AUTOSTART_ARG) { if let Some(window) = app.get_webview_window("main") { let _ = window.hide(); } }
 
       // Zone de notification : clic gauche = afficher la fenêtre, clic droit = menu (Afficher / Quitter).
