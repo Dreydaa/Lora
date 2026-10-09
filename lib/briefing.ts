@@ -141,5 +141,5 @@ export async function buildEveningBriefings(): Promise<Briefings> {
     generateBriefing(DASHBOARD_EVENING_INSTRUCTION, short, short),
   ]);
   // Le briefing du matin dépend du bilan : si le modèle l'a oublié dans sa question finale, on la lui rajoute.
-  return { telegram: /bilan/i.test(text) ? text : `${text}\nEt ton bilan du jour, Boss : qu'as-tu accompli ?`, dashboard };
+  return { telegram: /bilan/i.test(text) ? text : `${text}\nEt ton bilan du jour : qu'as-tu accompli ?`, dashboard };
 }
