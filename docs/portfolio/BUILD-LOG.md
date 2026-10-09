@@ -6,7 +6,7 @@ Il se lit à trois niveaux :
 
 | Si vous avez… | Lisez |
 | --- | --- |
-| 2 minutes (recruteur, manager) | [En bref](#en-bref), [Compétences démontrées](#compétences-démontrées) |
+| 2 minutes (recruteur, manager) | [En bref](#en-bref), [Compétences démontrées](#compétences-démontrées), [Bilan de la V1](#bilan-de-la-v1) |
 | 10 minutes (développeur junior ou curieux) | [Architecture](#architecture), [Le cœur IA](#le-cœur-ia--tool-calling-et-prompts), [Bugs et causes racines](#bugs-et-causes-racines), [Ce qu'un junior peut en tirer](#ce-quun-développeur-junior-peut-en-tirer) |
 | Le temps d'un vrai relecteur (senior) | tout, en particulier [Décisions et compromis](#décisions-et-compromis), [Qualité, tests, sécurité](#qualité-tests-sécurité) et [Limites assumées](#limites-assumées) |
 
@@ -23,7 +23,7 @@ L'état d'avancement détaillé et daté vit dans [`docs/ai/STATUS.md`](../ai/ST
 - il envoie un **briefing le matin** (météo, agenda, bilan de la veille) et demande un **bilan le soir**, à des horaires modifiables en conversation ;
 - une **application de bureau** (Tauri + React) affiche tout cela dans un tableau de bord en « verre liquide » devant un ruban de Möbius en particules animé en temps réel.
 
-**Statut.** Backend en production et utilisé au quotidien. L'application de bureau a un installeur Windows, mesure le temps d'écran réel et ouvre sur l'intro en particules puis le dashboard en verre ; 286 tests couvrent le projet. Reste à valider l'app installée dans la durée (démarrage automatique, zone de notification, fluidité). Une V2 (assistant vocal local, protocoles, gestes) est cadrée mais volontairement pas commencée.
+**Statut.** Backend en production et utilisé au quotidien. L'application de bureau a un installeur Windows, mesure le temps d'écran réel et ouvre sur l'intro en particules puis le dashboard en verre ; 286 tests couvrent le projet. **La V1 est terminée (déclarée le 09/10/2026).** L'app installée a été lancée sans anomalie constatée ; le démarrage automatique, la zone de notification et la fluidité sur la durée restent à observer à l'usage (voir le [bilan de la V1](#bilan-de-la-v1)). Une V2 (assistant vocal local, protocoles, gestes) est cadrée mais volontairement pas commencée.
 
 **Un cadrage qui a évolué.** Soza est née comme un coach de discipline à deux personnalités (une exigeante, une protectrice, selon les horaires de travail). Le 07/10, l'utilisateur tenant sa cadence de travail, ce cadrage a été abandonné : une seule personnalité (« Friday »), plus de mode ACTIF/PAUSE, le produit se rapprochant d'un assistant du type Jarvis/FRIDAY. Le retrait a touché le backend (modes, prompts, outils, accès Notion, briefing, API du dashboard), les scripts et le front.
 
@@ -31,17 +31,17 @@ L'état d'avancement détaillé et daté vit dans [`docs/ai/STATUS.md`](../ai/ST
 
 | | |
 | --- | --- |
-| Durée | 3 semaines (premier commit le 16/09/2026, dernier le 08/10/2026) |
-| Historique | 61 commits |
-| Code suivi par git | ~4 950 lignes de TypeScript/CSS/Rust : `api/` 173, `lib/` 1 153, `src/` 3 049, `scripts/` 440, Rust 151 ; plus 2 169 lignes de tests |
-| Tests | 286 : 263 rapides (unitaires, intégration, régression — rejoués le 08/10, ~1 s), 20 scénarios dans un vrai navigateur, 3 en Rust |
+| Durée | 3 semaines (premier commit le 16/09/2026, dernier le 09/10/2026) |
+| Historique | 73 commits |
+| Code suivi par git | ~5 070 lignes de TypeScript/CSS/Rust : `api/` 167, `lib/` 1 165, `src/` 3 135, `scripts/` 440, Rust 166 ; plus 2 152 lignes de tests |
+| Tests | 286 : 263 rapides (unitaires, intégration, régression — rejoués le 09/10, ~1 s), 20 scénarios dans un vrai navigateur (**18 passent, 2 échouent** au 09/10, voir le bilan), 3 en Rust |
 | Endpoints serverless | 5 (webhook Telegram, worker, cron matin, cron soir, dashboard) |
 | Outils IA exposés au modèle | 13 |
 | Bases Notion | 5 (Idées, Agenda, Jalons, Progression, Réglages) |
 | Fournisseur LLM | 1 (Groq) — un second a été essayé puis retiré |
 | Dépendances d'exécution | 13 (5 inutilisées retirées le 08/10), dont `three`, `zod`, `ai` (Vercel AI SDK), `@upstash/*`, `@notionhq/client` |
 
-Chiffres tirés de `git log` et du dépôt au 08/10/2026. Les 286 tests (263 rapides, 20 scénarios navigateur, 3 en Rust) ont été rejoués le 08/10/2026 pour ce document.
+Chiffres tirés de `git log` et du dépôt au 09/10/2026. Pour ce document, les 263 tests rapides et les 20 scénarios navigateur ont été rejoués le 09/10/2026 (18 passent, 2 échouent) ; les 3 tests Rust sont repris de `STATUS.md` sans avoir été rejoués.
 
 ### Compétences démontrées
 
@@ -68,6 +68,7 @@ Chiffres tirés de `git log` et du dépôt au 08/10/2026. Les 286 tests (263 rap
 | 06/10 | **Dashboard en verre et correctifs** | Disposition « bento » de la maquette, calendrier, blocs, frise des jalons ; correctif du briefing (bilan manquant, rappels d'agenda) ; pauses de plusieurs jours. |
 | 07/10 | **Une seule personnalité, dashboard par défaut, mise en ligne** | Les deux personnalités sont fusionnées en une seule (« Friday ») et le mode ACTIF/PAUSE est retiré de tout le code ; le dashboard en verre devient la page d'accueil de l'app ; le fond passe à un aplat bleu avec des particules blanches en fil de fer ; la fusion sur `main` déclenche le déploiement de production qui met enfin en ligne les correctifs de la veille. |
 | 08/10 | **Une application qui s'installe, qui mesure et qui se teste** | Le bloc « Écran » devient réel : un thread Rust mesure l'application au premier plan (données gardées sur la machine) et le détail s'ouvre au clic ; démarrage automatique avec Windows et zone de notification ; installeur Windows ; le briefing du soir est rédigé par Soza ; les colonnes Notion obsolètes sont supprimées et les 52 idées reçoivent une catégorie ; 286 tests ; passe d'optimisation mesurée (exécutable −33 %, 5 dépendances en moins, requêtes Notion des crons réduites) ; la fusion de la PR sur `main` met le tout en production. |
+| 09/10 | **Fin de la V1** | Le ruban passe à 60 images/s (30 donnait une animation saccadée dans l'app installée), la barre de titre Windows 11 prend la couleur du fond, les surnoms de Soza sont variés (le prompt disait « Boss » par défaut), l'installeur est reconstruit et lancé, un déploiement de production suit la dernière fusion, et l'utilisateur déclare la V1 terminée. |
 | à partir de 30/09 | **V2 cadrée** | Assistant vocal local, protocoles, puis (06/10) gestes de la main : documenté, pas démarré. Le premier chantier (personnalité unique) a été fait le 07/10, en fin de V1. |
 
 ---
@@ -209,6 +210,13 @@ Une carte naissait à quelques pixels de haut et recevait un reflet de bord gén
 **13. Des entités HTML visibles dans les titres d'articles.**
 Certains flux RSS laissent `&#8216;` dans leurs titres, que React affiche tel quel. Correction : une fonction `decodeEntities` appliquée juste après l'extraction, qui laisse intacte une entité inconnue. *Leçon : une donnée externe se nettoie à l'entrée, pas à l'affichage.*
 
+**14. Une animation saccadée dans l'application installée.**
+Le ruban avait été plafonné à 30 images/s au repos pour économiser le CPU (mesuré le 08/10 : environ 8 à 10 % d'un cœur, contre environ 140 % sans plafond), et ce réglage avait été validé sur la consommation, pas sur le ressenti. Dans l'app installée, l'animation était saccadée. Correction appliquée le 09/10 : 60 images/s au repos. **Non confirmée à l'usage**, et la cause n'est pas établie : le filtre de réfraction des 8 cartes de verre est recalculé à chaque image du canvas (coût GPU, non mesuré) ; si la saccade persiste, l'option suivante est de désactiver la réfraction. *Leçon : un réglage de performance validé par une mesure de ressources peut dégrader l'expérience ; un seuil de fluidité se juge à l'œil dans l'application réelle.*
+**Effet de bord, à la clôture** : deux tests d'acceptation figeaient la valeur de 30 images/s et échouent depuis le passage à 60 (125 images en 2 s mesurées, moins de 75 attendues). Le code est juste, les attentes sont périmées. *Leçon : un test qui recopie la valeur d'un réglage au lieu de la lire casse à chaque changement du réglage.*
+
+**15. Un prompt qui impose un mot par défaut le répète partout.**
+Le prompt de personnalité donnait « Boss » comme appellation par défaut, et ses exemples commençaient par ce mot. Correction : trois surnoms alternés, jamais le même deux messages de suite, et pas de surnom dans la plupart des messages (un seul, pour saluer, marquer une remarque ou adoucir un rappel) ; la question de repli du briefing du soir n'a plus de surnom en dur. Non vérifié : le texte réel du modèle (seul le contenu du prompt est testé). *Leçon : une valeur « par défaut » écrite dans un prompt tend à devenir un tic ; mieux vaut décrire quand l'employer.*
+
 ---
 
 ## Front : le dashboard et l'avatar
@@ -291,6 +299,8 @@ Les relecteurs expérimentés y regarderont en premier ; autant les dire.
 - **Détection des icônes par mots-clés** : fragile par construction. La colonne « Catégorie » existe dans Notion mais le code ne la lit pas encore.
 - **L'installeur existe mais n'a été ni lancé ni installé** : démarrage automatique, zone de notification et suivi du temps d'écran restent à valider dans l'app installée, et la fluidité (4 500 particules et 9 verres à réfraction) n'est pas mesurée sur la durée, en particulier le CPU quand la fenêtre est masquée.
 - **Le suivi du temps d'écran ne mesure que Windows et que l'application Tauri** (dans un navigateur le bloc affiche « — »), et seulement tant que Soza tourne.
+- **À la clôture, la suite de tests n'est pas entièrement verte** : 2 des 20 scénarios d'acceptation échouent (cadence du rendu figée à l'ancienne valeur de 30 images/s, voir le bug 14).
+- **Non vérifiés à la clôture** : le premier texte réel des briefings avec le nouveau code, les écritures Notion avec le client 4 (`test:live` jamais relancé depuis), et une passe sécurité.
 
 ---
 
@@ -298,7 +308,7 @@ Les relecteurs expérimentés y regarderont en premier ; autant les dire.
 
 **La documentation comme source de vérité, tenue à jour pendant le travail.** `STATUS.md` consigne ce qui est fait, ce qui reste, et surtout **pourquoi** chaque décision a été prise, avec la date. Chaque entrée distingue ce qui a été **vérifié** de ce qui **ne l'est pas**. C'est ce qui permet de reprendre le projet à froid, y compris pour un assistant IA.
 
-**Un garde-fou contre la dispersion.** Le projet s'est donné une règle écrite : ne pas commencer une idée de la V2 avant d'avoir fini la V1. Elle est inscrite en tête de `SozaV2.md` et rappelée à chaque nouvelle ambition. Les idées sont notées, discutées, cadrées, mais pas implémentées tant que le socle n'est pas fini.
+**Un garde-fou contre la dispersion.** Le projet s'est donné une règle écrite : ne pas commencer une idée de la V2 avant d'avoir fini la V1. Elle est inscrite en tête de `SozaV2.md` et rappelée à chaque nouvelle ambition. Les idées sont notées, discutées, cadrées, mais pas implémentées tant que le socle n'est pas fini. La V1 a été déclarée terminée le 09/10/2026 ; la V2 attend.
 
 **Des décisions prises en discussion, puis écrites.** Les choix structurants (retrait du streak, retrait du mode ACTIF/PAUSE au profit d'une personnalité unique, moteur de détection du mot d'activation) sont discutés avec leurs alternatives, tranchés, puis consignés avec leur raison.
 
@@ -307,6 +317,29 @@ Les relecteurs expérimentés y regarderont en premier ; autant les dire.
 **Les pièges de l'outillage.** Un `\n` dans une chaîne TypeScript écrite par un script collé dans le shell devenait un vrai saut de ligne (arrivé deux fois, dans deux fichiers) : désormais, `tsc --noEmit` après tout script de ce genre. Autre piège de dev noté : `tauri dev` relance le serveur de développement sur un port fixe, et un serveur déjà ouvert fait échouer le démarrage.
 
 **Ce que l'historique montre.** 8 commits en un jour pour trouver un fond « à l'œil », contre un résultat mesuré (0,978 de corrélation) quand une référence a été fournie. Itérer contre une référence converge ; itérer contre une impression, beaucoup moins.
+
+---
+
+## Bilan de la V1
+
+La V1 a été déclarée terminée par l'utilisateur le 09/10/2026, après trois semaines et 73 commits.
+
+**Ce qui est livré**
+- Un backend en production : webhook, worker, crons, briefings du matin et du soir rédigés par Soza, 13 outils IA, une seule personnalité, pause de plusieurs jours.
+- Une application de bureau Windows : intro en particules, dashboard en verre alimenté par les vraies données, temps d'écran réel, démarrage automatique, zone de notification, installeur.
+- 286 tests, deux passes d'optimisation mesurées, une documentation tenue à jour.
+
+**Ce qui n'est pas vert à la clôture, et qui est écrit plutôt que caché**
+- 2 des 20 scénarios d'acceptation échouent : ils figent la cadence de 30 images/s alors que le rendu tourne maintenant à 60.
+- Non vérifié : le démarrage automatique réel, le menu de la zone de notification et la reprise du rendu dans l'app installée, les écritures Notion avec le client 4, une passe sécurité, quelques jours d'usage, et le texte réel des premiers briefings avec le nouveau code.
+- Optionnel, non fait : la catégorie Notion n'est pas lue par le code (les logos restent devinés par mots-clés), pas de statut « Terminé » pour les idées.
+
+**Ce que la journée de clôture enseigne**
+- Un réglage validé sur une mesure (le CPU) peut être mauvais à l'usage (la fluidité) ; et un test qui recopie la valeur du réglage plutôt que de la lire échoue dès qu'on le change.
+- Une valeur « par défaut » écrite dans un prompt tend à se retrouver partout dans les réponses.
+- Déclarer « terminé » n'efface pas la liste de ce qu'on n'a pas vérifié : la clôture l'inscrit au lieu de l'omettre.
+
+**La suite** : la V2, décrite dans [`SozaV2.md`](../ai/SozaV2.md), n'est pas commencée.
 
 ---
 
