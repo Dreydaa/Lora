@@ -93,6 +93,8 @@ fn main() {
         &MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?,
       ])?;
       let _tray = tauri::tray::TrayIconBuilder::with_id("soza")
+        // Sans image, Windows crée une entrée vide (invisible) : on réutilise l'icône de l'app (icons/icon.ico).
+        .icon(app.default_window_icon().expect("icône de l'app absente").clone())
         .tooltip("Soza est actif")
         .menu(&menu)
         .show_menu_on_left_click(false)
