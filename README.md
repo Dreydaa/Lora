@@ -84,7 +84,7 @@ Les tests (`npm test`, `test:acceptance`, `test:rust`) n'utilisent jamais le `.e
 
 ## État du projet
 
-Voir [`docs/ai/STATUS.md`](docs/ai/STATUS.md) pour le détail de ce qui est fait et ce qu'il reste à faire.
+**La V1 est terminée (09/10/2026).** Voir [`docs/ai/STATUS.md`](docs/ai/STATUS.md) (section « Clôture de la V1 ») pour ce qui est livré, ce qui a été vérifié et ce qui ne l'a pas été. La V2 (assistant vocal local, protocoles, gestes de la main) est cadrée dans [`docs/ai/SozaV2.md`](docs/ai/SozaV2.md) et n'est pas commencée.
 
 ## Journal de construction
 
