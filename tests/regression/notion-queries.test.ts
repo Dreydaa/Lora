@@ -5,8 +5,8 @@ import { createdPages, notionCalls, notionData, progressPage, resetNotion, updat
 vi.mock("@notionhq/client", () => import("../helpers/notion-mock"));
 
 import { addAgendaItem, getUpcomingAgenda } from "../../lib/notion/agenda";
-import { addIdea, findIdeaByTitle, updateIdeaNotes } from "../../lib/notion/idees";
-import { getMilestones } from "../../lib/notion/milestones";
+import { addIdea, completeIdea, findIdeaByTitle, updateIdeaNotes } from "../../lib/notion/idees";
+import { createMilestone, getMilestones } from "../../lib/notion/milestones";
 import { getLatestProgress, saveProgress } from "../../lib/notion/progress";
 
 const lastFilter = () => JSON.stringify(notionCalls.at(-1)?.filter ?? null);
@@ -43,9 +43,32 @@ describe("jalons : ceux en retard restent visibles", () => {
 });
 
 describe("idées", () => {
-  it("findIdeaByTitle ignore les idées archivées (sinon un titre proche vise la mauvaise page)", async () => {
+  it("findIdeaByTitle ignore les idées archivées et terminées (sinon un titre proche vise la mauvaise page)", async () => {
     await findIdeaByTitle("Soza");
     expect(lastFilter()).toContain('"does_not_equal":"Archivée"');
+    expect(lastFilter()).toContain('"does_not_equal":"Terminé"');
+  });
+  it("completeIdea passe le statut à Terminé, pas à Archivée", async () => {
+    await completeIdea("page");
+    expect(updatedPages.at(-1).properties.Statut).toEqual({ select: { name: "Terminé" } });
+  });
+
+  // La catégorie n'est écrite que si elle est fournie : une base sans cette colonne ne doit pas casser les écritures existantes.
+  it("la catégorie est écrite pour une idée, un item d'agenda et un jalon quand elle est fournie", async () => {
+    await addIdea("Projet", "Petit", "", "Brute", "Blender");
+    expect(createdPages.at(-1).properties.Catégorie).toEqual({ select: { name: "Blender" } });
+    await addAgendaItem("RDV", "2026-10-09", "Perso", undefined, "Rendez-vous");
+    expect(createdPages.at(-1).properties.Catégorie).toEqual({ select: { name: "Rendez-vous" } });
+    await createMilestone("Jalon", "2026-10-20", undefined, "Figma");
+    expect(createdPages.at(-1).properties.Catégorie).toEqual({ select: { name: "Figma" } });
+  });
+  it("sans catégorie, aucune propriété Catégorie n'est envoyée", async () => {
+    await addIdea("Projet", "Petit");
+    expect(Object.keys(createdPages.at(-1).properties)).not.toContain("Catégorie");
+    await addAgendaItem("RDV", "2026-10-09");
+    expect(Object.keys(createdPages.at(-1).properties)).not.toContain("Catégorie");
+    await createMilestone("Jalon", "2026-10-20");
+    expect(Object.keys(createdPages.at(-1).properties)).not.toContain("Catégorie");
   });
 
   // Notion limite chaque bloc rich_text à 2000 caractères : une synthèse développée doit être découpée, pas tronquée.

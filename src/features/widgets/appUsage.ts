@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { AppWindow, Code, Folder, Globe, Terminal } from "lucide-react";
+import { AppWindow, Code, Folder, Gamepad2, Globe, PenTool, Terminal } from "lucide-react";
 import { useEffect, useState } from "react";
-import { siBitwarden, siBlender, siBrave, siDiscord, siFigma, siFirefoxbrowser, siGooglechrome, siNotion, siObsstudio, siSpotify, siSteam, siTelegram } from "simple-icons";
+import { siBitwarden, siBlender, siBrave, siClaude, siDiscord, siFigma, siFirefoxbrowser, siGooglechrome, siModrinth, siNotion, siObsstudio, siSpotify, siSteam, siTelegram, siValorant } from "simple-icons";
 import { localDayKey } from "../../lib/format";
 import { brand, glyph, type TaskIcon } from "../calendar/taskIcons";
 
@@ -27,14 +27,19 @@ const APPS: Record<string, { name: string; icon: TaskIcon }> = {
   telegram: { name: "Telegram", icon: brand(siTelegram) },
   windowsterminal: { name: "Terminal", icon: glyph("terminal", "Terminal", "#4d4d4d", Terminal) },
   explorer: { name: "Explorateur", icon: glyph("explorer", "Explorateur", "#f5b83d", Folder) },
+  claude: { name: "Claude", icon: brand(siClaude) },
+  "modrinth app": { name: "Modrinth", icon: brand(siModrinth) },
+  "valorant-win64-shipping": { name: "Valorant", icon: brand(siValorant) },
+  bleachbravesouls: { name: "Bleach Brave Souls", icon: glyph("bleachbravesouls", "Bleach Brave Souls", "#e8590c", Gamepad2) },
+  affinity: { name: "Affinity", icon: glyph("affinity", "Affinity", "#1b72be", PenTool) }, // simple-icons n'a pas le logo Affinity
 };
 
-// Application inconnue : nom de l'exécutable, couleur stable déduite du nom.
+// Application inconnue : nom de l'exécutable (sans le suffixe des jeux Unreal), couleur stable déduite du nom.
 function appInfo(exe: string) {
   const known = APPS[exe];
   if (known) return known;
   const hue = [...exe].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
-  const name = exe.replace(/[-_]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+  const name = exe.replace(/[-_]win(32|64)([-_]shipping)?$/, "").replace(/[-_]+/g, " ").replace(/^./, (c) => c.toUpperCase());
   return { name, icon: glyph(exe, name, `hsl(${hue} 60% 45%)`, AppWindow) };
 }
 

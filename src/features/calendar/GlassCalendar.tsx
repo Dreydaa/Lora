@@ -14,7 +14,7 @@ const MAX_LOGOS = 3;
 const CLOSE_MS = 180; // = durée de l'animation de sortie dans calendar.css
 
 // Icônes distinctes des évènements d'un jour, dans l'ordre.
-const logosOf = (events: CalendarEvent[]) => [...new Set(events.map((e) => iconFor(e.title)).filter((i): i is TaskIcon => !!i))];
+const logosOf = (events: CalendarEvent[]) => [...new Set(events.map((e) => iconFor(e.title, e.category)).filter((i): i is TaskIcon => !!i))];
 
 // Agenda + jalons en verre : semaine ou mois, un clic sur un jour ouvre son détail.
 export function GlassCalendar({ agenda, milestones, now }: Props) {
@@ -47,7 +47,7 @@ export function GlassCalendar({ agenda, milestones, now }: Props) {
   const eventsOf = (day: string) => byDay.get(day) ?? [];
 
   const marker = (e: CalendarEvent) => {
-    const icon = iconFor(e.title);
+    const icon = iconFor(e.title, e.category);
     return icon ? <Logo icon={icon} /> : <span className="gcal-dot" />;
   };
 
