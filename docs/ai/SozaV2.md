@@ -153,7 +153,7 @@ Le but est de voir en direct si le suivi est fiable avant de construire les gest
 Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Cases à cocher au fil des sessions.
 
 - [ ] 0. Remettre au vert les 2 tests d'acceptation de cadence (lire `REST_FPS` au lieu de 30 en dur) et vérifier la liste « Non vérifié à la clôture » de `STATUS.md` — **tests faits le 12/10/2026** (20/20 acceptation, 263 rapides, 3 Rust, `tsc` propre) ; reste la liste non vérifiée (app installée, `test:live`, passe sécurité, textes de briefing)
-- [ ] 1. Petits restes de la V1 : statut Notion `Terminé`, catégorie Notion lue par le code, nom et logo des applications inconnues du temps d'écran
+- [x] 1. Petits restes de la V1 : statut Notion `Terminé`, catégorie Notion lue par le code, nom et logo des applications inconnues du temps d'écran — **fait le 12/10/2026** (voir `STATUS.md`) ; restent à vérifier contre le vrai Notion après redéploiement
 - [ ] 2. Pause de plusieurs jours (chantier 4) : l'afficher dans le dashboard, la persister dans Notion
 - [ ] 3. Optimisation (chantier 6) : re-mesurer, puis traiter ce qui reste (vérifier d'abord ce que la PR #6 a déjà fait)
 - [ ] 4. Lancer/fermer une app nommée + fichier de config local (chantier 3, fonction 1) : fondation de l'agent local

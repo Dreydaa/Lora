@@ -1,5 +1,5 @@
 import { notion } from "./client";
-import type { Milestone } from "../types";
+import type { Category, Milestone } from "../types";
 
 const database = () => {
   if (!process.env.NOTION_MILESTONES_DATABASE_ID) throw new Error("NOTION_MILESTONES_DATABASE_ID is missing");
@@ -21,10 +21,11 @@ export async function getMilestones(includeDone = false): Promise<Milestone[]> {
     status: p.properties.Statut?.select?.name ?? "À faire",
     proofUrl: p.properties.Preuve?.url,
     ideaId: p.properties["Idée liée"]?.relation?.[0]?.id,
+    category: p.properties.Catégorie?.select?.name,
   }));
 }
 
-export async function createMilestone(title: string, dueDate: string, ideaPageId?: string) {
+export async function createMilestone(title: string, dueDate: string, ideaPageId?: string, category?: Category) {
   return notion().pages.create({
     parent: { database_id: database() },
     properties: {
@@ -32,6 +33,7 @@ export async function createMilestone(title: string, dueDate: string, ideaPageId
       Échéance: { date: { start: dueDate } },
       Statut: { select: { name: "À faire" } },
       ...(ideaPageId ? { "Idée liée": { relation: [{ id: ideaPageId }] } } : {}),
+      ...(category ? { Catégorie: { select: { name: category } } } : {}),
     },
   });
 }

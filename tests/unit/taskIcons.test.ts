@@ -33,3 +33,13 @@ describe("iconFor : logo deviné par mots-clés dans le titre", () => {
   });
   it("ignore la casse", () => expect(label("BLENDER")).toBe("Blender"));
 });
+
+describe("iconFor : la catégorie Notion passe avant les mots-clés", () => {
+  it("la catégorie gagne sur le titre", () => expect(iconFor("Push sur GitHub", "Figma")?.label).toBe("Figma"));
+  it("la catégorie donne un logo à un titre sans mot-clé", () => expect(iconFor("Faire les courses", "Sport")?.label).toBe("Sport"));
+  it("« Autre » = pas de logo, même si le titre contient un mot-clé", () => expect(iconFor("Push sur GitHub", "Autre")).toBeUndefined());
+  it("catégorie inconnue ou vide : retour aux mots-clés", () => {
+    expect(iconFor("Push sur GitHub", "Inconnue")?.label).toBe("GitHub");
+    expect(iconFor("Push sur GitHub", undefined)?.label).toBe("GitHub");
+  });
+});
