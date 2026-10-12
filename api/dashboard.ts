@@ -3,7 +3,8 @@ import { getMilestones } from "../lib/notion/milestones";
 import { getAllIdeas } from "../lib/notion/idees";
 import { getSettings } from "../lib/notion/settings";
 import { DASHBOARD_TITLES_PER_FEED, getArticles } from "../lib/integrations/news";
-import { getLastBriefing } from "../lib/memory";
+import { getBreak, getLastBriefing } from "../lib/memory";
+import { todayInParis } from "../lib/date";
 import { assertDashboardKey } from "../lib/auth";
 
 export const config = {
@@ -23,7 +24,7 @@ export default async function handler(request: Request) {
   try {
     assertDashboardKey(request);
 
-    const [agenda, milestones, ideas, settings, articles, briefing, eveningBriefing] = await Promise.all([
+    const [agenda, milestones, ideas, settings, articles, briefing, eveningBriefing, savedBreak] = await Promise.all([
       getUpcomingAgenda(true, 60),
       getMilestones(true),
       getAllIdeas(),
@@ -31,7 +32,10 @@ export default async function handler(request: Request) {
       getArticles(DASHBOARD_TITLES_PER_FEED),
       getLastBriefing(),
       getLastBriefing("evening"),
+      getBreak(),
     ]);
+    // Redis garde la pause 3 jours après sa fin (pour le briefing de reprise) : le dashboard ne montre que celle en cours ou à venir.
+    const pause = savedBreak && savedBreak.end >= todayInParis() ? savedBreak : null;
 
     return Response.json(
       {
@@ -45,6 +49,7 @@ export default async function handler(request: Request) {
         briefing: briefing ?? "Pas encore de briefing aujourd'hui.",
         eveningBriefing: eveningBriefing ?? "Pas encore de briefing ce soir.",
         articles,
+        pause,
       },
       { headers: CORS_HEADERS },
     );
