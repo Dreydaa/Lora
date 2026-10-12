@@ -8,9 +8,18 @@
 4. Vérifie l'accès avec `npm run notion:check`, puis crée les bases avec `npm run notion:create`.
 5. Recopie les quatre identifiants affichés par le script dans les variables `NOTION_*_DATABASE_ID` de `.env`.
 
+La base Réglages est créée à part par `npm run notion:create-settings` (`scripts/create-settings-database.ts`).
+
+Propriétés lues ou écrites par le code (`lib/notion/*.ts`, état du 12/10/2026) :
+
 | Base | Propriétés |
 | --- | --- |
-| Agenda | Titre (title), Date (date), Statut (select), Mode (select) |
-| Idées | Titre (title), Taille (select: Petit/Moyen/Grand), Notes (rich_text) |
-| Jalons | Titre (title), Échéance (date), Statut (select), Preuve (url) |
-| Progression | Date (title), Bilan (rich_text), Mode (select) |
+| Agenda | Titre (title), Date (date, avec fin possible), Statut (select : À faire / Fait), Type (select : Perso / Shift), Catégorie (select) |
+| Idées | Titre (title), Taille (select : Petit/Moyen/Grand), Statut (select : Brute / En cours / **Terminé** / Archivée), Date d'entrée (date), Notes (rich_text), Catégorie (select) |
+| Jalons | Titre (title), Échéance (date), Statut (select : À faire / Validé), Preuve (url), Idée liée (relation vers Idées), Catégorie (select) |
+| Progression | Date (title), Bilan (rich_text) |
+| Réglages | Nom (title, une seule ligne « Config »), Heure briefing matin, Heure bilan soir, QStash id briefing, QStash id bilan (rich_text) |
+
+- **Statut d'une idée** : `Terminé` = projet fini (outil `complete_project`), `Archivée` = abandonné. Le compteur « Finis » du dashboard ne compte que les `Terminé`.
+- **Catégorie** : 15 options, les mêmes noms que les pastilles de logos (`CATEGORIES` dans `lib/types.ts`). Le code la lit et elle prime sur la détection par mots-clés ; `Autre` veut dire « pas de logo ». Les outils `create_idea`, `add_agenda_item` et `create_milestone` l'écrivent. Les 52 idées existantes ont une catégorie ; les entrées d'Agenda et de Jalons créées avant le 12/10/2026 n'en ont pas.
+- **Non vérifié** : les écritures réelles de `Terminé` et de `Catégorie` dans Notion. Les tests simulent Notion et `npm run test:live` ne les couvre pas.
