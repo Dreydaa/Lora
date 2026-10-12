@@ -1,8 +1,19 @@
 import { Moon, Sunrise } from "lucide-react";
-import type { DashboardSettings } from "../../types/dashboard";
+import { formatDay, nowIso } from "../../lib/format";
+import type { DashboardSettings, Pause } from "../../types/dashboard";
 import "./widgets.css";
 
-type Props = { briefing: string; eveningBriefing: string; settings: DashboardSettings; now: Date };
+type Props = { briefing: string; eveningBriefing: string; settings: DashboardSettings; pause?: Pause | null; now: Date };
+
+const day = (key: string) => formatDay(key, { day: "numeric", month: "long" });
+
+// Pause en cours : remplace le briefing (les crons sont suspendus, il serait absent ou périmé) ; pause à venir : simple rappel.
+export function pauseNote(pause: Pause | null | undefined, today: string) {
+  if (!pause || pause.end < today) return null;
+  return pause.start <= today
+    ? { active: true, text: `En pause jusqu'au ${day(pause.end)} inclus : ni briefing ni bilan, reprise le lendemain.` }
+    : { active: false, text: `Pause prévue du ${day(pause.start)} au ${day(pause.end)}.` };
+}
 
 const minutes = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number);
@@ -15,8 +26,10 @@ const isMorning = (s: DashboardSettings, now: Date) => {
   return t >= minutes(s.morningTime) && t < minutes(s.eveningTime);
 };
 
-export function BriefingCard({ briefing, eveningBriefing, settings, now }: Props) {
+export function BriefingCard({ briefing, eveningBriefing, settings, pause, now }: Props) {
   const morning = isMorning(settings, now);
+  const note = pauseNote(pause, nowIso(now).slice(0, 10));
+  const text = (morning ? briefing : eveningBriefing) || (morning ? "Pas encore de briefing aujourd'hui." : "Pas encore de briefing ce soir.");
   return (
     <div className="gw">
       <header className="gw-head">
@@ -27,7 +40,7 @@ export function BriefingCard({ briefing, eveningBriefing, settings, now }: Props
         </span>
       </header>
       {/* Le backend déployé peut être plus ancien que l'app : un champ absent ne doit pas faire planter l'écran. */}
-      <Text text={(morning ? briefing : eveningBriefing) || (morning ? "Pas encore de briefing aujourd'hui." : "Pas encore de briefing ce soir.")} />
+      <Text text={note?.active ? note.text : [text, note?.text].filter(Boolean).join("\n")} />
     </div>
   );
 }

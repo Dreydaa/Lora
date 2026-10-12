@@ -104,7 +104,7 @@ export function GlassPage() {
         </div>
         <div className="glass-col glass-col-b">
           <Card i={6} size="lg">
-            <BriefingCard briefing={data.briefing} eveningBriefing={data.eveningBriefing} settings={data.settings} now={now} />
+            <BriefingCard briefing={data.briefing} eveningBriefing={data.eveningBriefing} settings={data.settings} pause={data.pause} now={now} />
           </Card>
           <Card i={7} size="lg"><GlassCalendar agenda={data.agenda} milestones={data.milestones} now={now} /></Card>
         </div>

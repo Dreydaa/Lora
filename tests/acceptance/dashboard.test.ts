@@ -48,6 +48,15 @@ describe("acceptance : le dashboard Soza", () => {
     });
   });
 
+  it("pendant une pause, le bloc briefing l'annonce à la place du briefing", async ({ skip }) => {
+    skipWithoutBrowser(skip);
+    await run({ now: MORNING, body: dashboard({ pause: { start: "2026-10-07", end: "2026-10-10" } }) }, async ({ page, pageErrors }) => {
+      await page.waitForFunction(() => document.body.innerText.includes("En pause jusqu'au 10 octobre inclus"));
+      expect(await page.locator("body").innerText()).not.toContain("journée logistique");
+      expect(pageErrors).toEqual([]);
+    });
+  });
+
   it("clic sur Écran : le détail liste les applications les plus utilisées, aujourd'hui puis sur 7 jours", async ({ skip }) => {
     skipWithoutBrowser(skip);
     await run({ tauri: true }, async ({ page }) => {
