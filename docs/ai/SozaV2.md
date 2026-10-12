@@ -1,8 +1,8 @@
 # Soza V2 — vision FRIDAY
 
-Document séparé de `STATUS.md` : ce fichier ne couvre que la V2 (préparatifs et décisions prises à l'avance), pas l'état d'avancement de la V1 en cours. `STATUS.md` reste la seule source pour "où en est le projet maintenant".
+Ce fichier porte la vision, les décisions de conception et la liste des étapes de la V2. **L'avancement (ce qui est fait, mesuré, vérifié ou pas) est dans [`STATUS-V2.md`](STATUS-V2.md)** ; l'état de la V1 reste dans `STATUS.md`.
 
-**Statut : rien n'est implémenté. La V1 est terminée (déclarée par l'utilisateur le 09/10/2026, voir `STATUS.md`, « Clôture de la V1 ») ; la V2 démarrera plus tard, à sa décision.** Avant de commencer : relire dans `STATUS.md` ce qui était non vérifié à la clôture et les 2 tests d'acceptation de cadence à remettre au vert.
+**Statut : la V1 est terminée (09/10/2026) et la V2 a démarré le 12/10/2026.** Les étapes 0 à 3 de la to-do ci-dessous sont faites ; le détail est dans `STATUS-V2.md`. Les chantiers 4 à 12 (hors ceux cochés) ne sont pas implémentés.
 
 ## Pourquoi cette direction (décidé 30/09/2026)
 

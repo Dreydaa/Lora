@@ -84,7 +84,7 @@ Les tests (`npm test`, `test:acceptance`, `test:rust`) n'utilisent jamais le `.e
 
 ## État du projet
 
-**La V1 est terminée (09/10/2026).** Voir [`docs/ai/STATUS.md`](docs/ai/STATUS.md) (section « Clôture de la V1 ») pour ce qui est livré, ce qui a été vérifié et ce qui ne l'a pas été. La V2 (assistant vocal local, protocoles, gestes de la main) est cadrée dans [`docs/ai/SozaV2.md`](docs/ai/SozaV2.md) et n'est pas commencée.
+**La V1 est terminée (09/10/2026).** Voir [`docs/ai/STATUS.md`](docs/ai/STATUS.md) (section « Clôture de la V1 ») pour ce qui est livré, ce qui a été vérifié et ce qui ne l'a pas été. Depuis, 4 étapes de finition (statut `Terminé`, catégorie Notion lue par le code, pause de plusieurs jours visible dans le dashboard, réfraction du verre coupée après mesure du lag) ont été faites (12/10/2026, PR #12 à #15) : voir [`docs/ai/STATUS-V2.md`](docs/ai/STATUS-V2.md). La V2 (assistant vocal local, protocoles, gestes de la main) est cadrée dans [`docs/ai/SozaV2.md`](docs/ai/SozaV2.md) ; ses étapes 4 à 12 ne sont pas commencées.
 
 ## Journal de construction
 
