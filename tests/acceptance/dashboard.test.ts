@@ -162,5 +162,5 @@ describe("acceptance : le dashboard Soza", () => {
     } finally {
       await ctx.context.close();
     }
-  });
+  }, 180_000); // ~12 s simulées à ~62 images/s de rendu logiciel : proche des 60 s par défaut selon la charge de la machine
 });

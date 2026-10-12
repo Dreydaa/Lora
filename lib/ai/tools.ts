@@ -1,7 +1,8 @@
 // lib/ai/tools.ts
 import { tool } from "ai";
 import { z } from "zod";
-import { addIdea, findIdeaByTitle, archiveIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose } from "../notion/idees";
+import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose } from "../notion/idees";
+import { CATEGORIES } from "../types";
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
 import { addAgendaItem, addShiftSchedule } from "../notion/agenda";
 import { saveProgress } from "../notion/progress";
@@ -10,6 +11,12 @@ import { upsertSchedule } from "../integrations/qstash";
 import { clearBreak, setBreak } from "../memory";
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+// Choisit le logo affiché dans le dashboard ; null accepté parce que Groq envoie parfois null au lieu d'omettre.
+const category = z
+  .enum(CATEGORIES)
+  .nullish()
+  .describe("Catégorie, qui détermine le logo affiché dans le dashboard. Choisis la plus proche du sujet ; « Autre » si aucune ne convient.");
 
 export const sozaTools = {
   create_idea: tool({
@@ -33,12 +40,13 @@ export const sozaTools = {
         .describe(
           "Ne renseigne ce champ QUE si l'utilisateur précise explicitement un statut de départ (ex: 'ajoute ce projet et marque-le en cours'). Sinon laisse vide — l'idée sera créée en 'Brute' par défaut.",
         ),
+      category,
     }),
-    execute: async ({ title, size, notes, statut }) => {
+    execute: async ({ title, size, notes, statut, category }) => {
       const finalStatut = statut ?? undefined;
-      console.log("[tool] create_idea →", { title, size, statut: finalStatut, notesLength: notes.length });
+      console.log("[tool] create_idea →", { title, size, statut: finalStatut, category, notesLength: notes.length });
       if (!title) throw new Error("create_idea: title is required");
-      const page = await addIdea(title, size, notes, finalStatut);
+      const page = await addIdea(title, size, notes, finalStatut, category ?? undefined);
       console.log("[tool] ✅ idée créée :", page.id);
       return { success: true, title, size, statut: finalStatut ?? "Brute", pageId: page.id };
     },
@@ -64,7 +72,7 @@ export const sozaTools = {
 
   update_idea_status: tool({
     description:
-      "Change le statut d'une idée/projet existant (Brute, En cours, Archivée). À utiliser quand l'utilisateur demande explicitement de mettre à jour l'avancement d'un projet déjà enregistré — pas pour en créer un nouveau, et pas pour le marquer terminé (utilise complete_project pour ça, qui gère aussi le jalon lié).",
+      "Change le statut d'une idée/projet existant (Brute, En cours, Archivée = abandonné). À utiliser quand l'utilisateur demande explicitement de mettre à jour l'avancement d'un projet déjà enregistré — pas pour en créer un nouveau, et pas pour le marquer terminé (utilise complete_project pour ça, qui gère aussi le jalon lié).",
     inputSchema: z.object({
       title: z.string().describe("Le titre (ou un extrait) de l'idée/projet à mettre à jour"),
       statut: z.enum(["Brute", "En cours", "Archivée"]),
@@ -84,17 +92,18 @@ export const sozaTools = {
       title: z.string(),
       dueDate: z.string().describe("Date ISO"),
       ideaTitle: z.string().nullish().describe("Titre de l'idée d'origine, si ce jalon en découle"),
+      category,
     }),
-    execute: async ({ title, dueDate, ideaTitle }) => {
-      console.log("[tool] create_milestone →", { title, dueDate, ideaTitle });
+    execute: async ({ title, dueDate, ideaTitle, category }) => {
+      console.log("[tool] create_milestone →", { title, dueDate, ideaTitle, category });
       const idea = ideaTitle ? await findIdeaByTitle(ideaTitle) : null;
-      const page = await createMilestone(title, dueDate, idea?.id);
+      const page = await createMilestone(title, dueDate, idea?.id, category ?? undefined);
       return { success: true, title, dueDate, linkedToIdea: !!idea, pageId: page.id };
     },
   }),
 
   complete_project: tool({
-    description: "Marque un projet comme terminé : archive l'idée correspondante et valide son jalon lié dans Notion.",
+    description: "Marque un projet comme terminé : passe l'idée correspondante en statut Terminé et valide son jalon lié dans Notion.",
     inputSchema: z.object({
       projectTitle: z.string().describe("Le titre (ou un extrait) de l'idée/projet terminé"),
     }),
@@ -102,9 +111,9 @@ export const sozaTools = {
       console.log("[tool] complete_project →", { projectTitle });
       const idea = await findIdeaByTitle(projectTitle);
       if (!idea) return { success: false, reason: "Idée introuvable dans Notion" };
-      await archiveIdea(idea.id);
+      await completeIdea(idea.id);
       const milestoneId = await completeMilestoneForIdea(idea.id);
-      return { success: true, ideaArchived: true, milestoneValidated: !!milestoneId };
+      return { success: true, ideaCompleted: true, milestoneValidated: !!milestoneId };
     },
   }),
 
@@ -133,11 +142,12 @@ export const sozaTools = {
         .string()
         .nullish()
         .describe("Heure/date de fin, même format que `date`, si l'utilisateur précise une durée (ex: rdv de 14h à 15h30)."),
+      category,
     }),
-    execute: async ({ title, date, endDate }) => {
+    execute: async ({ title, date, endDate, category }) => {
       const finalEndDate = endDate ?? undefined;
-      console.log("[tool] add_agenda_item →", { title, date, endDate: finalEndDate });
-      const page = await addAgendaItem(title, date, "Perso", finalEndDate);
+      console.log("[tool] add_agenda_item →", { title, date, endDate: finalEndDate, category });
+      const page = await addAgendaItem(title, date, "Perso", finalEndDate, category ?? undefined);
       return { success: true, title, date, pageId: page.id };
     },
   }),

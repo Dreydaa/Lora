@@ -4,12 +4,10 @@
 // Simulation par défaut : n'écrit rien. `npm run notion:categories-cleanup -- --apply` applique. Idempotent.
 // ATTENTION : supprimer une colonne efface ses valeurs, sans retour possible (Notion garde un historique de page, pas de colonne).
 import { Client } from "@notionhq/client";
+import { CATEGORIES } from "../lib/types";
 
 const apply = process.argv.includes("--apply");
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
-
-// Mêmes noms que les pastilles de src/features/calendar/taskIcons.ts.
-const CATEGORIES = ["Blender", "GitHub", "Figma", "Notion", "Cinéma", "Mail", "Réunion", "Concert", "Festival", "Vacances", "Voyage", "Sport", "Pause", "Rendez-vous", "Autre"];
 
 const env = (name: string) => {
   const id = process.env[name];

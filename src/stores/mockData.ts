@@ -46,7 +46,7 @@ export const mockData: DashboardData = {
     { id: "i2", title: "Court-métrage low poly", size: "Moyen", status: "Brute", since: day(-20) },
     { id: "i3", title: "Pack de props", size: "Petit", status: "Brute", since: day(-12) },
     { id: "i4", title: "Portfolio web", size: "Moyen", status: "En cours", notes: "Vitrine des rendus Blender et des projets code, avec études de cas.", since: day(-18), updated: day(-6) },
-    { id: "i5", title: "Bot Discord", size: "Petit", status: "Archivée", since: day(-60) },
+    { id: "i5", title: "Bot Discord", size: "Petit", status: "Terminé", since: day(-60) },
     { id: "i6", title: "Personnage 3D", size: "Grand", status: "En cours", notes: "Personnage stylisé animé : modélisation, UV, rig puis cycle idle.", since: day(-8), updated: day(0) },
   ],
   settings: { morningTime: "06:00", eveningTime: "20:00" },

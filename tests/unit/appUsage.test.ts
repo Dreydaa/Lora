@@ -44,6 +44,12 @@ describe("rankApps", () => {
     expect(first.icon.color).toMatch(/^hsl\(/);
     expect(first.icon.color).toBe(second.icon.color);
   });
+  it("jeux Unreal : le suffixe -win64-shipping n'apparaît pas dans le nom", () => {
+    const usage: Usage = { "2026-10-08": { "valorant-win64-shipping": 60, "autrejeu-win64-shipping": 30 } };
+    const [valorant, other] = rankApps(usage, 1);
+    expect(valorant.name).toBe("Valorant");
+    expect(other.name).toBe("Autrejeu"); // inconnu : nom nettoyé, pas « Autrejeu win64 shipping »
+  });
   it("aucune donnée (hors de l'app Tauri) : liste vide", () => {
     expect(rankApps(null, 1)).toEqual([]);
     expect(rankApps({}, 7)).toEqual([]);

@@ -94,9 +94,8 @@ export function AppUsageCard({ usage, open, onToggle }: { usage: Usage | null; o
 }
 
 // ───── Compteurs de projets ─────
-// « Finis » = idées Archivées : le statut Notion n'a pas de valeur « Terminé » (Brute / En cours / Archivée).
 const STATS = [
-  { status: "Archivée", label: "Finis", color: "#7ee787" },
+  { status: "Terminé", label: "Finis", color: "#7ee787" },
   { status: "En cours", label: "En cours", color: "#62d8ff" },
   { status: "Brute", label: "Brutes", color: "#c9a0ff" },
 ] as const;

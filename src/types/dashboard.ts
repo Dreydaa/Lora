@@ -1,6 +1,6 @@
-import type { AgendaItem, Article, IdeaSize, IdeaStatus, Milestone } from "../../lib/types";
+import type { AgendaItem, Article, Category, IdeaSize, IdeaStatus, Milestone } from "../../lib/types";
 // notes : aperçu de la synthèse Notion ; since : « Date d'entrée » (YYYY-MM-DD) ; updated : dernière modification (ISO).
-export type Idea = { id: string; title: string; size: IdeaSize; status: IdeaStatus; notes?: string; since?: string | null; updated?: string };
+export type Idea = { id: string; title: string; size: IdeaSize; status: IdeaStatus; notes?: string; since?: string | null; updated?: string; category?: Category };
 // Miroir côté UI de SozaSettings (lib/notion/settings.ts), sans les ids techniques.
 export type DashboardSettings = { morningTime: string; eveningTime: string };
 export type DashboardData = { agenda: AgendaItem[]; milestones: Milestone[]; ideas: Idea[]; settings: DashboardSettings; briefing: string; eveningBriefing: string; articles: Article[] };
