@@ -51,7 +51,7 @@ describe("/api/dashboard : contenu", () => {
     const response = await get();
     expect(response.status).toBe(200);
     const data = await response.json();
-    expect(Object.keys(data).sort()).toEqual(["agenda", "articles", "briefing", "eveningBriefing", "ideas", "milestones", "settings"]);
+    expect(Object.keys(data).sort()).toEqual(["agenda", "articles", "briefing", "eveningBriefing", "ideas", "milestones", "pause", "settings"]);
     expect(data.agenda[0]).toMatchObject({ title: "Dentiste", date: "2026-10-09T14:30:00", type: "Perso" });
     expect(data.milestones[0]).toMatchObject({ title: "Rig de base", status: "En cours" });
     expect(data.ideas[0]).toMatchObject({ title: "Soza", status: "En cours", size: "Moyen" });
@@ -76,6 +76,23 @@ describe("/api/dashboard : contenu", () => {
     const data = await (await get()).json();
     expect(data.briefing).toBe("Pas encore de briefing aujourd'hui.");
     expect(data.eveningBriefing).toBe("Pas encore de briefing ce soir.");
+  });
+
+  describe("pause de plusieurs jours", () => {
+    it("aucune pause enregistrée : pause null", async () => {
+      stubNetwork();
+      expect((await (await get()).json()).pause).toBeNull();
+    });
+    it("une pause en cours ou à venir est exposée", async () => {
+      stubNetwork();
+      store.set("break", { start: "2000-01-01", end: "2999-12-31" });
+      expect((await (await get()).json()).pause).toEqual({ start: "2000-01-01", end: "2999-12-31" });
+    });
+    it("une pause terminée (encore gardée 3 jours dans Redis pour le briefing de reprise) n'est pas exposée", async () => {
+      stubNetwork();
+      store.set("break", { start: "2000-01-01", end: "2000-01-02" });
+      expect((await (await get()).json()).pause).toBeNull();
+    });
   });
 
   it("les flux RSS en panne n'empêchent pas le dashboard de répondre", async () => {
