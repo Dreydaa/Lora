@@ -6,7 +6,7 @@ L'app Tauri s'ouvre sur une intro en particules, puis sur un dashboard « liquid
 - Fenêtre fixe de 1440×1024, centrée, non redimensionnable. La mise en page se met à l'échelle avec `--u` (1 = maquette Figma).
 - Fond : aplat `#2757D0`. Particules blanches en billes fil de fer, ruban de Möbius qui tourne en permanence derrière les cartes.
 - Intro (~8 s) : les particules entrent par la droite, bouclent, puis forment le ruban ; les cartes apparaissent ensuite en cascade. `?skip` (ou `prefers-reduced-motion`) saute l'animation.
-- Verre : réfraction par les bords, flou, reflet spéculaire, grain. Les cartes remplies ont une teinte sombre pour garder le texte lisible sur les rayons clairs. Le verre demande WebView2 / Chromium.
+- Verre : flou, reflet spéculaire, grain. La réfraction par les bords est **coupée depuis le 12/10/2026** (`REFRACTIVE = false` dans `src/features/glass/glass.ts`) : elle causait le lag (120 % d'un cœur et 20 images/s, contre 30 % et 60 images/s sans elle). Réversible, le commentaire du code donne l'expression à remettre. Les cartes remplies ont une teinte sombre pour garder le texte lisible sur les rayons clairs. Le verre demande WebView2 / Chromium.
 
 ## Disposition (deux colonnes, 736 / 544)
 Colonne gauche, de haut en bas :
