@@ -42,7 +42,7 @@ export function ProjectsCard({ ideas, milestones }: { ideas: Idea[]; milestones:
             const meta = [p.size, since(p.since, today), touched(p.updated, today)].filter(Boolean).join(" · ");
             return (
               <li key={p.id} className="gw-row gw-project">
-                <Logo icon={iconFor(p.title) ?? DEFAULT_ICON} />
+                <Logo icon={iconFor(p.title, p.category) ?? DEFAULT_ICON} />
                 <div className="gw-project-main">
                   <span className="gw-title">{p.title}</span>
                   {p.notes && <span className="gw-sub gw-notes">{plainNotes(p.notes)}</span>}

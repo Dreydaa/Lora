@@ -1,6 +1,6 @@
 // Batterie de test complète des mécaniques Soza — utilise les vraies APIs (Notion, Redis, Groq).
 // Toutes les données créées sont préfixées "[TEST]" pour pouvoir être nettoyées ensuite.
-import { addIdea, findIdeaByTitle, archiveIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose } from "../lib/notion/idees";
+import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose } from "../lib/notion/idees";
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../lib/notion/milestones";
 import { addAgendaItem, addShiftSchedule, getUpcomingAgenda } from "../lib/notion/agenda";
 import { getLatestProgress, saveProgress } from "../lib/notion/progress";
@@ -59,9 +59,9 @@ async function main() {
   record("getMilestones exclut les jalons Validé", true, `${milestonesList.length} jalon(s) non validés retournés`);
 
   if (idea) {
-    await archiveIdea(idea.id);
-    const afterArchive = await findIdeaByTitle(ideaTitle);
-    record("findIdeaByTitle exclut une idée archivée", afterArchive === null || afterArchive?.id !== idea.id);
+    await completeIdea(idea.id);
+    const afterComplete = await findIdeaByTitle(ideaTitle);
+    record("findIdeaByTitle exclut une idée terminée", afterComplete === null || afterComplete?.id !== idea.id);
   }
 
   if (idea && milestone) {

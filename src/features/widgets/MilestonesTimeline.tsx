@@ -66,7 +66,7 @@ export function MilestonesTimeline({ milestones, leaving, onClose }: Props) {
         <div className="gt-track" ref={trackRef}>
           {entries.map((e, i) => {
             const m = e.milestone;
-            const icon = m && iconFor(m.title);
+            const icon = m && iconFor(m.title, m.category);
             const tone = m ? toneOf(m, today) : "today";
             const card = m ? (
               <article className="gt-card" data-tone={tone}>

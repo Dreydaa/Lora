@@ -1,5 +1,5 @@
 import { notion } from "./client";
-import type { AgendaItem, AgendaType } from "../types";
+import type { AgendaItem, AgendaType, Category } from "../types";
 import { addDays, todayInParis } from "../date";
 
 const db = () => {
@@ -33,6 +33,7 @@ export async function getUpcomingAgenda(includeShift = false, limit = 10): Promi
     end: page.properties.Date?.date?.end ?? null,
     status: page.properties.Statut?.select?.name ?? "À faire",
     type: page.properties.Type?.select?.name === "Shift" ? "Shift" : "Perso",
+    category: page.properties.Catégorie?.select?.name,
   }));
 }
 
@@ -79,6 +80,7 @@ export async function addAgendaItem(
   start: string,
   type: AgendaType = "Perso",
   end?: string,
+  category?: Category,
 ) {
   return notion().pages.create({
     parent: { database_id: db() },
@@ -87,6 +89,7 @@ export async function addAgendaItem(
       Date: { date: toDateProperty(start, end) },
       Statut: { select: { name: "À faire" } },
       Type: { select: { name: type } },
+      ...(category ? { Catégorie: { select: { name: category } } } : {}),
     },
   });
 }

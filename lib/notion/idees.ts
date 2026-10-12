@@ -1,5 +1,5 @@
 import { notion } from "./client";
-import type { IdeaSize, IdeaStatus } from "../types";
+import type { Category, IdeaSize, IdeaStatus } from "../types";
 import { todayInParis } from "../date";
 
 function database() {
@@ -23,7 +23,7 @@ function toRichText(text: string) {
   return chunks.map((content) => ({ text: { content } }));
 }
 
-export async function addIdea(title: string, size: IdeaSize, notes = "", statut: IdeaStatus = "Brute") {
+export async function addIdea(title: string, size: IdeaSize, notes = "", statut: IdeaStatus = "Brute", category?: Category) {
   return notion().pages.create({
     parent: { database_id: database() },
     properties: {
@@ -32,6 +32,7 @@ export async function addIdea(title: string, size: IdeaSize, notes = "", statut:
       "Date d'entrée": { date: { start: todayInParis() } },
       Statut: { select: { name: statut } },
       Notes: { rich_text: notes ? toRichText(notes) : [] },
+      ...(category ? { Catégorie: { select: { name: category } } } : {}),
     },
   });
 }
@@ -43,6 +44,7 @@ export async function findIdeaByTitle(title: string) {
       and: [
         { property: "Titre", title: { contains: title } },
         { property: "Statut", select: { does_not_equal: "Archivée" } },
+        { property: "Statut", select: { does_not_equal: "Terminé" } },
       ],
     },
     page_size: 1,
@@ -64,13 +66,13 @@ export async function setIdeaStatus(pageId: string, statut: IdeaStatus) {
   });
 }
 
-export async function archiveIdea(pageId: string) {
-  await setIdeaStatus(pageId, "Archivée");
+export async function completeIdea(pageId: string) {
+  await setIdeaStatus(pageId, "Terminé");
 }
 
 const NOTES_PREVIEW_CHARS = 420; // le dashboard n'affiche qu'un aperçu : inutile d'envoyer toute la synthèse
 
-export async function getAllIdeas(): Promise<{ id: string; title: string; size: IdeaSize; status: IdeaStatus; notes: string; since: string | null; updated: string }[]> {
+export async function getAllIdeas(): Promise<{ id: string; title: string; size: IdeaSize; status: IdeaStatus; notes: string; since: string | null; updated: string; category?: Category }[]> {
   const data = await notion().databases.query({
     database_id: database(),
     sorts: [{ property: "Date d'entrée", direction: "descending" }],
@@ -84,6 +86,7 @@ export async function getAllIdeas(): Promise<{ id: string; title: string; size: 
     notes: (page.properties.Notes?.rich_text ?? []).map((t: any) => t.plain_text).join("").slice(0, NOTES_PREVIEW_CHARS),
     since: page.properties["Date d'entrée"]?.date?.start ?? null,
     updated: page.last_edited_time,
+    category: page.properties.Catégorie?.select?.name,
   }));
 }
 

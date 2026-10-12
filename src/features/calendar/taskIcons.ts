@@ -7,8 +7,8 @@ export type TaskIcon = { id: string; label: string; color: string; brand?: Simpl
 export const brand = (icon: SimpleIcon): TaskIcon => ({ id: icon.slug, label: icon.title, color: `#${icon.hex}`, brand: icon });
 export const glyph = (id: string, label: string, color: string, icon: LucideIcon): TaskIcon => ({ id, label, color, glyph: icon });
 
-// Icône devinée par mots-clés dans le titre (Notion n'a pas de champ catégorie).
-// Pour en ajouter une : une ligne ici ; la première qui correspond gagne, donc le plus précis en haut.
+// Icône : la catégorie Notion si elle est renseignée, sinon devinée par mots-clés dans le titre.
+// Pour en ajouter une : une ligne ici (et le même nom dans CATEGORIES, lib/types.ts) ; la première qui correspond gagne, donc le plus précis en haut.
 const TASK_ICONS: { icon: TaskIcon; match: RegExp }[] = [
   { icon: brand(siBlender), match: /blender|\brig\b|\buv\b|texture|sculpt|rendu|animation|mod[ée]lis/i },
   { icon: brand(siGithub), match: /github|\bgit\b|commit|\bpr\b|pull request|\brepo\b|\bcode\b|\bbug\b|d[ée]ploi/i },
@@ -29,4 +29,9 @@ const TASK_ICONS: { icon: TaskIcon; match: RegExp }[] = [
   { icon: glyph("rdv", "Rendez-vous", "#f97316", CalendarCheck), match: /rendez-?vous|\brdv\b|dentiste|m[ée]decin|docteur/i },
 ];
 
-export const iconFor = (title: string) => TASK_ICONS.find((t) => t.match.test(title))?.icon;
+export function iconFor(title: string, category?: string) {
+  const byCategory = category && TASK_ICONS.find((t) => t.icon.label === category);
+  if (byCategory) return byCategory.icon;
+  if (category === "Autre") return undefined; // choix explicite : pas de logo, on ne devine pas
+  return TASK_ICONS.find((t) => t.match.test(title))?.icon;
+}

@@ -1,8 +1,8 @@
-import type { AgendaItem, Milestone } from "../../../lib/types";
+import type { AgendaItem, Category, Milestone } from "../../../lib/types";
 import { dayKey, localDayKey, shortHour, timeOf } from "../../lib/format";
 
 type EventKind = "perso" | "shift" | "jalon";
-export type CalendarEvent = { id: string; kind: EventKind; title: string; day: string; start: string | null; end: string | null; late: boolean; done: boolean };
+export type CalendarEvent = { id: string; kind: EventKind; title: string; day: string; start: string | null; end: string | null; late: boolean; done: boolean; category?: Category };
 
 export const KIND_LABEL: Record<EventKind, string> = { perso: "Perso", shift: "Shift", jalon: "Jalon" };
 
@@ -15,12 +15,12 @@ export function buildEvents(agenda: AgendaItem[], milestones: Milestone[]) {
   const events: CalendarEvent[] = [];
   for (const item of agenda) {
     if (!item.date) continue;
-    events.push({ id: item.id, kind: item.type === "Shift" ? "shift" : "perso", title: item.title, day: dayKey(item.date), start: timeOf(item.date), end: item.end ? timeOf(item.end) : null, late: false, done: item.status === "Fait" });
+    events.push({ id: item.id, kind: item.type === "Shift" ? "shift" : "perso", title: item.title, day: dayKey(item.date), start: timeOf(item.date), end: item.end ? timeOf(item.end) : null, late: false, done: item.status === "Fait", category: item.category });
   }
   for (const m of milestones) {
     if (!m.dueDate) continue;
     const done = m.status === "Terminé" || m.status === "Validé";
-    events.push({ id: m.id, kind: "jalon", title: m.title, day: dayKey(m.dueDate), start: null, end: null, late: !done && dayKey(m.dueDate) < today, done });
+    events.push({ id: m.id, kind: "jalon", title: m.title, day: dayKey(m.dueDate), start: null, end: null, late: !done && dayKey(m.dueDate) < today, done, category: m.category });
   }
   const byDay = new Map<string, CalendarEvent[]>();
   // Comparaison par code de caractère : localeCompare classerait "~" avant les chiffres.
