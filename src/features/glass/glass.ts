@@ -172,8 +172,10 @@ function glassMaps(w: number, h: number, radius: number, bezel: number, s: Glass
   return { disp: dctx.canvas.toDataURL(), spec: sctx.canvas.toDataURL() };
 }
 
-// backdrop-filter: url(#svg) n'existe que dans Chromium/WebView2 ; ailleurs on garde flou + saturation.
-const REFRACTIVE = typeof CSS !== "undefined" && CSS.supports("backdrop-filter", "url(#a)");
+// Réfraction coupée le 12/10/2026 : backdrop-filter: url(#svg) est recalculé à chaque image des particules. Mesuré dans l'app
+// installée (écran 240 Hz) : ~120 % d'un cœur et ~20 images/s de particules avec, ~19 % et 60 images/s sans (flou + saturation seuls).
+// Pour la rétablir (Chromium/WebView2 uniquement, url(#svg) n'existe pas ailleurs) : `typeof CSS !== "undefined" && CSS.supports("backdrop-filter", "url(#a)")`.
+const REFRACTIVE = false;
 
 export function createGlass(stage: HTMLElement) {
   const root = stage.parentElement!;
