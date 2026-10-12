@@ -105,7 +105,7 @@ Seul chantier de ce fichier **déjà en cours**, pas bloqué par la fin de la V1
 
 ## Chantier 9 — Interaction par gestes de la main (caméra)
 
-Ajouté le 06/10/2026. **Surdev assumé** par l'utilisateur : défi personnel pour construire l'agent qu'il veut vraiment, plus proche de Jarvis/FRIDAY. Reste de la V2 (aucun code avant le début de la V2), et la liste d'actions est volontairement ouverte — il en ajoutera au fur et à mesure.
+Ajouté le 06/10/2026. Au départ **surdev assumé** (défi personnel pour construire l'agent qu'il veut vraiment, plus proche de Jarvis/FRIDAY) ; l'utilisateur a précisé le 12/10/2026 que ce n'est **plus du surdev**, c'est un chantier normal de la V2, placé en dernier par l'ordre de difficulté. Reste de la V2 (aucun code avant le début de la V2), et la liste d'actions est volontairement ouverte — il en ajoutera au fur et à mesure.
 
 **Actions voulues (liste de départ)** :
 1. Faire défiler (scroll) une page.
@@ -147,6 +147,28 @@ Le but est de voir en direct si le suivi est fiable avant de construire les gest
 - **Vie privée** : indicateur visible quand la caméra est active, et traitement 100 % local.
 
 **Ordre de test proposé (à confirmer avec l'utilisateur)** : d'abord le détecteur de mains et son rendu de contrôle (étape 0, voir "Prérequis" plus haut), puis scroll (un seul mouvement continu, le plus simple à valider) → son (déjà couvert par l'API audio du chantier 3) → zoom (profils par application) → déplacement de fenêtre entre écrans en dernier.
+
+## To-do V2 — ordre d'exécution (décidé 12/10/2026)
+
+Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Cases à cocher au fil des sessions.
+
+- [ ] 0. Remettre au vert les 2 tests d'acceptation de cadence (lire `REST_FPS` au lieu de 30 en dur) et vérifier la liste « Non vérifié à la clôture » de `STATUS.md` — **tests faits le 12/10/2026** (20/20 acceptation, 263 rapides, 3 Rust, `tsc` propre) ; reste la liste non vérifiée (app installée, `test:live`, passe sécurité, textes de briefing)
+- [ ] 1. Petits restes de la V1 : statut Notion `Terminé`, catégorie Notion lue par le code, nom et logo des applications inconnues du temps d'écran
+- [ ] 2. Pause de plusieurs jours (chantier 4) : l'afficher dans le dashboard, la persister dans Notion
+- [ ] 3. Optimisation (chantier 6) : re-mesurer, puis traiter ce qui reste (vérifier d'abord ce que la PR #6 a déjà fait)
+- [ ] 4. Lancer/fermer une app nommée + fichier de config local (chantier 3, fonction 1) : fondation de l'agent local
+- [ ] 5. Recherche rapide parlée (chantier 3, fonction 2)
+- [ ] 6. Musique, volume système, batterie de la souris (chantier 3)
+- [ ] 7. Plusieurs projets en parallèle (chantier 7)
+- [ ] 8. Moteur de protocoles : 2B, 7E3A, 6H9K (chantier 2)
+- [ ] 9. Voix : mot d'activation, reconnaissance vocale, synthèse vocale, ruban réactif à l'audio (chantier 3)
+- [ ] 10. Agent résident en arrière-plan et widget animé (chantier 5)
+- [ ] 11. « Qu'est-ce que je regarde ? » (chantier 3, fonction 3)
+- [ ] 12. Gestes de la main (chantier 9) : détecteur et rendu de contrôle, puis scroll → son → zoom → déplacement de fenêtre
+
+Chantier 8 (documentation portfolio) : en continu, hors liste. Chantier 1 : fait.
+
+**Point d'attention** : les points 4 à 6 sont décrits comme déclenchés à la voix, mais l'écoute (point 9) arrive après. Les tester d'abord par une entrée texte (Telegram ou champ dans le ruban), comme prévu par « Ordre de test voulu ».
 
 ## Garde-fou
 

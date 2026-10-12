@@ -3,10 +3,15 @@
 // Mesuré le 08/10/2026 dans l'app : sans plafond 143 % d'un cœur, à 30 images par seconde 8 %, fenêtre masquée 0,3 %.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Page } from "playwright-core";
+import { REST_FPS } from "../../src/features/particles/ribbon";
 import { hasBrowser, open, ready, startApp, stopApp } from "./helpers";
 
 beforeAll(startApp);
 afterAll(stopApp);
+
+// Images attendues en 2 s au repos. shortcut: l'horloge simulée tourne à ~62 images/s, donc un plafond à 60 ne se
+// distingue plus de l'absence de plafond ; ce test ne garde que le plafond haut, à rouvrir si REST_FPS change de nature.
+const REST_FRAMES = REST_FPS * 2;
 
 // Exécuté dans la page avant tout autre script : compte les dessins d'instances (les particules).
 const countDraws = () => {
@@ -27,7 +32,7 @@ const setHidden = (page: Page, hidden: boolean) =>
   }, hidden);
 
 describe("acceptance : coût du rendu des particules", () => {
-  it("au repos (ruban formé), le rendu est plafonné à environ 30 images par seconde", async ({ skip }) => {
+  it("au repos (ruban formé), le rendu est plafonné à REST_FPS images par seconde", async ({ skip }) => {
     if (!hasBrowser()) skip();
     const { page, context, pageErrors } = await open({ init: countDraws, resumeClock: false });
     try {
@@ -36,8 +41,8 @@ describe("acceptance : coût du rendu des particules", () => {
       const before = await draws(page);
       await page.clock.runFor(2000);
       const frames = (await draws(page)) - before;
-      expect(frames).toBeGreaterThan(45); // 30 images par seconde x 2 s = 60 ; sans plafond ce serait ~125
-      expect(frames).toBeLessThan(75);
+      expect(frames).toBeGreaterThan(REST_FRAMES * 0.6);
+      expect(frames).toBeLessThan(REST_FRAMES * 1.15);
       expect(pageErrors).toEqual([]);
     } finally {
       await context.close();
@@ -64,7 +69,7 @@ describe("acceptance : coût du rendu des particules", () => {
     }
   });
 
-  it("pendant l'intro, pleine cadence ; une fois le ruban formé, plafond à 30 images par seconde", async ({ skip }) => {
+  it("pendant l'intro, pleine cadence ; une fois le ruban formé, plafond à REST_FPS images par seconde", async ({ skip }) => {
     if (!hasBrowser()) skip();
     const { page, context } = await open({ init: countDraws, skipIntro: false, resumeClock: false });
     try {
@@ -77,11 +82,11 @@ describe("acceptance : coût du rendu des particules", () => {
       await ready(page);
       const rest = await draws(page);
       await page.clock.runFor(2000);
-      expect((await draws(page)) - rest).toBeLessThan(75);
+      expect((await draws(page)) - rest).toBeLessThan(REST_FRAMES * 1.15);
     } finally {
       await context.close();
     }
-  });
+  }, 180_000); // ~14 s simulées à ~62 images/s de rendu logiciel : dépasse les 60 s par défaut
 });
 
 // Faux noyau Tauri : l'état de départ de la fenêtre vient de window_visible, puis Rust émet « soza://visibility ».
