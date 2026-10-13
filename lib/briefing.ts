@@ -12,6 +12,7 @@ import { fridayPrompt } from "./ai/prompts/friday";
 
 const BILAN_RULES = `
 - Bilan : si les données indiquent qu'AUCUN bilan n'a été fait hier, dis-le clairement dès le début et précise que ce n'est pas une bonne chose ; ne reprends jamais un ancien bilan comme s'il datait d'hier. S'il y a un bilan d'hier qui mentionne une tâche inachevée ou en cours, propose explicitement de la reprendre aujourd'hui.
+- Dates du bilan : le bilan a été écrit hier, donc ses mots relatifs sont décalés d'un jour (« aujourd'hui » = hier, « demain » = aujourd'hui, « après-demain » = demain). Ne recopie jamais « demain » ou « ce soir » du bilan tel quel : reformule avec la bonne date (ex. « la v2 démarre aujourd'hui »).
 - Pause : si les données indiquent un retour de pause, accueille la reprise sans pression et sans reproche (pas de bilan manquant à signaler) ; rappelle le dernier bilan avant la pause et propose de reprendre là où il en était.`;
 
 // Briefing complet, envoyé sur Telegram.
