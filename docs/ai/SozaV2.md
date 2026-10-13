@@ -38,7 +38,7 @@ Décision prise (30/09/2026), remplace l'ancienne cible "une seule personnalité
 
 - **Portée du retrait** (vérifiée par grep le 30/09/2026, à revérifier avant d'exécuter — le code peut avoir bougé d'ici la V2) : touche `lib/modes.ts`, `lib/briefing.ts`, `lib/ai/client.ts`, `lib/ai/tools.ts`, `lib/notion/progress.ts`, `lib/notion/agenda.ts`, `lib/types.ts`, `lib/ai/prompts/jarvis.ts` ; un champ Notion **Soza Réglages** (`shiftActive`/`shiftStartHour`/`shiftEndHour`) ; le tool IA `update_mode_schedule`.
 - **Distinct à garder** : le champ Agenda `Type` (Shift/Perso), qui sert uniquement à exclure les blocs de travail du briefing du matin (`getUpcomingAgenda()`), n'a rien à voir avec la personnalité/le ton — probablement à conserver même sans mode ACTIF/PAUSE (à confirmer le moment venu).
-- Concerne aussi `lib/ai/prompts/` (un seul prompt au lieu de deux) et la voix (une seule voix à choisir, chantier 3). **Chantier 1 fait le 07/10/2026** : prompts fusionnés dans `lib/ai/prompts/friday.ts`, `lib/modes.ts` et tout le code ACTIF/PAUSE retirés ; le tool `update_mode_schedule` est supprimé (l'heure du briefing se règle déjà par conversation). Reste : les colonnes `Mode` dans les bases Notion Agenda et Progression.
+- Concerne aussi `lib/ai/prompts/` (un seul prompt au lieu de deux) et la voix (une seule voix à choisir, chantier 3). **Chantier 1 fait le 07/10/2026** : prompts fusionnés dans `lib/ai/prompts/friday.ts`, `lib/modes.ts` et tout le code ACTIF/PAUSE retirés ; le tool `update_mode_schedule` est supprimé (l'heure du briefing se règle déjà par conversation). Les colonnes `Mode` des bases Notion Agenda et Progression ont aussi été retirées (13/10/2026) : rien ne reste.
 - Pas de collision de nom à craindre avec le futur "mode travail" (protocole 7E3A, chantier 2) : une fois ACTIF/PAUSE retiré proprement du code et des prompts, il ne reste rien avec quoi il pourrait se confondre.
 
 ## Chantier 2 — Système de protocoles
@@ -156,7 +156,7 @@ Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Ca
 - [x] 1. Petits restes de la V1 : statut Notion `Terminé`, catégorie Notion lue par le code, nom et logo des applications inconnues du temps d'écran — **fait le 12/10/2026** (voir `STATUS.md`) ; restent à vérifier contre le vrai Notion après redéploiement
 - [x] 2. Pause de plusieurs jours (chantier 4) : l'afficher dans le dashboard — **fait le 12/10/2026** ; persistance Notion écartée (voir chantier 4)
 - [x] 3. Optimisation (chantier 6) : re-mesurer, puis traiter ce qui reste — **fait le 12/10/2026** : cause du lag trouvée et corrigée (réfraction du verre coupée : 120 % → 30 % de CPU, 20 → 60 images/s), voir `STATUS.md` « Troisième passe d'optimisation »
-- [ ] 4. Lancer/fermer une app nommée + fichier de config local (chantier 3, fonction 1) : fondation de l'agent local
+- [x] 4. Lancer/fermer une app nommée + fichier de config local (chantier 3, fonction 1) : fondation de l'agent local — **fait le 13/10/2026** : barre `Ctrl+K`, liste blanche `apps.json`, fermeture douce (voir `STATUS-V2.md`)
 - [ ] 5. Recherche rapide parlée (chantier 3, fonction 2)
 - [ ] 6. Musique, volume système, batterie de la souris (chantier 3)
 - [ ] 7. Plusieurs projets en parallèle (chantier 7)

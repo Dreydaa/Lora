@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod apps;
 use std::{collections::BTreeMap, fs, path::PathBuf, sync::Mutex, thread, time::Duration};
 use tauri::{
   menu::{Menu, MenuItem},
@@ -9,6 +10,8 @@ use tauri::{
 // Temps d'écran : jour local -> exécutable (minuscules, sans .exe) -> secondes. Sauvé dans usage.json (dossier de données de l'app).
 type Usage = BTreeMap<String, BTreeMap<String, u64>>;
 struct UsageState { data: Mutex<Usage>, file: PathBuf }
+// apps.json : les applications que « ouvre X » / « ferme X » ont le droit de toucher (voir apps.rs).
+struct AppsFile(PathBuf);
 
 const AUTOSTART_ARG: &str = "--autostart";
 // Le front (src/lib/visibility.ts) met son rendu en pause quand la fenêtre est masquée dans la zone de notification :
@@ -63,6 +66,12 @@ fn tint_title_bar(window: &WebviewWindow) {
   }
 }
 
+// Commande tapée dans la barre de commande du dashboard (Ctrl+K) : exécutée en local, la réponse est une phrase à afficher.
+#[tauri::command]
+fn run_command(text: String, apps: State<AppsFile>) -> String {
+  apps::run(&text, &apps.0)
+}
+
 fn show_main(app: &AppHandle) {
   if let Some(window) = app.get_webview_window("main") { let _ = window.show(); let _ = window.set_focus(); let _ = window.emit(VISIBILITY_EVENT, true); }
 }
@@ -72,7 +81,7 @@ fn main() {
     .plugin(tauri_plugin_opener::init())
     // Lancée par Windows à l'ouverture de session avec --autostart : la fenêtre reste masquée (icône de la zone de notification).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
-    .invoke_handler(tauri::generate_handler![app_usage, window_visible])
+    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command])
     .setup(|app| {
       // Inscription au démarrage de Windows, seulement pour l'app installée : en dev, elle pointerait vers l'exécutable de debug.
       // Inscrite une seule fois par lancement sans toucher au choix de l'utilisateur (Gestionnaire des tâches > Démarrage).
@@ -110,6 +119,10 @@ fn main() {
       fs::create_dir_all(&dir)?;
       let file = dir.join("usage.json");
       app.manage(UsageState { data: Mutex::new(load(&file)), file });
+      // Créé vide au premier lancement pour qu'on le trouve : l'utilisateur y écrit { "blender": "C:\\...\\blender.exe" }.
+      let apps_file = dir.join("apps.json");
+      if !apps_file.exists() { let _ = fs::write(&apps_file, "{}\n"); }
+      app.manage(AppsFile(apps_file));
 
       // Le suivi tourne tant que Soza tourne, même fenêtre masquée dans la zone de notification.
       let handle = app.handle().clone();
