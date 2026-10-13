@@ -68,9 +68,11 @@ Les étapes 4 à 6 sont décrites comme déclenchées à la voix, mais l'écoute
 ## À vérifier (ouvert)
 
 - **Dans l'app installée** : le menu de la zone de notification, la reprise du rendu après un clic sur l'icône, le suivi du temps d'écran et les clics sur les blocs. Seule la clé de démarrage automatique `Soza` (`soza.exe --autostart`) a été constatée dans le registre (`HKCU\...\Run`) le 12/10/2026 ; le démarrage réel au lancement de session n'est pas vérifié.
-- **L'app installée est l'ancienne** (build du 09/10) tant que l'installeur du 12/10 n'est pas lancé : `src-tauri/target/release/bundle/nsis/Soza_0.1.0_x64-setup.exe`.
-- **Écritures réelles dans Notion** de `Terminé` et de `Catégorie` : les tests simulent Notion, `npm run test:live` ne les couvre pas.
-- **`npm run test:live`** : écrit dans le vrai Notion (client 4), jamais lancé depuis la V1 ; à lancer avec l'accord de l'utilisateur.
+- **L'app installée est celle du 12/10** (confirmé par l'utilisateur le 13/10/2026). Les vérifications ci-dessus peuvent donc se faire dessus ; elle ne contient pas le correctif des noms d'applications du 13/10 ni celui du « demain » du bilan (backend, à redéployer).
+- **`npm run test:live` lancé le 13/10/2026** (accord de l'utilisateur) : 48/48 sur le vrai Notion, Redis et Groq, pages `[TEST]` archivées (vérifié : 0 restante). Le 1er essai a échoué : la base Idées n'avait pas le statut `Terminé` (filtre de `findIdeaByTitle` rejeté par Notion) ; l'utilisateur l'a ajouté, **à refaire si la base est recréée**. Schéma réel relu : `Catégorie` présente dans Idées, Agenda et Jalons (mêmes 15 valeurs que `CATEGORIES`), plus de `Mode`.
+- **`Catégorie` vérifiée en écriture réelle le 13/10/2026** : écrite puis relue dans Idées (Blender), Agenda (Sport) et Jalons (Cinéma, accent compris), relue aussi par `getAllIdeas` ; les 3 pages de test archivées par id. Le script `test:live` ne la couvre toujours pas (test ponctuel).
+- **Pas couvert** : `/api/dashboard` contre le vrai Notion. Le nettoyage du script ne lit que les 100 premières pages par base (pas de pagination) : à surveiller si les bases grossissent.
+- Le test efface la vraie clé Redis `break` (`setBreak`/`clearBreak`) : relire la pause avant de le lancer et la remettre après.
 - **Passe sécurité** : jamais faite sur le code réel (la commande `/security-review` du 12/10 portait sur un diff sans code). À faire sur webhook, signatures QStash et cron, `/api/dashboard`, CSP et capacités Tauri.
 - **Textes réels des briefings** du matin et du soir avec le nouveau code.
 - **Pause sur le vrai Redis** et rendu dans l'app, tant que le backend n'a pas été redéployé et observé.
@@ -79,8 +81,10 @@ Les étapes 4 à 6 sont décrites comme déclenchées à la voix, mais l'écoute
 
 - Les idées déjà `Archivée` mais en fait finies ne comptent pas dans « Finis » : à repasser en `Terminé` dans Notion.
 - Les bases Agenda et Jalons n'ont pas de catégorie pour l'existant ; seules les nouvelles entrées créées par Soza en auront une.
-- Applications sans nom : `pioneergame` (la plus utilisée) et `promethee` n'ont pas été identifiées.
-- `src-tauri/target` pèse 9,3 Go (debug 6,5 Go, release 2,8 Go) ; `cargo clean` le libère au prix d'une recompilation.
+- Applications sans nom : identifiées le 13/10/2026, `pioneergame` = Arc Raiders et `promethee` = Prométhée (ajoutées à `APPS`, `appUsage.ts`).
+- `src-tauri/target` pèse 9,3 Go (debug 6,5 Go, release 2,8 Go). Un `cargo clean` tenté par l'utilisateur n'a pas fonctionné (cause non diagnostiquée : à relancer en lisant l'erreur, app et processus cargo fermés).
+- Colonnes `Mode` des bases Notion Agenda et Progression : retirées (confirmé par l'utilisateur le 13/10/2026), le chantier 1 est entièrement terminé.
+- Correctif du 13/10/2026 : le brief du matin recopiait « demain » du bilan de la veille. `BILAN_RULES` (`lib/briefing.ts`) dit maintenant que les mots relatifs du bilan sont décalés d'un jour. Non vérifié sur un vrai brief.
 
 ## Pièges rencontrés
 
