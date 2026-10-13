@@ -156,7 +156,7 @@ Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Ca
 - [x] 1. Petits restes de la V1 : statut Notion `Terminé`, catégorie Notion lue par le code, nom et logo des applications inconnues du temps d'écran — **fait le 12/10/2026** (voir `STATUS.md`) ; restent à vérifier contre le vrai Notion après redéploiement
 - [x] 2. Pause de plusieurs jours (chantier 4) : l'afficher dans le dashboard — **fait le 12/10/2026** ; persistance Notion écartée (voir chantier 4)
 - [x] 3. Optimisation (chantier 6) : re-mesurer, puis traiter ce qui reste — **fait le 12/10/2026** : cause du lag trouvée et corrigée (réfraction du verre coupée : 120 % → 30 % de CPU, 20 → 60 images/s), voir `STATUS.md` « Troisième passe d'optimisation »
-- [ ] 4. Lancer/fermer une app nommée + fichier de config local (chantier 3, fonction 1) : fondation de l'agent local
+- [x] 4. Lancer/fermer une app nommée + fichier de config local (chantier 3, fonction 1) : fondation de l'agent local — **fait le 13/10/2026** : barre `Ctrl+K`, liste blanche `apps.json`, fermeture douce (voir `STATUS-V2.md`)
 - [ ] 5. Recherche rapide parlée (chantier 3, fonction 2)
 - [ ] 6. Musique, volume système, batterie de la souris (chantier 3)
 - [ ] 7. Plusieurs projets en parallèle (chantier 7)
