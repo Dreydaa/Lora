@@ -8,7 +8,7 @@ Journal d'avancement de la V2, mis à jour à chaque étape. Trois fichiers, tro
 | **`STATUS-V2.md`** (ce fichier) | **Où en est la V2** : ce qui est fait, mesuré, vérifié ou pas, et la suite. |
 | `STATUS.md` | État de la V1 (livrée le 09/10/2026) et historique détaillé. Les travaux de la V2 s'écrivent ici, pas là-bas. |
 
-Dernière mise à jour : 12/10/2026, après la fusion de l'étape 3. **Prochaine étape : 4** (lancer et fermer une app nommée, avec le fichier de config local).
+Dernière mise à jour : 13/10/2026, étape 4 faite (en attente de validation visuelle). **Prochaine étape : 5** (recherche rapide parlée).
 
 ## Règles de travail (décidées avec l'utilisateur)
 
@@ -25,7 +25,7 @@ Dernière mise à jour : 12/10/2026, après la fusion de l'étape 3. **Prochaine
 | 1 | Statut `Terminé`, catégorie Notion, applications inconnues | **Fait** | #13 |
 | 2 | Pause de plusieurs jours visible dans le dashboard | **Fait** | #14 |
 | 3 | Optimisation : cause du lag trouvée et corrigée | **Fait** | #15 |
-| 4 | Lancer/fermer une app nommée + fichier de config local | À faire | |
+| 4 | Lancer/fermer une app nommée + fichier de config local | **Fait** (essai manuel réussi, voir plus bas) | à ouvrir |
 | 5 | Recherche rapide parlée | À faire | |
 | 6 | Musique, volume système, batterie de la souris | À faire | |
 | 7 | Plusieurs projets en parallèle | À faire | |
@@ -61,9 +61,18 @@ Les étapes 4 à 6 sont décrites comme déclenchées à la voix, mais l'écoute
 - **Volontairement laissé** (aucun gain mesurable) : découpage du chunk JS (724 ko, 205 ko compressés, app locale), calcul des particules sur GPU, retrait du paquet npm `@tauri-apps/plugin-opener` (jamais importé, absent du bundle).
 - **Méthode de mesure réutilisable** : lancer l'app avec `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, se connecter avec Playwright (`chromium.connectOverCDP("http://127.0.0.1:9222")`), injecter du CSS pour couper un élément, lire le CPU par processus. Compter les dessins WebGL en remplaçant `WebGL2RenderingContext.prototype.drawElementsInstanced` (ne poser le hook qu'une fois, sinon le compte double).
 
-## Tests (état à la fin de l'étape 3)
+### Étape 4 : lancer et fermer une app nommée
+- **Entrée de test** (choix de l'utilisateur) : une barre de commande, `Ctrl+K` pour l'ouvrir, `Échap` pour la fermer (`CommandBar.tsx`). Elle n'existe que dans l'app Tauri. Elle flotte en bas au centre sans toucher à la grille ; elle recouvre un peu le bas des cartes : **choix visuel à valider par l'utilisateur**.
+- **Reconnaissance locale, sans réseau** (`src-tauri/src/apps.rs`) : un verbe (`ouvre`, `lance`, `démarre`, `ferme`, `quitte`…) puis le nom, articles et « application » ignorés (« ferme mon Spotify »).
+- **Liste blanche** : `apps.json` dans le dossier de données de l'app (`%APPDATA%\com.soza.assistant\`), format `{ "blender": "C:\\...\\blender.exe" }`, créé vide au premier lancement, relu à chaque commande (pas de redémarrage). Rien d'autre ne peut être lancé ni fermé ; un nom inconnu renvoie le chemin du fichier.
+- **Ouverture** : lance l'exécutable du fichier, dans son dossier. **Fermeture douce** (décidé) : `taskkill /IM exe` sans `/F`, l'application peut proposer d'enregistrer ; jamais forcée.
+- **Essai dans l'app de dev** (identifiant séparé, dossier de données séparé) : ouverture, fermeture (plus aucun processus ensuite), « rien à fermer » quand elle n'est pas ouverte, refus d'une application inconnue, refus d'une phrase non reconnue : conformes. Un essai a révélé qu'un BOM UTF-8 en tête d'`apps.json` (PowerShell 5, certains éditeurs) vidait la liste : corrigé et testé.
+- **Limites connues** : ouvrir une application déjà ouverte en lance une seconde instance (pas de détection) ; fermer une application sans fenêtre échoue (taskkill demande une fermeture forcée) ; aucune application n'est encore déclarée dans l'`apps.json` réel de l'utilisateur ; non essayé dans l'app installée (build du 12/10, sans cette étape) ; le raccourci `Ctrl+K` n'est pas couvert par un test d'acceptation (navigateur sans Tauri).
+- **À faire par l'utilisateur** : remplir `apps.json` avec ses applications (Blender, Spotify, etc.), puis essayer dans l'app reconstruite.
 
-`npm test` : 281 tests ; `npm run test:acceptance` : 21 scénarios dans un vrai navigateur (~3,5 min) ; `npm run test:rust` : 3 tests (non rejoués depuis l'étape 0) ; `tsc --noEmit` propre.
+## Tests (état à la fin de l'étape 4)
+
+`npm test` : 281 tests ; `npm run test:acceptance` : 21 scénarios dans un vrai navigateur (~3,5 min, non rejoués à l'étape 4) ; `npm run test:rust` : 8 tests (5 nouveaux dans `apps.rs`, dont un qui lance et ferme un vrai processus Windows) ; `tsc --noEmit` propre.
 
 ## À vérifier (ouvert)
 

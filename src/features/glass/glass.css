@@ -88,6 +88,27 @@
 /* Pendant le remodelage du bento : le reflet étiré (bords blancs épaissis) est masqué, il revient une fois régénéré. */
 .glass[data-stale="true"]::before { opacity: 0; }
 
+/* Barre de commande (Ctrl+K) : flotte en bas au centre, par-dessus les cartes, sans toucher à la grille. Teinte sombre comme .glass-dark. */
+.command-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 10;
+  width: min(520px, 80vw);
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  background: rgba(8, 12, 36, 0.78);
+  color: #fff;
+  font: 14px / 1.35 system-ui, sans-serif;
+}
+.command-bar input { width: 100%; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; }
+.command-bar input::placeholder { color: rgba(255, 255, 255, 0.5); }
+.command-bar p { margin: 0; }
+.command-bar form + p { margin-top: 8px; }
+
 /* Grain fin. */
 .glass::after {
   content: "";
