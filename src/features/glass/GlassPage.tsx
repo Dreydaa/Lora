@@ -12,6 +12,7 @@ import { MilestonesTimeline } from "../widgets/MilestonesTimeline";
 import { ProjectsCard } from "../widgets/ProjectsCard";
 import { AppUsageCard, NextMilestoneCard, ProjectStatsCard, WeatherCard } from "../widgets/SmallCards";
 import { WatchCard } from "../widgets/WatchCard";
+import { CommandBar } from "./CommandBar";
 import { DEFAULT_GLASS, createGlass } from "./glass";
 import "./glass.css";
 
@@ -81,6 +82,7 @@ export function GlassPage() {
 
   return (
     <div className="glass-root">
+      <CommandBar />
       <div className="glass-bg">
         <ParticleIntro skip={skip} onDone={() => setReady(true)} />
       </div>
