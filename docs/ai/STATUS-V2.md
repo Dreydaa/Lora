@@ -8,7 +8,7 @@ Journal d'avancement de la V2, mis à jour à chaque étape. Trois fichiers, tro
 | **`STATUS-V2.md`** (ce fichier) | **Où en est la V2** : ce qui est fait, mesuré, vérifié ou pas, et la suite. |
 | `STATUS.md` | État de la V1 (livrée le 09/10/2026) et historique détaillé. Les travaux de la V2 s'écrivent ici, pas là-bas. |
 
-Dernière mise à jour : 13/10/2026, étape 4 faite (en attente de validation visuelle). **Prochaine étape : 5** (recherche rapide parlée).
+Dernière mise à jour : 13/10/2026, étape 4 faite et validée par l'utilisateur. **Prochaine étape : 5** (recherche rapide parlée).
 
 ## Règles de travail (décidées avec l'utilisateur)
 
@@ -25,7 +25,7 @@ Dernière mise à jour : 13/10/2026, étape 4 faite (en attente de validation vi
 | 1 | Statut `Terminé`, catégorie Notion, applications inconnues | **Fait** | #13 |
 | 2 | Pause de plusieurs jours visible dans le dashboard | **Fait** | #14 |
 | 3 | Optimisation : cause du lag trouvée et corrigée | **Fait** | #15 |
-| 4 | Lancer/fermer une app nommée + fichier de config local | **Fait** (essai manuel réussi, voir plus bas) | à ouvrir |
+| 4 | Lancer/fermer une app nommée + fichier de config local | **Fait** (validée par l'utilisateur dans l'app installée) | #18 |
 | 5 | Recherche rapide parlée | À faire | |
 | 6 | Musique, volume système, batterie de la souris | À faire | |
 | 7 | Plusieurs projets en parallèle | À faire | |
@@ -62,13 +62,16 @@ Les étapes 4 à 6 sont décrites comme déclenchées à la voix, mais l'écoute
 - **Méthode de mesure réutilisable** : lancer l'app avec `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, se connecter avec Playwright (`chromium.connectOverCDP("http://127.0.0.1:9222")`), injecter du CSS pour couper un élément, lire le CPU par processus. Compter les dessins WebGL en remplaçant `WebGL2RenderingContext.prototype.drawElementsInstanced` (ne poser le hook qu'une fois, sinon le compte double).
 
 ### Étape 4 : lancer et fermer une app nommée
-- **Entrée de test** (choix de l'utilisateur) : une barre de commande, `Ctrl+K` pour l'ouvrir, `Échap` pour la fermer (`CommandBar.tsx`). Elle n'existe que dans l'app Tauri. Elle flotte en bas au centre sans toucher à la grille ; elle recouvre un peu le bas des cartes : **choix visuel à valider par l'utilisateur**.
+- **Entrée de test** (choix de l'utilisateur) : une barre de commande, `Ctrl+K` pour l'ouvrir, `Échap` pour la fermer (`CommandBar.tsx`). Elle n'existe que dans l'app Tauri. Elle flotte en bas au centre sans toucher à la grille ; elle recouvre un peu le bas des cartes : **position validée par l'utilisateur le 13/10/2026**.
 - **Reconnaissance locale, sans réseau** (`src-tauri/src/apps.rs`) : un verbe (`ouvre`, `lance`, `démarre`, `ferme`, `quitte`…) puis le nom, articles et « application » ignorés (« ferme mon Spotify »).
 - **Liste blanche** : `apps.json` dans le dossier de données de l'app (`%APPDATA%\com.soza.assistant\`), format `{ "blender": "C:\\...\\blender.exe" }`, créé vide au premier lancement, relu à chaque commande (pas de redémarrage). Rien d'autre ne peut être lancé ni fermé ; un nom inconnu renvoie le chemin du fichier.
 - **Ouverture** : lance l'exécutable du fichier, dans son dossier. **Fermeture douce** (décidé) : `taskkill /IM exe` sans `/F`, l'application peut proposer d'enregistrer ; jamais forcée.
 - **Essai dans l'app de dev** (identifiant séparé, dossier de données séparé) : ouverture, fermeture (plus aucun processus ensuite), « rien à fermer » quand elle n'est pas ouverte, refus d'une application inconnue, refus d'une phrase non reconnue : conformes. Un essai a révélé qu'un BOM UTF-8 en tête d'`apps.json` (PowerShell 5, certains éditeurs) vidait la liste : corrigé et testé.
-- **Limites connues** : ouvrir une application déjà ouverte en lance une seconde instance (pas de détection) ; fermer une application sans fenêtre échoue (taskkill demande une fermeture forcée) ; aucune application n'est encore déclarée dans l'`apps.json` réel de l'utilisateur ; non essayé dans l'app installée (build du 12/10, sans cette étape) ; le raccourci `Ctrl+K` n'est pas couvert par un test d'acceptation (navigateur sans Tauri).
-- **À faire par l'utilisateur** : remplir `apps.json` avec ses applications (Blender, Spotify, etc.), puis essayer dans l'app reconstruite.
+- **Second essai, applications réelles (13/10/2026, app de dev)** : Spotify (0 → 9 processus à l'ouverture, 0 après « ferme spotify »), Bloc-notes (« Ouvre le Bloc-Notes ! » puis « ferme le bloc-notes »), table des caractères via `Ctrl+K` (barre refermée après l'envoi, `Échap` la ferme). Refus vérifiés : `explorer`, `cmd.exe`, un chemin complet, `spotify && calc`, `ferme spotify; shutdown /s` donnent tous « Je ne connais pas », et aucun `cmd.exe` n'a Soza pour parent. Aucune application déclarée = aucune action possible.
+- **Fermeture douce confirmée par l'utilisateur (13/10/2026)** : « ferme blender » avec des changements non enregistrés fait proposer d'enregistrer par Blender, rien n'est perdu (ni Bloc-notes de Windows 11, qui restaure sa session, ni Spotify, qui n'a rien à enregistrer, ne le montraient).
+- **Build de production** : essayé par l'utilisateur dans l'installeur du 13/10/2026 (`run_command` fonctionne comme `app_usage`, `build.rs` n'a pas de manifeste de commandes). Rien d'autre n'est ouvert pour l'étape 4.
+- **Limites connues** : ouvrir une application déjà ouverte en lance une seconde instance quand l'application le permet (Spotify n'en crée pas) ; fermer une application sans fenêtre échoue (taskkill demande une fermeture forcée) ; l'`apps.json` réel de l'utilisateur a été préparé le 13/10/2026 (18 entrées, chemins vérifiés un par un ; hors liste volontairement : `code`, `claude`, `windowsterminal`, `explorer` dont la fermeture couperait la session de travail ou l'Explorateur, `valorant`/Riot qui demande un argument, `affinity` application du Store non lançable directement, `javaw`) ; les jeux Steam (Arc Raiders, Bleach) sont lancés par leur exécutable, essai de l'utilisateur le 13/10/2026 : Arc Raiders se lance proprement ; non essayé dans l'app installée (build du 12/10, sans cette étape) ; le raccourci `Ctrl+K` n'est pas couvert par un test d'acceptation (navigateur sans Tauri).
+- **Validation de l'utilisateur (13/10/2026)** : essai dans l'installeur reconstruit du 13/10 (build de production, donc `run_command` autorisée hors dev), barre bien placée, jeu lancé correctement. Reste à lui : compléter `apps.json` au besoin.
 
 ## Tests (état à la fin de l'étape 4)
 
@@ -77,7 +80,7 @@ Les étapes 4 à 6 sont décrites comme déclenchées à la voix, mais l'écoute
 ## À vérifier (ouvert)
 
 - **Dans l'app installée** : le menu de la zone de notification, la reprise du rendu après un clic sur l'icône, le suivi du temps d'écran et les clics sur les blocs. Seule la clé de démarrage automatique `Soza` (`soza.exe --autostart`) a été constatée dans le registre (`HKCU\...\Run`) le 12/10/2026 ; le démarrage réel au lancement de session n'est pas vérifié.
-- **L'app installée est celle du 12/10** (confirmé par l'utilisateur le 13/10/2026). Les vérifications ci-dessus peuvent donc se faire dessus ; elle ne contient pas le correctif des noms d'applications du 13/10 ni celui du « demain » du bilan (backend, à redéployer).
+- **L'app installée est celle de l'installeur du 13/10/2026** (étape 4 et noms d'applications inclus, d'après l'essai de l'utilisateur). Les vérifications ci-dessus (menu de la zone de notification, temps d'écran, démarrage automatique) peuvent se faire dessus. Le correctif du « demain » du bilan est dans le backend, à redéployer.
 - **`npm run test:live` lancé le 13/10/2026** (accord de l'utilisateur) : 48/48 sur le vrai Notion, Redis et Groq, pages `[TEST]` archivées (vérifié : 0 restante). Le 1er essai a échoué : la base Idées n'avait pas le statut `Terminé` (filtre de `findIdeaByTitle` rejeté par Notion) ; l'utilisateur l'a ajouté, **à refaire si la base est recréée**. Schéma réel relu : `Catégorie` présente dans Idées, Agenda et Jalons (mêmes 15 valeurs que `CATEGORIES`), plus de `Mode`.
 - **`Catégorie` vérifiée en écriture réelle le 13/10/2026** : écrite puis relue dans Idées (Blender), Agenda (Sport) et Jalons (Cinéma, accent compris), relue aussi par `getAllIdeas` ; les 3 pages de test archivées par id. Le script `test:live` ne la couvre toujours pas (test ponctuel).
 - **Pas couvert** : `/api/dashboard` contre le vrai Notion. Le nettoyage du script ne lit que les 100 premières pages par base (pas de pagination) : à surveiller si les bases grossissent.
