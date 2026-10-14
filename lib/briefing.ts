@@ -8,7 +8,7 @@ import { getNews } from "./integrations/news";
 import { addDays, daysBetween, todayInParis } from "./date";
 import type { AgendaItem, Milestone } from "./types";
 import { getBreak, inBreak, type Break } from "./memory";
-import { fridayPrompt } from "./ai/prompts/friday";
+import { fridayPrompt, nicknameInstruction } from "./ai/prompts/friday";
 
 const BILAN_RULES = `
 - Bilan : si les données indiquent qu'AUCUN bilan n'a été fait hier, dis-le clairement dès le début et précise que ce n'est pas une bonne chose ; ne reprends jamais un ancien bilan comme s'il datait d'hier. S'il y a un bilan d'hier qui mentionne une tâche inachevée ou en cours, propose explicitement de la reprendre aujourd'hui.
@@ -100,7 +100,7 @@ async function generateBriefing(instruction: string, contextSummary: string, fal
 
     const { text } = await generateText({
       model,
-      system: fridayPrompt + instruction,
+      system: fridayPrompt + instruction + nicknameInstruction(),
       prompt: `Données du jour:\n${contextSummary}`,
     });
 
