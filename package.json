@@ -16,6 +16,7 @@
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:all": "npm test && npm run test:acceptance && npm run test:rust",
     "test:live": "tsx --env-file=.env scripts/full-mechanics-test.ts",
+    "test:search": "tsx --env-file=.env scripts/search-battery.ts",
     "notion:check": "tsx --env-file=.env scripts/check-notion-connection.ts",
     "notion:create": "tsx --env-file=.env scripts/create-notion-databases.ts",
     "notion:create-settings": "tsx --env-file=.env scripts/create-settings-database.ts",
