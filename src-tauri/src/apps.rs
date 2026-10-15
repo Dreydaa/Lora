@@ -61,7 +61,7 @@ fn close(name: &str, path: &str) -> String {
 
 // Exécute une commande tapée et rend la phrase à afficher.
 pub fn run(text: &str, file: &Path) -> String {
-  let Some((action, name)) = parse(text) else { return "Je n'ai pas compris. Essaie « ouvre blender » ou « ferme spotify ».".into() };
+  let Some((action, name)) = parse(text) else { return "Je n'ai pas compris. Essaie « ouvre blender », « ferme spotify », « volume 30 », « pause » ou « batterie de la souris ».".into() };
   let Some(path) = load(file).get(&name).cloned() else {
     return format!("Je ne connais pas « {name} ». Ajoute-la dans {} (nom : chemin de l'exécutable).", file.display());
   };
