@@ -2,7 +2,7 @@
 
 Ce fichier porte la vision, les décisions de conception et la liste des étapes de la V2. **L'avancement (ce qui est fait, mesuré, vérifié ou pas) est dans [`STATUS-V2.md`](STATUS-V2.md)** ; l'état de la V1 reste dans `STATUS.md`.
 
-**Statut : la V1 est terminée (09/10/2026) et la V2 a démarré le 12/10/2026.** Les étapes 0 à 3 de la to-do ci-dessous sont faites ; le détail est dans `STATUS-V2.md`. Les chantiers 4 à 12 (hors ceux cochés) ne sont pas implémentés.
+**Statut : la V1 est terminée (09/10/2026) et la V2 a démarré le 12/10/2026.** Les étapes 1 à 6 de la to-do ci-dessous sont faites (la 0 reste ouverte) ; le détail est dans `STATUS-V2.md`. Les chantiers 4 à 12 (hors ceux cochés) ne sont pas implémentés.
 
 ## Pourquoi cette direction (décidé 30/09/2026)
 
@@ -158,7 +158,7 @@ Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Ca
 - [x] 3. Optimisation (chantier 6) : re-mesurer, puis traiter ce qui reste — **fait le 12/10/2026** : cause du lag trouvée et corrigée (réfraction du verre coupée : 120 % → 30 % de CPU, 20 → 60 images/s), voir `STATUS.md` « Troisième passe d'optimisation »
 - [x] 4. Lancer/fermer une app nommée + fichier de config local (chantier 3, fonction 1) : fondation de l'agent local — **fait le 13/10/2026** : barre `Ctrl+K`, liste blanche `apps.json`, fermeture douce (voir `STATUS-V2.md`)
 - [x] 5. Recherche rapide parlée (chantier 3, fonction 2) — **fait le 14/10/2026 côté Telegram** : recherche intégrée de Groq, réponse courte lisible à voix haute (voir `STATUS-V2.md`) ; barre `Ctrl+K` et voix pas branchées
-- [ ] 6. Musique, volume système, batterie de la souris (chantier 3)
+- [x] 6. Musique, volume système, batterie de la souris (chantier 3) — **fait le 15/10/2026 via `Ctrl+K`** : volume (Core Audio), musique (commandes multimédia de Windows), batterie (HID++ Logitech, lue 34 %) ; « mets de la musique » lance Spotify, « mets <titre> » cherche et lance le morceau (essayé avec les vrais identifiants Spotify, voir `STATUS-V2.md`)
 - [ ] 7. Plusieurs projets en parallèle (chantier 7)
 - [ ] 8. Moteur de protocoles : 2B, 7E3A, 6H9K (chantier 2)
 - [ ] 9. Voix : mot d'activation, reconnaissance vocale, synthèse vocale, ruban réactif à l'audio (chantier 3)

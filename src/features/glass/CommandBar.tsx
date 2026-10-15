@@ -44,7 +44,7 @@ export function CommandBar() {
     <div className="command-bar" role="search">
       {open && (
         <form onSubmit={submit}>
-          <input ref={input} type="text" placeholder="ouvre blender, ferme spotify…" aria-label="Commande" autoComplete="off" spellCheck={false} />
+          <input ref={input} type="text" placeholder="ouvre blender, volume 30, mets de la musique…" aria-label="Commande" autoComplete="off" spellCheck={false} />
         </form>
       )}
       {reply && <p role="status">{reply}</p>}
