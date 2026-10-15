@@ -2,7 +2,7 @@
 
 Ce fichier porte la vision, les décisions de conception et la liste des étapes de la V2. **L'avancement (ce qui est fait, mesuré, vérifié ou pas) est dans [`STATUS-V2.md`](STATUS-V2.md)** ; l'état de la V1 reste dans `STATUS.md`.
 
-**Statut : la V1 est terminée (09/10/2026) et la V2 a démarré le 12/10/2026.** Les étapes 1 à 6 de la to-do ci-dessous sont faites (la 0 reste ouverte) ; le détail est dans `STATUS-V2.md`. Les chantiers 4 à 12 (hors ceux cochés) ne sont pas implémentés.
+**Statut : la V1 est terminée (09/10/2026) et la V2 a démarré le 12/10/2026.** Les étapes 1 à 7 de la to-do ci-dessous sont faites (la 0 reste ouverte) ; le détail est dans `STATUS-V2.md`. Les chantiers 4 à 12 (hors ceux cochés) ne sont pas implémentés.
 
 ## Pourquoi cette direction (décidé 30/09/2026)
 
@@ -94,6 +94,8 @@ Objectif : ne pas consommer trop de ressources, surtout avec un widget/écoute r
 
 ## Chantier 7 — Gérer plusieurs projets en même temps
 
+**Fait le 15/10/2026 (étape 7)** — voir `STATUS-V2.md`. Le texte ci-dessous est la réflexion d'origine, gardée pour mémoire : la limite d'un seul projet « En cours » n'existait déjà plus dans le code.
+
 Lève la limite actuelle : un seul projet "En cours" à la fois côté Notion (`Statut` des Idées). À redéfinir : plusieurs projets "En cours" simultanés, sur quoi porte le bilan du soir, comment le briefing les présente, et comment `record_progress` associe un bilan à un projet. Plus simple à traiter maintenant que le streak est retiré (30/09/2026) — `record_progress` n'a plus de logique de projet "en cours" à généraliser, `getCurrentProject()` a été supprimé de `lib/notion/idees.ts` avec le reste du gating et sera à réintroduire (probablement sous une autre forme, multi-projets) pour ce chantier.
 
 ## Chantier 8 — Documentation "comment on crée Soza" pour le portfolio
@@ -159,7 +161,7 @@ Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Ca
 - [x] 4. Lancer/fermer une app nommée + fichier de config local (chantier 3, fonction 1) : fondation de l'agent local — **fait le 13/10/2026** : barre `Ctrl+K`, liste blanche `apps.json`, fermeture douce (voir `STATUS-V2.md`)
 - [x] 5. Recherche rapide parlée (chantier 3, fonction 2) — **fait le 14/10/2026 côté Telegram** : recherche intégrée de Groq, réponse courte lisible à voix haute (voir `STATUS-V2.md`) ; barre `Ctrl+K` et voix pas branchées
 - [x] 6. Musique, volume système, batterie de la souris (chantier 3) — **fait le 15/10/2026 via `Ctrl+K`** : volume (Core Audio), musique (commandes multimédia de Windows), batterie (HID++ Logitech, lue 34 %) ; « mets de la musique » lance Spotify, « mets <titre> » cherche et lance le morceau (essayé avec les vrais identifiants Spotify, voir `STATUS-V2.md`)
-- [ ] 7. Plusieurs projets en parallèle (chantier 7)
+- [x] 7. Plusieurs projets en parallèle (chantier 7) — **fait le 15/10/2026** : la limite n'existait déjà plus dans le code ; le bilan reçoit les projets travaillés (texte, sans colonne Notion), le soir donne le prochain jalon de chaque projet en cours, le matin les cite (voir `STATUS-V2.md`)
 - [ ] 8. Moteur de protocoles : 2B, 7E3A, 6H9K (chantier 2)
 - [ ] 9. Voix : mot d'activation, reconnaissance vocale, synthèse vocale, ruban réactif à l'audio (chantier 3)
 - [ ] 10. Agent résident en arrière-plan et widget animé (chantier 5)
