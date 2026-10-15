@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agendaLine, bilanLine, dayLine, milestoneLine } from "../../lib/briefing";
+import { agendaLine, bilanLine, dayLine, milestoneLine, projectMilestonesLine, projectsLine } from "../../lib/briefing";
 import type { AgendaItem, Milestone } from "../../lib/types";
 
 const TODAY = "2026-10-07"; // un mercredi
@@ -56,6 +56,45 @@ describe("dayLine (journée écoulée)", () => {
   });
   it("tout fait : rien à lister", () => expect(dayLine([item("A", null, "Fait")])).not.toContain("Restent"));
   it("journée vide : le dit sans inventer de tâches", () => expect(dayLine([])).toContain("rien n'était prévu"));
+});
+
+const project = (id: string) => ({ id, title: id.toUpperCase() });
+const linked = (title: string, dueDate: string, ideaId: string, status = "À faire"): Milestone => ({ ...milestone(title, dueDate, status), ideaId });
+
+describe("projectsLine (projets en cours)", () => {
+  it("liste tous les projets, sans limite", () => expect(projectsLine([project("a"), project("b"), project("c"), project("d")])).toBe("Projets en cours: A · B · C · D."));
+  it("aucun projet", () => expect(projectsLine([])).toBe("Projets en cours: aucun."));
+});
+
+describe("projectMilestonesLine (jalon de chaque projet, le soir)", () => {
+  const projects = [project("a"), project("b"), project("c"), project("d")];
+  it("un jalon par projet, le plus urgent d'abord, et seulement le prochain de chacun", () => {
+    const line = projectMilestonesLine(
+      [project("a"), project("b")],
+      [linked("A2", "2026-10-20", "a"), linked("A1", "2026-10-12", "a"), linked("B1", "2026-10-08", "b")],
+      TODAY,
+    );
+    expect(line).toBe("Prochain jalon par projet: B : B1 (demain) · A : A1 (dans 5 jours, lundi 12/10).");
+    expect(line).not.toContain("A2");
+  });
+  it("3 projets au maximum", () => {
+    const line = projectMilestonesLine(projects, projects.map((p, i) => linked(`J${i}`, `2026-10-1${i}`, p.id)), TODAY);
+    expect(line.match(/ : J/g)).toHaveLength(3);
+    expect(line).not.toContain("J3");
+  });
+  it("un jalon validé ne compte pas, un jalon en retard le dit", () => {
+    const line = projectMilestonesLine([project("a"), project("b")], [linked("Fini", "2026-10-05", "a", "Validé"), linked("Retard", "2026-10-05", "b")], TODAY);
+    expect(line).toContain("B : Retard (en retard de 2 jour(s))");
+    expect(line).not.toContain("Fini");
+  });
+  it("un projet sans jalon est simplement absent", () => {
+    expect(projectMilestonesLine([project("a"), project("b")], [linked("A1", "2026-10-12", "a")], TODAY)).not.toContain("B :");
+  });
+  it("sans projet en cours, ou sans jalon rattaché : le prochain jalon global, comme avant", () => {
+    const milestones = [milestone("Libre", "2026-10-12")];
+    expect(projectMilestonesLine([], milestones, TODAY)).toBe(milestoneLine(milestones, TODAY));
+    expect(projectMilestonesLine([project("a")], milestones, TODAY)).toBe("Prochain jalon: Libre (dans 5 jours, lundi 12/10).");
+  });
 });
 
 describe("milestoneLine (prochain jalon)", () => {

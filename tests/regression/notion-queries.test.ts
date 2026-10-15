@@ -1,11 +1,12 @@
 // Corrections déjà faites sur les requêtes et écritures Notion : elles ne doivent pas revenir.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createdPages, notionCalls, notionData, progressPage, resetNotion, updatedPages } from "../helpers/notion-mock";
+import { createdPages, notionCalls, notionData, progressPage, projectPage, resetNotion, updatedPages } from "../helpers/notion-mock";
 
 vi.mock("@notionhq/client", () => import("../helpers/notion-mock"));
 
 import { addAgendaItem, getUpcomingAgenda } from "../../lib/notion/agenda";
-import { addIdea, completeIdea, findIdeaByTitle, updateIdeaNotes } from "../../lib/notion/idees";
+import { addIdea, completeIdea, findIdeaByTitle, getProjectsInProgress, resolveProjectNames, updateIdeaNotes } from "../../lib/notion/idees";
+import { sozaTools } from "../../lib/ai/tools";
 import { createMilestone, getMilestones } from "../../lib/notion/milestones";
 import { getLatestProgress, saveProgress } from "../../lib/notion/progress";
 
@@ -42,11 +43,63 @@ describe("jalons : ceux en retard restent visibles", () => {
   });
 });
 
+describe("bilan du jour", () => {
+  it("les projets travaillés sont écrits en tête du bilan, sans colonne en plus", async () => {
+    await saveProgress("Rig fini, UV à reprendre", ["Personnage 3D", " Soza "]);
+    expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Projets : Personnage 3D, Soza. Rig fini, UV à reprendre");
+    expect(Object.keys(createdPages.at(-1).properties)).toEqual(["Date", "Bilan"]);
+  });
+  // Le modèle ne connaît pas les titres exacts (constaté : « Portfolio » pour « Portfolio web », « Rig personnage 3D » pour « Personnage 3D »).
+  const IN_PROGRESS = [{ id: "i1", title: "Soza" }, { id: "i2", title: "Portfolio web" }, { id: "i3", title: "Personnage 3D" }];
+  it("resolveProjectNames remplace un nom approximatif par le titre du seul projet qu'il désigne", () => {
+    expect(resolveProjectNames(["portfolio", "Rig personnage 3D", "SOZA"], IN_PROGRESS)).toEqual(["Portfolio web", "Personnage 3D", "Soza"]);
+    expect(resolveProjectNames(["le Portfolio Web"], IN_PROGRESS)).toEqual(["Portfolio web"]);
+  });
+  it("resolveProjectNames garde tel quel un nom inconnu ou ambigu, sans doublon", () => {
+    // « portfolio » désigne deux projets : il reste tel quel ; « 3D » n'en désigne qu'un seul.
+    expect(resolveProjectNames(["Site de recettes", "3D", "portfolio", "Portfolio web"], [...IN_PROGRESS, { id: "i4", title: "Portfolio photo" }])).toEqual(["Site de recettes", "Personnage 3D", "portfolio", "Portfolio web"]);
+    expect(resolveProjectNames(["soza", "Soza"], IN_PROGRESS)).toEqual(["Soza"]);
+    expect(resolveProjectNames(["café"], [{ id: "x", title: "Cafe" }])).toEqual(["Cafe"]); // accents ignorés
+    expect(resolveProjectNames(["", "  "], IN_PROGRESS)).toEqual([]);
+    expect(resolveProjectNames(["Soza"], [])).toEqual(["Soza"]);
+  });
+  it("l'outil record_progress écrit les vrais titres, et accepte null ou une absence de projets", async () => {
+    notionData["db-ideas"] = IN_PROGRESS.map((p) => projectPage(p.id, p.title));
+    const execute = (sozaTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean }>;
+    expect((await execute({ review: "Rig fini", projectsWorkedOn: ["portfolio", "rig personnage 3D"] })).success).toBe(true);
+    expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Projets : Portfolio web, Personnage 3D. Rig fini");
+    for (const projectsWorkedOn of [null, undefined, []]) {
+      notionCalls.length = 0;
+      await execute({ review: "Calme", projectsWorkedOn });
+      expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Calme");
+      expect(notionCalls).toHaveLength(0); // aucun projet cité : aucune lecture inutile de Notion
+    }
+  });
+  it("l'outil record_progress enregistre quand même le bilan si la lecture des projets échoue", async () => {
+    Object.defineProperty(notionData, "db-ideas", { get: () => { throw new Error("notion 500"); }, configurable: true, enumerable: true });
+    const execute = (sozaTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean }>;
+    expect((await execute({ review: "Rig fini", projectsWorkedOn: ["Soza"] })).success).toBe(true);
+    expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Projets : Soza. Rig fini");
+  });
+  it("sans projet nommé, le bilan reste tel quel", async () => {
+    await saveProgress("Journée calme");
+    expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Journée calme");
+    await saveProgress("Journée calme", ["", "  "]);
+    expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Journée calme");
+  });
+});
+
 describe("idées", () => {
   it("findIdeaByTitle ignore les idées archivées et terminées (sinon un titre proche vise la mauvaise page)", async () => {
     await findIdeaByTitle("Soza");
     expect(lastFilter()).toContain('"does_not_equal":"Archivée"');
     expect(lastFilter()).toContain('"does_not_equal":"Terminé"');
+  });
+  it("getProjectsInProgress lit les idées « En cours », sans limite de nombre", async () => {
+    notionData["db-ideas"] = [projectPage("i1", "Soza"), projectPage("i2", "Portfolio"), projectPage("i3", "Personnage 3D")];
+    expect(await getProjectsInProgress()).toEqual([{ id: "i1", title: "Soza" }, { id: "i2", title: "Portfolio" }, { id: "i3", title: "Personnage 3D" }]);
+    expect(lastFilter()).toContain('"equals":"En cours"');
+    expect(JSON.stringify(notionCalls.at(-1))).not.toContain("page_size");
   });
   it("completeIdea passe le statut à Terminé, pas à Archivée", async () => {
     await completeIdea("page");
