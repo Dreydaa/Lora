@@ -40,10 +40,11 @@ export const agendaPage = (id: string, name: string, start: string, status = "À
   id,
   properties: { Titre: title(name), Date: date(start), Statut: select(status), Type: select(type) },
 });
-export const milestonePage = (id: string, name: string, due: string, status = "À faire") => ({
+export const milestonePage = (id: string, name: string, due: string, status = "À faire", ideaId?: string) => ({
   id,
-  properties: { Titre: title(name), Échéance: date(due), Statut: select(status) },
+  properties: { Titre: title(name), Échéance: date(due), Statut: select(status), ...(ideaId ? { "Idée liée": { relation: [{ id: ideaId }] } } : {}) },
 });
+export const projectPage = (id: string, name: string) => ({ id, properties: { Titre: title(name), Statut: select("En cours") } });
 export const progressPage = (day: string, review: string) => ({
   id: `progress-${day}`,
   properties: { Date: title(day), Bilan: richText(review) },

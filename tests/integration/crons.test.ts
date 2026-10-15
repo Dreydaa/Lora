@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { stubNetwork } from "../helpers/network";
-import { agendaPage, milestonePage, notionData, progressPage, resetNotion } from "../helpers/notion-mock";
+import { agendaPage, milestonePage, notionData, progressPage, projectPage, resetNotion } from "../helpers/notion-mock";
 import { store } from "../helpers/redis-mock";
 
 const generateText = vi.hoisted(() => vi.fn());
@@ -54,6 +54,30 @@ describe("cron du matin", () => {
     expect(prompt).toContain("Dentiste (demain à 14:30)");
     expect(prompt).toContain("[Tech] Puce quantique annoncée");
     expect(system).toContain("FRIDAY"); // la personnalité de Soza est bien envoyée
+  });
+
+  it("plusieurs projets en cours : le briefing complet les reçoit, la version dashboard non", async () => {
+    notionData["db-ideas"] = [projectPage("i1", "Soza"), projectPage("i2", "Portfolio"), projectPage("i3", "Personnage 3D")];
+    stubNetwork();
+    await run(morning);
+    expect(callFor(false).prompt).toContain("Projets en cours: Soza · Portfolio · Personnage 3D.");
+    expect(callFor(false).system).toContain("Projets : cite en une phrase");
+    expect(callFor(true).prompt).not.toContain("Projets en cours");
+  });
+
+  it("le bilan d'hier qui nomme des projets arrive tel quel au modèle", async () => {
+    notionData["db-progress"] = [progressPage("2026-10-07", "Projets : Soza. Briefing fini")];
+    stubNetwork();
+    await run(morning);
+    expect(callFor(false).prompt).toContain("Bilan d'hier: Projets : Soza. Briefing fini.");
+  });
+
+  it("la lecture des projets échoue : le briefing part quand même, sans eux", async () => {
+    Object.defineProperty(notionData, "db-ideas", { get: () => { throw new Error("notion 500"); }, configurable: true, enumerable: true });
+    const net = stubNetwork();
+    expect((await run(morning)).status).toBe(200);
+    expect(net.telegram().map((c) => c.body.text)).toEqual(["BRIEFING-COMPLET"]);
+    expect(callFor(false).prompt).toContain("Projets en cours: aucun.");
   });
 
   it("la version dashboard ne cite ni rendez-vous ni actualités", async () => {
@@ -113,6 +137,23 @@ describe("cron du soir", () => {
     expect(prompt).toContain("Prochain jalon: Rig de base (dans 4 jours, lundi 12/10).");
     expect(system).toContain("briefing du soir");
     expect(system).toContain("FRIDAY");
+  });
+
+  it("plusieurs projets en cours : le prochain jalon de chacun, et la liste des projets seulement dans la version Telegram", async () => {
+    notionData["db-ideas"] = [projectPage("i1", "Soza"), projectPage("i2", "Portfolio")];
+    notionData["db-milestones"] = [
+      milestonePage("m1", "Rig de base", "2026-10-12", "En cours", "i1"),
+      milestonePage("m2", "Maquette", "2026-10-09", "À faire", "i2"),
+      milestonePage("m3", "Rig fini", "2026-10-30", "À faire", "i1"),
+    ];
+    stubNetwork();
+    await run(evening);
+    const expected = "Prochain jalon par projet: Portfolio : Maquette (demain) · Soza : Rig de base (dans 4 jours, lundi 12/10).";
+    expect(callFor(false).prompt).toContain(expected);
+    expect(callFor(false).prompt).toContain("Projets en cours: Soza · Portfolio.");
+    expect(callFor(false).system).toContain("sur lesquels il a avancé");
+    expect(callFor(true).prompt).toContain(expected);
+    expect(callFor(true).prompt).not.toContain("Projets en cours");
   });
 
   it("sans météo ni actualités : aucun appel réseau pour elles et rien dans le prompt", async () => {
