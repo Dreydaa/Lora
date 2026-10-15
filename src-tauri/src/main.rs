@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod apps;
+mod spotify;
+mod system;
 use std::{collections::BTreeMap, fs, path::PathBuf, sync::Mutex, thread, time::Duration};
 use tauri::{
   menu::{Menu, MenuItem},
@@ -67,9 +69,10 @@ fn tint_title_bar(window: &WebviewWindow) {
 }
 
 // Commande tapée dans la barre de commande du dashboard (Ctrl+K) : exécutée en local, la réponse est une phrase à afficher.
+// Volume, musique et batterie d'abord (system.rs), puis ouvrir/fermer une application (apps.rs).
 #[tauri::command]
 fn run_command(text: String, apps: State<AppsFile>) -> String {
-  apps::run(&text, &apps.0)
+  system::run(&text, &apps.0.with_file_name("spotify.json")).unwrap_or_else(|| apps::run(&text, &apps.0))
 }
 
 fn show_main(app: &AppHandle) {
@@ -123,6 +126,9 @@ fn main() {
       let apps_file = dir.join("apps.json");
       if !apps_file.exists() { let _ = fs::write(&apps_file, "{}\n"); }
       app.manage(AppsFile(apps_file));
+      // Pour « mets <titre> » : identifiants d'une application créée sur developer.spotify.com (voir spotify.rs). Créé vide, relu à chaque commande.
+      let spotify_file = dir.join("spotify.json");
+      if !spotify_file.exists() { let _ = fs::write(&spotify_file, "{ \"client_id\": \"\", \"client_secret\": \"\" }\n"); }
 
       // Le suivi tourne tant que Soza tourne, même fenêtre masquée dans la zone de notification.
       let handle = app.handle().clone();
