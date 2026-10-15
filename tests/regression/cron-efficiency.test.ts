@@ -34,6 +34,7 @@ describe("cron du matin : chaque donnée est chargée une seule fois", () => {
     expect(net.feeds()).toHaveLength(2); // un par flux (Tech, Mode)
     expect(queries("db-progress")).toBe(1);
     expect(queries("db-agenda")).toBe(1);
+    expect(queries("db-ideas")).toBe(1);
   });
   it("les deux textes sont quand même générés (Telegram et dashboard)", async () => {
     stubNetwork();
@@ -43,12 +44,14 @@ describe("cron du matin : chaque donnée est chargée une seule fois", () => {
 });
 
 describe("cron du soir : chaque donnée est chargée une seule fois", () => {
-  it("au plus 3 requêtes Notion : agenda du jour, agenda à venir, jalons", async () => {
+  // Le 4e accès (projets en cours) est ajouté à l'étape 7 de la V2 ; il part en parallèle des autres, une seule fois.
+  it("au plus 4 requêtes Notion : agenda du jour, agenda à venir, jalons, projets en cours", async () => {
     stubNetwork();
     await run(evening);
     expect(queries("db-agenda")).toBe(2);
     expect(queries("db-milestones")).toBe(1);
-    expect(notionCalls).toHaveLength(3);
+    expect(queries("db-ideas")).toBe(1);
+    expect(notionCalls).toHaveLength(4);
   });
   it("les deux textes sont quand même générés (Telegram et dashboard)", async () => {
     stubNetwork();

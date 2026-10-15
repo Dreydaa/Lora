@@ -17,10 +17,13 @@ export async function getLatestProgress() {
   };
 }
 
-export async function saveProgress(review: string) {
+// Les projets travaillés sont écrits en tête du bilan (pas de colonne Notion à ajouter) : le briefing du matin relit ce texte tel quel.
+export async function saveProgress(review: string, projects: string[] = []) {
   const database_id = process.env.NOTION_PROGRESS_DATABASE_ID;
   if (!database_id) throw new Error("NOTION_PROGRESS_DATABASE_ID is missing");
   const date = todayInParis();
+  const named = projects.map((p) => p.trim()).filter(Boolean);
+  if (named.length) review = `Projets : ${named.join(", ")}. ${review}`;
   return notion().pages.create({
     parent: { database_id },
     properties: {

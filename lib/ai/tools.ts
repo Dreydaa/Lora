@@ -1,7 +1,7 @@
 // lib/ai/tools.ts
 import { tool } from "ai";
 import { z } from "zod";
-import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose } from "../notion/idees";
+import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose, getProjectsInProgress, resolveProjectNames } from "../notion/idees";
 import { CATEGORIES } from "../types";
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
 import { addAgendaItem, addShiftSchedule } from "../notion/agenda";
@@ -226,13 +226,21 @@ export const sozaTools = {
   }),
 
   record_progress: tool({
-    description: "Enregistre le bilan du jour dans Notion.",
+    description: "Enregistre le bilan du jour dans Notion. Un seul bilan par jour, même avec plusieurs projets en cours.",
     inputSchema: z.object({
       review: z.string().describe("Résumé court de ce qui a été fait ou non aujourd'hui"),
+      projectsWorkedOn: z
+        .array(z.string())
+        .nullish()
+        .describe(
+          "Les seuls projets sur lesquels l'utilisateur a TRAVAILLÉ aujourd'hui, nommés ou confirmés par lui. Un projet cité comme non touché, laissé de côté ou seulement évoqué n'y figure PAS. N'en déduis aucun. Écris le nom tel qu'il l'a dit. Exemple : « Soza avancé, personnage 3D pas touché » donne [\"Soza\"], pas [\"Soza\", \"personnage 3D\"]. Omets le champ si aucun projet n'est nommé.",
+        ),
     }),
-    execute: async ({ review }) => {
-      console.log("[tool] record_progress →", { review });
-      const page = await saveProgress(review);
+    execute: async ({ review, projectsWorkedOn }) => {
+      console.log("[tool] record_progress →", { review, projectsWorkedOn });
+      // Les noms sont rapprochés des vrais titres des projets en cours ; si cette lecture échoue, ils restent tels que tapés.
+      const known = projectsWorkedOn?.length ? await getProjectsInProgress().catch(() => []) : [];
+      const page = await saveProgress(review, projectsWorkedOn ? resolveProjectNames(projectsWorkedOn, known) : undefined);
       return { success: true, pageId: page.id };
     },
   }),

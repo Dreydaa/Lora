@@ -70,6 +70,32 @@ export async function completeIdea(pageId: string) {
   await setIdeaStatus(pageId, "Terminé");
 }
 
+export type Project = { id: string; title: string };
+
+// Projets = idées au statut « En cours » (les plus anciennes d'abord) ; rien ne limite leur nombre. Sert aux briefings.
+export async function getProjectsInProgress(): Promise<Project[]> {
+  const data = await notion().databases.query({
+    database_id: database(),
+    filter: { property: "Statut", select: { equals: "En cours" } },
+    sorts: [{ property: "Date d'entrée", direction: "ascending" }],
+  });
+  return data.results.map((page: any) => ({ id: page.id, title: page.properties.Titre?.title?.[0]?.plain_text ?? "(sans titre)" }));
+}
+
+const tokens = (text: string) => new Set(text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+const covers = (big: Set<string>, small: Set<string>) => small.size > 0 && [...small].every((t) => big.has(t));
+
+// Le modèle ne connaît pas les titres exacts : il écrit « le portfolio » ou « rig personnage 3D ». Chaque nom est remplacé par le titre
+// du seul projet en cours qu'il désigne (tous les mots de l'un dans l'autre) ; ambigu ou inconnu, il reste tel que tapé.
+export function resolveProjectNames(names: string[], projects: Project[]): string[] {
+  const resolved = names.map((name) => {
+    const wanted = tokens(name);
+    const hits = projects.filter((p) => covers(wanted, tokens(p.title)) || covers(tokens(p.title), wanted));
+    return hits.length === 1 ? hits[0].title : name.trim();
+  });
+  return [...new Set(resolved.filter(Boolean))];
+}
+
 const NOTES_PREVIEW_CHARS = 420; // le dashboard n'affiche qu'un aperçu : inutile d'envoyer toute la synthèse
 
 export async function getAllIdeas(): Promise<{ id: string; title: string; size: IdeaSize; status: IdeaStatus; notes: string; since: string | null; updated: string; category?: Category }[]> {
