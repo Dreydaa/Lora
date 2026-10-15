@@ -301,6 +301,21 @@ mod tests {
     assert!(reply.contains("ouverte dans Spotify") && reply.contains("client_id"), "{reply}");
   }
 
+  // Vrais identifiants (spotify.json de l'app installée), vraie recherche, vraie lecture : `cargo test real_search -- --ignored --nocapture`.
+  #[test]
+  #[ignore = "réseau, identifiants Spotify réels, lance un morceau"]
+  fn real_search_and_play() {
+    let file = std::path::PathBuf::from(std::env::var("APPDATA").unwrap()).join("com.soza.assistant").join("spotify.json");
+    let reply = run("mets Get Lucky de Daft Punk", &file).unwrap();
+    println!("{reply}");
+    assert!(reply.starts_with("Lecture : ") && reply.contains("Daft Punk"), "{reply}");
+    thread::sleep(Duration::from_secs(5));
+    let now = run("pause", &file).unwrap();
+    println!("{now}");
+    assert!(now.contains("Get Lucky"), "le morceau lancé doit être celui en cours : {now}");
+    println!("{:?}", run("pause", &file)); // reste en pause à la fin
+  }
+
   // Lecture seule : aucun ordre n'est envoyé au lecteur (« pause » arrêterait la vraie musique).
   #[test]
   fn music_session_is_readable() {
