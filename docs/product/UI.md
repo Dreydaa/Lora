@@ -15,13 +15,19 @@ Colonne gauche, de haut en bas :
 - **Veille** : deux colonnes Tech et Fashion, chaque titre est un lien vers l'article (ouvert dans le navigateur par défaut).
 
 Colonne droite :
-- **Briefing** du matin ou du soir selon l'heure (les heures viennent des réglages Notion) : texte court généré par Soza.
+- **Briefing** du matin ou du soir selon l'heure (les heures viennent des réglages Notion) : texte court généré par Soza. Pendant une pause de plusieurs jours, la carte annonce la pause en cours à la place du briefing (les crons sont suspendus) et rappelle une pause à venir.
 - **Calendrier** : vue Mois par défaut, bascule Semaine, navigation, clic sur un jour pour son détail (Échap pour fermer). Pastilles-logo par tâche, points colorés par type (Perso, Shift, Jalon, retard).
 
 ## Interactions
 - **Prochain jalon** (clic) : une carte s'ajoute sous les petits blocs avec la ligne du temps des jalons (validé vert, en retard rouge, en cours cyan, à faire gris), centrée sur « Aujourd'hui ».
 - **Écran** (clic) : la même carte affiche les applications les plus utilisées, aujourd'hui ou sur 7 jours. Cliquer sur l'autre bloc change le contenu sans refermer. ✕ ou Échap referme et le bento revient à l'identique.
 - Les animations respectent `prefers-reduced-motion`.
+
+## Barre de commande (`Ctrl+K`)
+Disponible seulement dans l'app Tauri, sans réseau. `Ctrl+K` l'ouvre, `Échap` la ferme, elle se referme après l'envoi. Elle flotte en bas au centre sans toucher à la grille et recouvre un peu le bas des cartes (position validée par l'utilisateur le 13/10/2026). Commandes reconnues (`CommandBar.tsx`, puis `run_command` côté Rust) :
+- applications de la liste blanche `apps.json` : `ouvre`, `lance`, `ferme` + le nom (fermeture douce, jamais forcée) ;
+- volume (`volume 30`, `monte le son`, `coupe le son`), musique (`pause`, `musique suivante`, `mets de la musique`, `mets <titre>` pour un morceau Spotify) et `batterie de la souris`.
+Un nom inconnu ou une phrase non reconnue est refusé, rien n'est exécuté. Le détail et les limites : `docs/ai/STATUS-V2.md`, étapes 4 et 6.
 
 ## Zone de notification
 Fermer la fenêtre la masque. Clic gauche sur l'icône : afficher. Clic droit : Afficher Soza / Quitter. Au démarrage de Windows (app installée), Soza se lance fenêtre masquée.
@@ -34,6 +40,7 @@ Fermer la fenêtre la masque. Clic gauche sur l'icône : afficher. Clic droit : 
 | Veille | Flux RSS (TechCrunch, Vogue) |
 | Météo | Open-Meteo, appelée directement par l'app |
 | Écran | Suivi local dans l'app Tauri (`usage.json`), rien n'est envoyé en ligne |
+| Barre `Ctrl+K` | Fichiers locaux de l'app (`apps.json`, `spotify.json`), commandes Windows ; rien n'est envoyé à Soza |
 
 Si le backend est injoignable, le dashboard garde des données d'exemple (`mockData.ts`). Hors de l'app Tauri (navigateur), le bloc Écran affiche « — ».
 
