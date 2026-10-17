@@ -17,6 +17,7 @@
     "test:all": "npm test && npm run test:acceptance && npm run test:rust",
     "test:live": "tsx --env-file=.env scripts/full-mechanics-test.ts",
     "test:search": "tsx --env-file=.env scripts/search-battery.ts",
+    "test:protocol": "tsx scripts/protocol-e2e.ts",
     "test:projects": "tsx --env-file=.env scripts/projects-battery.ts",
     "notion:check": "tsx --env-file=.env scripts/check-notion-connection.ts",
     "notion:create": "tsx --env-file=.env scripts/create-notion-databases.ts",
