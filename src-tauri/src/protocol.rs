@@ -1,10 +1,11 @@
 use serde_json::{json, Value};
-use std::{fs, path::Path, time::Duration};
+use std::{fs, path::Path, thread, time::Duration};
 
 // Étapes « PC » des protocoles lancés depuis Telegram. Le PC n'est joignable de nulle part : Soza interroge le backend
 // (GET /api/protocol), exécute les étapes reçues, puis POSTe le statut de chacune.
 // agent.json (dossier de données de l'app) porte l'adresse et la clé : mêmes valeurs que VITE_API_URL et VITE_DASHBOARD_API_KEY.
 pub const POLL_SECS: u64 = 30;
+const SEND_ATTEMPTS: u32 = 3;
 
 // Fichier absent, illisible ou à moitié rempli : pas configuré, on n'interroge rien (le BOM éventuel est ignoré).
 pub fn config(file: &Path) -> Option<(String, String)> {
@@ -41,9 +42,17 @@ pub fn poll_once(url: &str, key: &str, apps_file: &Path) -> Result<(), String> {
     .map_err(|e| format!("interrogation du backend échouée : {e}"))?
     .body_mut().read_json().map_err(|e| format!("réponse illisible : {e}"))?;
   let Some(report) = answer(&body, apps_file) else { return Ok(()) };
-  agent.post(format!("{url}/api/protocol")).header("x-dashboard-key", key).send_json(&report)
-    .map_err(|e| format!("envoi du statut échoué : {e}"))?;
-  Ok(())
+  // Les applications sont déjà lancées : une coupure brève ne doit pas laisser croire, 10 min plus tard, que le PC n'a rien rendu.
+  // Un refus net (4xx : protocole remplacé ou expiré) ne sera pas meilleur au 2e essai.
+  let mut last = String::new();
+  for attempt in 0..SEND_ATTEMPTS {
+    match agent.post(format!("{url}/api/protocol")).header("x-dashboard-key", key).send_json(&report) {
+      Ok(_) => return Ok(()),
+      Err(ureq::Error::StatusCode(code)) if code < 500 => return Err(format!("envoi du statut refusé ({code})")),
+      Err(e) => { last = e.to_string(); if attempt + 1 < SEND_ATTEMPTS { thread::sleep(Duration::from_secs(2)); } }
+    }
+  }
+  Err(format!("envoi du statut échoué : {last}"))
 }
 
 #[cfg(test)]
@@ -94,6 +103,14 @@ mod tests {
     let _ = fs::remove_file(apps);
     assert_eq!(results.len(), 2);
     assert!(results.iter().all(|r| r["ok"] == false));
+  }
+
+  // Vrai réseau et vrais processus, contre un backend local : lancé par scripts/protocol-e2e.ts, jamais par `cargo test` seul.
+  #[test]
+  #[ignore = "demande un backend local et lance de vrais processus"]
+  fn real_poll_against_a_local_backend() {
+    let var = |name: &str| std::env::var(name).unwrap_or_else(|_| panic!("{name} manquant"));
+    poll_once(&var("SOZA_TEST_URL"), &var("SOZA_TEST_KEY"), Path::new(&var("SOZA_TEST_APPS"))).unwrap();
   }
 
   #[cfg(windows)]
