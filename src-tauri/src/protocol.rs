@@ -1,0 +1,109 @@
+use serde_json::{json, Value};
+use std::{fs, path::Path, time::Duration};
+
+// Étapes « PC » des protocoles lancés depuis Telegram. Le PC n'est joignable de nulle part : Soza interroge le backend
+// (GET /api/protocol), exécute les étapes reçues, puis POSTe le statut de chacune.
+// agent.json (dossier de données de l'app) porte l'adresse et la clé : mêmes valeurs que VITE_API_URL et VITE_DASHBOARD_API_KEY.
+pub const POLL_SECS: u64 = 30;
+
+// Fichier absent, illisible ou à moitié rempli : pas configuré, on n'interroge rien (le BOM éventuel est ignoré).
+pub fn config(file: &Path) -> Option<(String, String)> {
+  let json: Value = serde_json::from_str(fs::read_to_string(file).ok()?.trim_start_matches('\u{feff}')).ok()?;
+  let field = |name: &str| json[name].as_str().map(str::trim).filter(|s| !s.is_empty()).map(String::from);
+  Some((field("api_url")?.trim_end_matches('/').to_string(), field("api_key")?))
+}
+
+// Une étape = un statut, jamais un enchaînement à l'aveugle. Seule l'ouverture d'une application de apps.json existe.
+fn run_steps(steps: &Value, apps_file: &Path) -> Vec<Value> {
+  steps.as_array().map(Vec::as_slice).unwrap_or_default().iter().map(|step| {
+    match (step["kind"].as_str(), step["app"].as_str()) {
+      (Some("open"), Some(app)) => {
+        let label = format!("Ouvrir {app}");
+        match crate::apps::open_by_name(app, apps_file) {
+          Ok(_) => json!({ "label": label, "ok": true }),
+          Err(why) => json!({ "label": label, "ok": false, "detail": why }),
+        }
+      }
+      _ => json!({ "label": "Étape inconnue", "ok": false, "detail": "type d'étape non pris en charge par cette version de Soza" }),
+    }
+  }).collect()
+}
+
+// Réponse du backend -> corps du POST à renvoyer, ou rien quand il n'y a pas de protocole à exécuter.
+fn answer(body: &Value, apps_file: &Path) -> Option<Value> {
+  let run = body.get("run").filter(|r| !r.is_null())?;
+  Some(json!({ "id": run["id"], "results": run_steps(&run["steps"], apps_file) }))
+}
+
+pub fn poll_once(url: &str, key: &str, apps_file: &Path) -> Result<(), String> {
+  let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(10))).build().into();
+  let body: Value = agent.get(format!("{url}/api/protocol")).header("x-dashboard-key", key).call()
+    .map_err(|e| format!("interrogation du backend échouée : {e}"))?
+    .body_mut().read_json().map_err(|e| format!("réponse illisible : {e}"))?;
+  let Some(report) = answer(&body, apps_file) else { return Ok(()) };
+  agent.post(format!("{url}/api/protocol")).header("x-dashboard-key", key).send_json(&report)
+    .map_err(|e| format!("envoi du statut échoué : {e}"))?;
+  Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn temp_file(name: &str, content: &str) -> std::path::PathBuf {
+    let file = std::env::temp_dir().join(format!("soza-test-{}-{name}.json", std::process::id()));
+    fs::write(&file, content).unwrap();
+    file
+  }
+
+  #[test]
+  fn config_needs_both_fields_and_trims_the_trailing_slash() {
+    let file = temp_file("agent", "\u{feff}{ \"api_url\": \"https://soza.test/\", \"api_key\": \"k\" }");
+    assert_eq!(config(&file), Some(("https://soza.test".into(), "k".into())));
+    fs::write(&file, r#"{ "api_url": "https://soza.test", "api_key": "" }"#).unwrap();
+    assert_eq!(config(&file), None);
+    fs::write(&file, "{ pas du json").unwrap();
+    assert_eq!(config(&file), None);
+    let _ = fs::remove_file(&file);
+    assert_eq!(config(&file), None);
+  }
+
+  #[test]
+  fn no_run_means_nothing_to_report() {
+    let apps = temp_file("apps-none", "{}");
+    assert!(answer(&json!({ "run": null }), &apps).is_none());
+    assert!(answer(&json!({}), &apps).is_none());
+    let _ = fs::remove_file(apps);
+  }
+
+  #[test]
+  fn an_app_outside_apps_json_fails_with_its_own_status() {
+    let apps = temp_file("apps-unknown", "{}");
+    let report = answer(&json!({ "run": { "id": "r1", "code": "7E3A", "steps": [{ "kind": "open", "app": "Parsec" }] } }), &apps).unwrap();
+    let _ = fs::remove_file(apps);
+    assert_eq!(report["id"], "r1");
+    assert_eq!(report["results"][0]["label"], "Ouvrir Parsec");
+    assert_eq!(report["results"][0]["ok"], false);
+    assert!(report["results"][0]["detail"].as_str().unwrap().contains("n'est pas dans apps.json"));
+  }
+
+  #[test]
+  fn an_unknown_step_kind_is_reported_not_skipped() {
+    let apps = temp_file("apps-kind", "{}");
+    let results = run_steps(&json!([{ "kind": "format-disk" }, { "kind": "open" }]), &apps);
+    let _ = fs::remove_file(apps);
+    assert_eq!(results.len(), 2);
+    assert!(results.iter().all(|r| r["ok"] == false));
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn a_listed_app_is_opened_and_a_broken_path_is_reported() {
+    let apps = temp_file("apps-real", r#"{ "qui": "C:\\Windows\\System32\\whoami.exe", "fantôme": "C:\\soza-test-absent\\absent.exe" }"#);
+    let results = run_steps(&json!([{ "kind": "open", "app": "qui" }, { "kind": "open", "app": "fantôme" }]), &apps);
+    let _ = fs::remove_file(apps);
+    assert_eq!(results[0]["ok"], true);
+    assert_eq!(results[1]["ok"], false);
+    assert!(results[1]["detail"].as_str().unwrap().contains("Impossible de lancer"));
+  }
+}

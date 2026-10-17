@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis";
 import { daysBetween, todayInParis } from "./date";
+import type { ProtocolRun } from "./types";
 
 const redis = Redis.fromEnv();
 
@@ -56,4 +57,20 @@ export async function clearBreak() {
 
 export function inBreak(brk: Break | null, day: string): boolean {
   return !!brk && day >= brk.start && day <= brk.end;
+}
+
+// Protocole en cours (un seul à la fois), interrogé par l'app Soza du PC toutes les ~30 s.
+const RUN_KEY = "protocol:run";
+const RUN_TTL_SECONDS = 15 * 60;
+
+export async function saveProtocolRun(run: ProtocolRun) {
+  await redis.set(RUN_KEY, run, { ex: RUN_TTL_SECONDS });
+}
+
+export async function getProtocolRun(): Promise<ProtocolRun | null> {
+  return (await redis.get<ProtocolRun>(RUN_KEY)) ?? null;
+}
+
+export async function clearProtocolRun() {
+  await redis.del(RUN_KEY);
 }

@@ -8,7 +8,7 @@ Journal d'avancement de la V2, mis à jour à chaque étape. Trois fichiers, tro
 | **`STATUS-V2.md`** (ce fichier) | **Où en est la V2** : ce qui est fait, mesuré, vérifié ou pas, et la suite. |
 | `STATUS.md` | État de la V1 (livrée le 09/10/2026) et historique détaillé. Les travaux de la V2 s'écrivent ici, pas là-bas. |
 
-Dernière mise à jour : 15/10/2026, étape 7 faite côté code. **Prochaine étape : 8** (moteur de protocoles).
+Dernière mise à jour : 17/10/2026, étape 7 validée en réel par l'utilisateur, étape 8 commencée (moteur + 7E3A, branche `v2-etape-8`).
 
 ## Règles de travail (décidées avec l'utilisateur)
 
@@ -28,8 +28,8 @@ Dernière mise à jour : 15/10/2026, étape 7 faite côté code. **Prochaine ét
 | 4 | Lancer/fermer une app nommée + fichier de config local | **Fait** (validée par l'utilisateur dans l'app installée) | #18 |
 | 5 | Recherche rapide parlée | **Fait côté Telegram** (essayé sur le vrai Groq, pas encore sur le vrai Telegram) | |
 | 6 | Musique, volume système, batterie de la souris | **Fait, via `Ctrl+K`** (essayé sur la vraie machine, y compris la recherche d'un morceau par son nom) | |
-| 7 | Plusieurs projets en parallèle | **Fait côté code** (testé avec un faux Notion ; pas encore vu sur un vrai brief) | |
-| 8 | Moteur de protocoles (2B, 7E3A, 6H9K) | À faire | |
+| 7 | Plusieurs projets en parallèle | **Fait** (17/10/2026 : l'utilisateur confirme que `record_progress`, le briefing Telegram et les jalons fonctionnent en réel) | #22 |
+| 8 | Moteur de protocoles (2B, 7E3A, 6H9K) | **En cours** : moteur, déclencheur strict et 7E3A faits côté code (testés avec faux Redis/Telegram), `apps.json` rempli ; 2B et 6H9K sans étapes ; essai réel à faire | |
 | 9 | Voix : mot d'activation, reconnaissance et synthèse vocale, ruban réactif | À faire | |
 | 10 | Agent résident en arrière-plan et widget animé | À faire | |
 | 11 | « Qu'est-ce que je regarde ? » | À faire | |
@@ -118,6 +118,18 @@ Les étapes 4 à 6 sont décrites comme déclenchées à la voix, mais l'écoute
 - **Vérifié sur le vrai Notion (lecture seule)** : la requête `getProjectsInProgress` est acceptée et rend 1 projet (« Soza ») ; aucun jalon ouvert à ce moment, donc **le chemin « un jalon par projet » n'a pas été vu sur des données réelles**, seulement avec le faux Notion (dont la relation « Idée liée » : l'égalité entre l'id de la relation et l'id de la page n'est pas contrôlée en réel).
 - **Non vérifié** : un vrai briefing envoyé sur Telegram avec plusieurs projets (la batterie a essayé le vrai modèle, mais sur des données simulées) ; un vrai `record_progress` qui écrit dans Notion ; l'égalité entre l'id d'une relation « Idée liée » et l'id de la page sur de vraies données (le vrai Notion n'a qu'un jalon, non lié : en réel, le soir retombe donc sur le prochain jalon global) ; le backend n'est pas redéployé.
 - **Limites** : le nom écrit dans le bilan est celui que le modèle a recopié, pas forcément le titre exact de l'idée ; le texte du bilan fait partie du même bloc Notion de 2000 caractères maximum (inchangé) ; une idée « En cours » dont le jalon n'a pas d'« Idée liée » n'apparaît pas dans la ligne par projet. Aucun plafond du nombre de projets « En cours » ; aucun projet « du jour » mis en avant (non demandé).
+
+### Étape 8 : moteur de protocoles (17/10/2026, en cours)
+
+- **Décisions de l'utilisateur** : le PC va chercher ses étapes (il interroge Redis via le backend, aucun port ouvert) ; **allumage du PC écarté (17/10/2026)** : l'utilisateur le démarre lui-même avec l'application du plug depuis son téléphone, donc ni Meross, ni Wake-on-LAN, ni relais dans Soza ; premier lot = moteur + déclencheur strict + 7E3A.
+- **Déclenchement** : `readProtocolCommand` (`lib/protocols.ts`) exige le message entier « Protocole <code> » (casse et ponctuation finale tolérées) et seulement pour un code connu ; le worker QStash l'exécute avant le modèle, jamais dans le webhook. Une phrase libre qui contient « protocole » reste au modèle.
+- **Déroulé** : « Lancement du protocole 7E3A. » -> le protocole est mis en attente dans Redis (`protocol:run`, 15 min) -> l'app Soza du PC l'attrape (`GET /api/protocol`, toutes les 30 s, clé du dashboard ; si le PC est éteint, elle le prendra au démarrage de Windows), exécute chaque étape et renvoie son statut (`POST /api/protocol`) -> message de fin sur Telegram : « Protocole 7E3A terminé. » ou la liste des étapes en échec avec leur raison. Remis **une seule fois** au PC (pas de double lancement).
+- **Délai** : un job QStash différé de 10 min prévient sur Telegram si le PC n'a jamais répondu, ou s'il a pris le protocole sans rendre de statut.
+- **Côté PC** (`src-tauri/src/protocol.rs`) : fichier `agent.json` (`api_url`, `api_key`, mêmes valeurs que `VITE_API_URL` et `VITE_DASHBOARD_API_KEY`), créé vide au premier lancement, relu à chaque tour. Une seule étape existe : `open` d'une application de `apps.json` (la liste blanche reste locale : le backend ne donne jamais de chemin). Une étape inconnue ou une application absente de `apps.json` est rapportée en échec, pas ignorée.
+- **7E3A** = ouvrir `parsec` puis `code` : `parsec` et `code` ont été ajoutés à `apps.json` le 17/10/2026 (`C:\Program Files\Parsec\parsecd.exe` et `…\Programs\Microsoft VS Code\Code.exe`, chemins vérifiés présents). Le « mode travail » n'a pas de définition dans la spécification : non implémenté. 2B et 6H9K sont reconnus mais répondent qu'ils n'ont pas encore d'étapes.
+- **Tests** : `tests/integration/protocol.test.ts` (déclencheur strict, remise unique, statuts, 401/400/404, délai) et 5 tests Rust dans `protocol.rs`. `npm test` : 318 tests ; `test:rust` : 23 ; `tsc --noEmit` propre.
+- **Non vérifié** : tout ce qui touche au vrai PC et au vrai Telegram (boucle Rust contre le vrai backend, lancement réel de Parsec et VS Code), le backend n'étant pas redéployé. **Coût Redis** : l'app interroge toutes les 30 s (1 lecture) soit environ 2 900 commandes par jour ; à surveiller sur le palier gratuit d'Upstash.
+- **Limites** : un seul protocole en cours à la fois (un nouveau remplace l'ancien) ; l'ouverture est jugée réussie quand le processus démarre, sans vérifier que la fenêtre est apparue ; le protocole commencé avec un PC éteint n'est repris que quand Soza démarre avec Windows (clé de démarrage automatique de l'app installée).
 
 ## Tests (état à la fin de l'étape 4)
 

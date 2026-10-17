@@ -49,8 +49,8 @@ Un protocole est une **séquence nommée d'actions** (lancer une app, en fermer 
 - Détection **stricte** sur Telegram (phrase-clé exacte, ex. "Protocole 2B", pas une recherche de mot-clé dans une phrase libre) — même principe que l'ancienne commande `/mode actif|pause` (regex ancrée qui court-circuitait le LLM). **Cette commande a disparu avec `lib/modes.ts` le 07/10/2026** : le mécanisme est à réintroduire (le webhook passe aujourd'hui tout message texte au worker et au modèle), pas à « étendre ».
 - Rendu : une phrase de début ("Lancement du protocole 2B") puis une phrase de fin une fois toutes les étapes terminées — pas de message par étape intermédiaire. Phrase de fin : générique si tout a réussi, détail de ce qui a échoué (quelle étape, pourquoi) sinon — implique que chaque étape vérifie et remonte son propre statut, pas juste un enchaînement de commandes lancées à l'aveugle.
 
-**Protocole 2B** : lancement du PC via l'API communautaire Meross (sinon on saute à l'étape suivante), puis lancement de Sunshine + Playnite + si possible Parsec, pour jouer à distance depuis la Ayn Thor. Points ouverts :
-- Wake-on-LAN vs coupure/reprise secteur brute via le plug Meross — comportement différent selon que le PC était éteint ou en veille, à clarifier avant d'implémenter.
+**Protocole 2B** : lancement du PC (**décidé le 17/10/2026 : démarré à la main par l'application du plug, plus par Soza**), puis lancement de Sunshine + Playnite + si possible Parsec, pour jouer à distance depuis la Ayn Thor. Points ouverts :
+- ~~Wake-on-LAN vs coupure secteur~~ : **sans objet (17/10/2026)**, le PC est démarré à la main avec l'application du plug.
 - Doit être déclenché via Telegram, pas en local : si le PC est éteint, son micro l'est aussi.
 
 **Protocole 7E3A** : lancement du PC + "mode travail" + VS Code ouvert, pour travailler à distance depuis le téléphone ou la Ayn Thor via Parsec. Même mécanisme de détection/rendu que 2B. Nom "mode travail" conservé tel quel. Parsec est donc une **dépendance partagée** entre 2B (jeu à distance) et 7E3A (travail à distance), pas spécifique à un seul protocole — encore un argument pour le moteur générique.
@@ -162,7 +162,7 @@ Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Ca
 - [x] 5. Recherche rapide parlée (chantier 3, fonction 2) — **fait le 14/10/2026 côté Telegram** : recherche intégrée de Groq, réponse courte lisible à voix haute (voir `STATUS-V2.md`) ; barre `Ctrl+K` et voix pas branchées
 - [x] 6. Musique, volume système, batterie de la souris (chantier 3) — **fait le 15/10/2026 via `Ctrl+K`** : volume (Core Audio), musique (commandes multimédia de Windows), batterie (HID++ Logitech, lue 34 %) ; « mets de la musique » lance Spotify, « mets <titre> » cherche et lance le morceau (essayé avec les vrais identifiants Spotify, voir `STATUS-V2.md`)
 - [x] 7. Plusieurs projets en parallèle (chantier 7) — **fait le 15/10/2026** : la limite n'existait déjà plus dans le code ; le bilan reçoit les projets travaillés (texte, sans colonne Notion), le soir donne le prochain jalon de chaque projet en cours, le matin les cite (voir `STATUS-V2.md`)
-- [ ] 8. Moteur de protocoles : 2B, 7E3A, 6H9K (chantier 2)
+- [ ] 8. Moteur de protocoles : 2B, 7E3A, 6H9K (chantier 2) — **commencé le 17/10/2026** : moteur, déclencheur strict et 7E3A faits côté code ; restent 2B, 6H9K (étapes non définies) et l'essai réel ; allumage du PC écarté (démarré à la main par l'application du plug) (voir `STATUS-V2.md`)
 - [ ] 9. Voix : mot d'activation, reconnaissance vocale, synthèse vocale, ruban réactif à l'audio (chantier 3)
 - [ ] 10. Agent résident en arrière-plan et widget animé (chantier 5)
 - [ ] 11. « Qu'est-ce que je regarde ? » (chantier 3, fonction 3)
