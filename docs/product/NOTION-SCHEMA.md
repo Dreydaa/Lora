@@ -22,4 +22,4 @@ Propriétés lues ou écrites par le code (`lib/notion/*.ts`, état du 12/10/202
 
 - **Statut d'une idée** : `Terminé` = projet fini (outil `complete_project`), `Archivée` = abandonné. Le compteur « Finis » du dashboard ne compte que les `Terminé`.
 - **Catégorie** : 15 options, les mêmes noms que les pastilles de logos (`CATEGORIES` dans `lib/types.ts`). Le code la lit et elle prime sur la détection par mots-clés ; `Autre` veut dire « pas de logo ». Les outils `create_idea`, `add_agenda_item` et `create_milestone` l'écrivent. Les 52 idées existantes ont une catégorie ; les entrées d'Agenda et de Jalons créées avant le 12/10/2026 n'en ont pas.
-- **Non vérifié** : les écritures réelles de `Terminé` et de `Catégorie` dans Notion. Les tests simulent Notion et `npm run test:live` ne les couvre pas.
+- **Vérifié le 13/10/2026** : `Catégorie` écrite puis relue sur le vrai Notion dans Idées, Agenda et Jalons ; `npm run test:live` a donné 48/48 après l'ajout du statut `Terminé` dans la base Idées (à refaire si la base est recréée). Le script `test:live` ne couvre pas `Catégorie` (test ponctuel).
