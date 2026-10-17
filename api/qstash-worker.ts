@@ -1,6 +1,7 @@
 import { Receiver } from "@upstash/qstash";
 import { askSoza } from "../lib/ai/client";
 import { sendTelegram } from "../lib/integrations/telegram";
+import { expireProtocol, readProtocolCommand, startProtocol } from "../lib/protocols";
 import { readWorkerJob } from "../lib/validation";
 
 export const config = {
@@ -27,6 +28,17 @@ export default async function handler(request: Request) {
 
     const job = readWorkerJob(JSON.parse(rawBody));
     if (!job) return new Response("Invalid job", { status: 400 });
+
+    // Les protocoles court-circuitent le modèle : phrase exacte, comportement déterministe.
+    if (job.protocolTimeout) {
+      await expireProtocol(job.protocolTimeout);
+      return Response.json({ ok: true });
+    }
+    const protocol = readProtocolCommand(job.text);
+    if (protocol) {
+      await startProtocol(job.chatId, protocol);
+      return Response.json({ ok: true });
+    }
 
     const result = await askSoza(job.chatId, job.text);
     await sendTelegram(job.chatId, result.text);
