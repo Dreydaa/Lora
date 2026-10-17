@@ -23,7 +23,7 @@ L'état d'avancement détaillé et daté vit dans [`docs/ai/STATUS.md`](../ai/ST
 - il envoie un **briefing le matin** (météo, agenda, bilan de la veille) et demande un **bilan le soir**, à des horaires modifiables en conversation ;
 - une **application de bureau** (Tauri + React) affiche tout cela dans un tableau de bord en « verre liquide » devant un ruban de Möbius en particules animé en temps réel.
 
-**Statut.** Backend en production et utilisé au quotidien. L'application de bureau a un installeur Windows, mesure le temps d'écran réel et ouvre sur l'intro en particules puis le dashboard en verre ; 305 tests couvrent le projet (281 rapides rejoués le 12/10/2026). **La V1 est terminée (déclarée le 09/10/2026).** Quatre étapes de finition ont suivi le 12/10 : tests de cadence corrigés, statut « Terminé » et catégorie Notion lus par le code, pause de plusieurs jours visible dans le dashboard, et lag du dashboard mesuré puis supprimé (réfraction du verre coupée : ~120 % → ~30 % d'un cœur, 20 → 60 images/s). Le démarrage automatique réel, la zone de notification et le premier texte des briefings restent à observer à l'usage (voir le [bilan de la V1](#bilan-de-la-v1)). Une V2 (assistant vocal local, protocoles, gestes) est cadrée en 13 étapes ; les étapes 0 à 3 (finition) sont faites, la suite (étapes 4 à 12) n'est pas commencée.
+**Statut.** Backend en production et utilisé au quotidien. L'application de bureau a un installeur Windows, mesure le temps d'écran réel et ouvre sur l'intro en particules puis le dashboard en verre ; 362 tests couvrent le projet (318 rapides rejoués le 17/10/2026). **La V1 est terminée (déclarée le 09/10/2026).** Quatre étapes de finition ont suivi le 12/10 : tests de cadence corrigés, statut « Terminé » et catégorie Notion lus par le code, pause de plusieurs jours visible dans le dashboard, et lag du dashboard mesuré puis supprimé (réfraction du verre coupée : ~120 % → ~30 % d'un cœur, 20 → 60 images/s). Le démarrage automatique réel, la zone de notification et le premier texte des briefings restent à observer à l'usage (voir le [bilan de la V1](#bilan-de-la-v1)). La V2 (assistant vocal local, protocoles, gestes), cadrée en 13 étapes, a ensuite avancé du 13 au 17/10 : ouvrir et fermer des applications depuis une barre `Ctrl+K`, recherche web de Soza, volume / musique / batterie de la souris, plusieurs projets en parallèle, et un moteur de protocoles avec un premier protocole. Les étapes 9 à 12 (voix, agent résident et widget, « qu'est-ce que je regarde ? », gestes de la main) ne sont pas commencées ; l'essai réel d'un protocole sur le PC n'est pas fait.
 
 **Un cadrage qui a évolué.** Soza est née comme un coach de discipline à deux personnalités (une exigeante, une protectrice, selon les horaires de travail). Le 07/10, l'utilisateur tenant sa cadence de travail, ce cadrage a été abandonné : une seule personnalité (« Friday »), plus de mode ACTIF/PAUSE, le produit se rapprochant d'un assistant du type Jarvis/FRIDAY. Le retrait a touché le backend (modes, prompts, outils, accès Notion, briefing, API du dashboard), les scripts et le front.
 
@@ -31,12 +31,12 @@ L'état d'avancement détaillé et daté vit dans [`docs/ai/STATUS.md`](../ai/ST
 
 | | |
 | --- | --- |
-| Durée | 3 semaines de V1 (premier commit le 16/09/2026, clôture le 09/10/2026), puis 4 étapes de finition jusqu'au 12/10/2026 |
-| Historique | 73 commits à la clôture, 87 sur `main` au 12/10/2026 |
+| Durée | 3 semaines de V1 (premier commit le 16/09/2026, clôture le 09/10/2026), puis la V2 : étapes 0 à 8 du 12 au 17/10/2026 |
+| Historique | 73 commits à la clôture, 108 sur `main` au 17/10/2026 (23 pull requests) |
 | Code suivi par git | ~5 070 lignes de TypeScript/CSS/Rust : `api/` 167, `lib/` 1 165, `src/` 3 135, `scripts/` 440, Rust 166 ; plus 2 152 lignes de tests |
-| Tests | 305 : 281 rapides (unitaires, intégration, régression — rejoués le 12/10, moins d'une seconde), 21 scénarios dans un vrai navigateur (tous verts à l'étape 3, 12/10 ; 2 échouaient à la clôture, corrigés à l'étape 0), 3 en Rust (non rejoués le 12/10) |
-| Endpoints serverless | 5 (webhook Telegram, worker, cron matin, cron soir, dashboard) |
-| Outils IA exposés au modèle | 13 |
+| Tests | 362 : 318 rapides (unitaires, intégration, régression — rejoués le 17/10, moins d'une seconde), 21 scénarios dans un vrai navigateur (dernier passage 21/21 consigné à l'étape 6, 15/10 ; 2 échouaient à la clôture, corrigés à l'étape 0), 23 en Rust (rejoués le 17/10) plus 3 essais réels ignorés par défaut |
+| Endpoints serverless | 6 (webhook Telegram, worker, cron matin, cron soir, dashboard, protocole) |
+| Outils IA exposés au modèle | 13, plus la recherche web intégrée de Groq (fournie par le fournisseur, pas définie dans le code) |
 | Bases Notion | 5 (Idées, Agenda, Jalons, Progression, Réglages) |
 | Fournisseur LLM | 1 (Groq) — un second a été essayé puis retiré |
 | Dépendances d'exécution | 13 (5 inutilisées retirées le 08/10), dont `three`, `zod`, `ai` (Vercel AI SDK), `@upstash/*`, `@notionhq/client` |
@@ -48,7 +48,7 @@ Chiffres tirés de `git log` et du dépôt au 09/10/2026. Pour ce document, les 
 - **Architecture serverless asynchrone** : file de jobs, webhooks, crons pilotables par API, reprise sur échec.
 - **Intégration de LLM en production** : appel d'outils (tool calling) avec validation de schéma, conception de prompts, gestion des intentions ambiguës, mémoire de conversation, repli quand le modèle est indisponible.
 - **Fiabilité** : fuseaux horaires, dérives de configuration entre environnements, bugs silencieux, repli quand un backend est plus ancien que l'app.
-- **Qualité logicielle** : 305 tests en quatre familles (unitaire, intégration, régression par famille de bugs, acceptation dans un vrai navigateur) plus Rust ; tests qui n'utilisent jamais de vrais services ; un test de régression vérifié en réintroduisant le bug.
+- **Qualité logicielle** : 362 tests en quatre familles (unitaire, intégration, régression par famille de bugs, acceptation dans un vrai navigateur) plus Rust ; tests qui n'utilisent jamais de vrais services ; un test de régression vérifié en réintroduisant le bug.
 - **Rust et application de bureau** : thread de suivi du temps d'écran, zone de notification, démarrage automatique, installeur, réduction de 33 % de l'exécutable.
 - **Front et graphisme temps réel** : React/Vite/Tauri, WebGL avec three.js, shaders GLSL, filtres SVG, CSS Grid animée.
 - **Jugement produit** : fonctionnalités retirées volontairement plutôt que conservées par inertie, limites documentées plutôt que cachées.
@@ -70,14 +70,15 @@ Chiffres tirés de `git log` et du dépôt au 09/10/2026. Pour ce document, les 
 | 08/10 | **Une application qui s'installe, qui mesure et qui se teste** | Le bloc « Écran » devient réel : un thread Rust mesure l'application au premier plan (données gardées sur la machine) et le détail s'ouvre au clic ; démarrage automatique avec Windows et zone de notification ; installeur Windows ; le briefing du soir est rédigé par Soza ; les colonnes Notion obsolètes sont supprimées et les 52 idées reçoivent une catégorie ; 286 tests ; passe d'optimisation mesurée (exécutable −33 %, 5 dépendances en moins, requêtes Notion des crons réduites) ; la fusion de la PR sur `main` met le tout en production. |
 | 09/10 | **Fin de la V1** | Le ruban passe à 60 images/s (30 donnait une animation saccadée dans l'app installée), la barre de titre Windows 11 prend la couleur du fond, les surnoms de Soza sont variés (le prompt disait « Boss » par défaut), l'installeur est reconstruit et lancé, un déploiement de production suit la dernière fusion, et l'utilisateur déclare la V1 terminée. |
 | 12/10 | **Quatre étapes de finition** | Étape 0 : les 2 tests de cadence lisent `REST_FPS` au lieu d'un 30 en dur. Étape 1 : statut « Terminé » pour les idées, catégorie Notion lue par le code (prioritaire sur les mots-clés pour les logos), noms et logos pour les applications inconnues du temps d'écran. Étape 2 : la pause de plusieurs jours s'affiche dans le dashboard. Étape 3 : la cause du lag est mesurée dans l'app installée (le filtre de réfraction du verre), puis la réfraction est coupée sur décision de l'utilisateur. PR #12 à #15. |
-| à partir de 30/09 | **V2 cadrée** | Assistant vocal local, protocoles, puis (06/10) gestes de la main : documenté, pas démarré. Le premier chantier (personnalité unique) a été fait le 07/10, en fin de V1 ; la V2 a démarré le 12/10 par les étapes de finition ci-dessus (avancement : `STATUS-V2.md`). |
+| 13 → 17/10 | **V2 : étapes 4 à 8** | Étape 4 : ouvrir et fermer une application nommée depuis une barre `Ctrl+K`, avec une liste blanche locale (`apps.json`) et une fermeture douce. Étape 5 : recherche web de Soza (Groq), avec repli sans recherche si l'outil échoue. Étape 6 : volume (Core Audio), musique (commandes multimédia de Windows, Spotify par nom de morceau), batterie de la souris (protocole propriétaire du fabricant). Étape 7 : plusieurs projets « En cours » en parallèle (bilan, briefings du matin et du soir). Étape 8 : moteur de protocoles (déclencheur strict, le PC vient chercher ses étapes), avec un premier protocole. Entre-temps : surnoms tirés par le code (14/10) et correctif du « demain » recopié du bilan (13/10). PR #17 à #23. |
+| à partir de 30/09 | **V2 cadrée** | Assistant vocal local, protocoles, puis (06/10) gestes de la main : documenté, pas démarré. Le premier chantier (personnalité unique) a été fait le 07/10, en fin de V1 ; la V2 a démarré le 12/10 (étapes 0 à 8 faites au 17/10, la 8 côté code seulement ; avancement : `STATUS-V2.md`). |
 
 ---
 
 ## Architecture
 
 ```
-Telegram ──▶ api/telegram-webhook.ts ──▶ QStash (file) ──▶ api/qstash-worker.ts ──▶ Groq (LLM + 13 outils) ──▶ Notion
+Telegram ──▶ api/telegram-webhook.ts ──▶ QStash (file) ──▶ api/qstash-worker.ts ──▶ Groq (LLM + 13 outils + recherche web) ──▶ Notion
                     │                                              │
                     ▼                                              ▼
              valide chat_id                                  répond sur Telegram
@@ -132,6 +133,12 @@ Le modèle ne « répond » pas seulement : il agit, via 13 outils (créer une i
 **Le briefing : faits en code, rédaction par le modèle.** Voir l'étude de cas dans [Bugs et causes racines](#bugs-et-causes-racines). Si le modèle est indisponible (quota, panne), un briefing basique est envoyé plutôt que de faire échouer le cron.
 
 **Le briefing du soir, avec ses garde-fous (08/10).** Le soir aussi, Soza rédige : la journée (tâches faites sur le total), le prochain jalon, l'agenda des 7 jours, puis la question du bilan. Les faits sont calculés dans le code, et le prompt interdit d'inventer du travail ou de conclure qu'une journée est improductive parce que l'agenda est vide. Si le texte ne contient pas le mot « bilan », une question de bilan est ajoutée, car le briefing du matin en dépend ; si le modèle est indisponible, la phrase fixe d'origine part quand même. Une version courte (deux à trois phrases) est gardée pour le dashboard.
+
+**Plusieurs projets en parallèle (15/10).** Le bilan reçoit la liste des projets sur lesquels l'utilisateur a avancé (`projectsWorkedOn`), écrite en tête du texte du bilan : aucune colonne Notion à ajouter, le briefing du matin relit le texte tel quel. Les noms sont rapprochés des vrais titres côté code, car le modèle ne les connaît pas exactement (« le portfolio » pour « Portfolio web »). Le briefing du soir donne le prochain jalon de chaque projet en cours (trois au maximum). Une batterie contre le vrai modèle a trouvé un défaut que les tests simulés ne voyaient pas : avec le champ nommé `projects`, le modèle l'omettait une fois sur deux ; renommé `projectsWorkedOn` avec une consigne plus précise, il l'a renseigné six fois sur six. Défaut résiduel, non corrigé : sur un projet explicitement « pas touché », il le liste encore une fois sur trois.
+
+**Recherche web (14/10).** Le modèle dispose de la recherche intégrée de Groq et décide seul de s'en servir, pour une question extérieure ou récente seulement ; la réponse doit pouvoir être lue à voix haute (deux ou trois phrases, ni liste ni lien), et les marques de citation que la recherche ajoute sont retirées dans le code. Deux faits mesurés sur le vrai service : une recherche coûte 19 000 à 41 000 jetons d'entrée contre environ 3 700 sans, et le quota quotidien (200 000 jetons) est partagé avec les briefings. L'outil de recherche est parfois rejeté par Groq, ce qui laissait Telegram sans réponse, d'où un repli : un second essai sans la recherche, qui n'a lieu que si aucun outil d'écriture n'a déjà tourné, pour ne jamais écrire deux fois.
+
+**Des actions réelles sur le PC, bornées (13 → 17/10).** Rien n'est exécuté depuis une phrase libre : la barre `Ctrl+K` ne lance que les applications d'une liste blanche locale, et la fermeture est douce (l'application peut proposer d'enregistrer). Un protocole sur Telegram n'est reconnu que si le message entier est `Protocole <code>` avec un code connu, et c'est le worker qui l'exécute, jamais le modèle ni le webhook. Le backend ne donne jamais de chemin : il décrit des étapes (`ouvrir <application>`), le PC les résout avec sa propre liste. Un job différé prévient sur Telegram si le PC ne répond pas, au lieu du silence.
 
 ---
 
@@ -216,7 +223,7 @@ Le ruban avait été plafonné à 30 images/s au repos pour économiser le CPU (
 **Effet de bord, à la clôture** : deux tests d'acceptation figeaient la valeur de 30 images/s et échouaient depuis le passage à 60 (125 images en 2 s mesurées, moins de 75 attendues). Le code était juste, les attentes périmées ; corrigé le 12/10 (étape 0) : les tests lisent `REST_FPS`. Limite : à 60 images/s le plafond ne se distingue plus de l'absence de plafond sur l'horloge simulée, ces tests ne gardent que le plafond haut. *Leçon : un test qui recopie la valeur d'un réglage au lieu de la lire casse à chaque changement du réglage.*
 
 **15. Un prompt qui impose un mot par défaut le répète partout.**
-Le prompt de personnalité donnait « Boss » comme appellation par défaut, et ses exemples commençaient par ce mot. Correction : trois surnoms alternés, jamais le même deux messages de suite, et pas de surnom dans la plupart des messages (un seul, pour saluer, marquer une remarque ou adoucir un rappel) ; la question de repli du briefing du soir n'a plus de surnom en dur. Non vérifié : le texte réel du modèle (seul le contenu du prompt est testé). *Leçon : une valeur « par défaut » écrite dans un prompt tend à devenir un tic ; mieux vaut décrire quand l'employer.*
+Le prompt de personnalité donnait « Boss » comme appellation par défaut, et ses exemples commençaient par ce mot. Correction : trois surnoms alternés, jamais le même deux messages de suite, et pas de surnom dans la plupart des messages (un seul, pour saluer, marquer une remarque ou adoucir un rappel) ; la question de repli du briefing du soir n'a plus de surnom en dur. **Suite, 14/10** : la règle « jamais le même deux fois de suite » ne tenait pas, car le modèle n'a aucune mémoire d'un appel à l'autre et retombait sur « patron ». Le code tire désormais au hasard Boss, patron ou chef pour les briefings du matin et du soir et le donne au modèle ; le prompt interdit tout surnom ailleurs. Non vérifié : le texte réel du modèle (seul le contenu du prompt est testé). *Leçon : une valeur « par défaut » écrite dans un prompt tend à devenir un tic ; mieux vaut décrire quand l'employer. Et une règle qui suppose une mémoire que le modèle n'a pas se déplace dans le code.*
 
 ---
 
@@ -261,7 +268,7 @@ Captures et mesures automatisées (Playwright, rendu logiciel), puis **dans la v
 ## Qualité, tests, sécurité
 
 ### Tests
-305 tests en quatre familles plus du Rust, ajoutés surtout le 08/10, en fin de V1 (281 rapides rejoués le 12/10) :
+362 tests en quatre familles plus du Rust, ajoutés surtout le 08/10, en fin de V1, puis à chaque étape de la V2 (318 rapides et 23 en Rust rejoués le 17/10) :
 
 | Famille | Ce qu'elle couvre | Rapidité |
 | --- | --- | --- |
@@ -269,17 +276,18 @@ Captures et mesures automatisées (Playwright, rendu logiciel), puis **dans la v
 | **Intégration** | webhook Telegram (secret, `chat_id`, publication dans la file), worker (signature, réponse), crons du matin et du soir, `/api/dashboard` : le vrai code tourne de bout en bout, seuls Notion, Redis, Telegram, Groq et le réseau sont simulés | instantané |
 | **Régression** | un fichier par **famille de bugs déjà corrigés** : paramètres `null` de Groq, fuseau horaire, bilan périmé et rappels d'agenda, URL de livraison QStash, garde-fous fermés par défaut, requêtes Notion, champs retirés du payload, plafonds de requêtes des crons | instantané |
 | **Acceptation** | 21 scénarios utilisateur dans un vrai navigateur (Playwright) : dashboard complet, briefings, détail Écran, bascule Écran ↔ Jalons, liens, calendrier, backend en panne ou clé refusée, intro | ~2 min |
-| **Rust** | 3 tests | — |
+| **Rust** | 23 tests (plus 3 essais réels ignorés par défaut) : reconnaissance des commandes, liste blanche des applications, volume, musique, protocole ; l'un lance et ferme un vrai processus Windows | instantané |
 
 Principes qui valent d'être retenus :
 - **Aucun test n'utilise le `.env` ni un vrai service** : variables factices, et tout appel réseau non prévu fait échouer le test. Un seul script, lancé à la main, appelle les vraies APIs (`test:live`, la suite historique, 37 vérifications au 30/09, qui avait elle-même remplacé dix scripts ad hoc).
 - **Un test de régression se vérifie en réintroduisant le bug** : l'un des tests d'acceptation a été validé en remettant l'ancien code, sur lequel il échoue bien. Un test qui ne peut pas échouer ne protège de rien.
 - **Les bugs sont rangés par famille**, pas par date : chaque bug du chapitre précédent a son garde-fou.
-- Les 281 tests rapides tournent en moins d'une seconde ; la vérification de types stricte (`tsc --noEmit`) accompagne chaque étape.
+- Les 318 tests rapides tournent en moins d'une seconde ; la vérification de types stricte (`tsc --noEmit`) accompagne chaque étape.
 
 ### Sécurité
 - **Trois barrières successives sur le webhook Telegram** : la méthode doit être POST, un secret partagé doit figurer dans l'en-tête (`x-telegram-bot-api-secret-token`), puis le `chat_id` doit être celui de l'utilisateur autorisé. Un message d'un autre utilisateur reçoit une réponse « ignoré » sans aucune action ni erreur révélatrice. Le corps de la requête est aussi validé par un schéma Zod avant d'être utilisé.
 - Les crons exigent une signature QStash valide, ou un secret en `Bearer` pour un déclenchement manuel.
+- L'endpoint du protocole (`api/protocol.ts`, que le PC interroge) est protégé par la même clé que le dashboard, remet un protocole une seule fois et borne ce qu'il accepte en retour (au plus 20 résultats d'étapes, textes tronqués).
 - L'endpoint du dashboard est protégé par une clé. **Compromis assumé** : cette clé est embarquée dans le build de l'application, ce qui est acceptable en usage mono-utilisateur mais ne le serait pas pour un produit public.
 - **Application de bureau** : politique de sécurité de contenu (CSP) stricte en production, limitée à l'application, à l'API de production, au service météo et à la communication interne de Tauri ; un appel vers un autre site est bloqué (vérifié). L'ouverture de liens est une permission explicite, limitée à `https://`.
 
@@ -295,12 +303,15 @@ Les relecteurs expérimentés y regarderont en premier ; autant les dire.
 - **Des zones non testées automatiquement** : le suivi réel de la fenêtre active (il dépend du système d'exploitation), le rendu visuel du verre et des particules (WebGL logiciel), le menu de la zone de notification et le démarrage automatique (visibles seulement dans l'app installée).
 - **Le texte produit par le modèle n'est pas testé automatiquement** : seul le contexte qui lui est envoyé l'est. La qualité de rédaction se juge à l'usage.
 - **Pas de limitation de débit** au-delà du filtre `chat_id` : risque faible en usage à un utilisateur, à traiter si le bot devient accessible à d'autres.
-- **Un seul projet « En cours » à la fois** : limite choisie pour la simplicité, documentée plutôt que contournée.
+- **Plusieurs projets « En cours » sans plafond** (depuis le 15/10) : la limite d'un seul projet à la fois n'existait déjà plus dans le code ; le briefing du soir n'en cite que trois, et le bilan reste un texte unique (limite Notion de 2 000 caractères par bloc).
 - **Dépendance à des services tiers gratuits** (Vercel, QStash, Upstash, Notion, Groq) avec leurs quotas.
 - **Détection des icônes par mots-clés** : fragile par construction. Depuis le 12/10 la colonne « Catégorie » de Notion est lue et prioritaire, mais les entrées d'Agenda et de Jalons créées avant cette date n'en ont pas : elles restent devinées par mots-clés.
-- **L'installeur existe mais n'a été ni lancé ni installé** : démarrage automatique, zone de notification et suivi du temps d'écran restent à valider dans l'app installée, et la fluidité n'est mesurée que sur une session courte (~30 % d'un cœur avec la réfraction coupée) : le CPU sur la durée et quand la fenêtre est masquée n'est pas observé. L'app installée est celle du 09/10 tant que l'installeur du 12/10 n'est pas lancé.
+- **Des vérifications restent à faire dans l'app installée** : démarrage automatique, zone de notification et suivi du temps d'écran restent à valider dans l'app installée, et la fluidité n'est mesurée que sur une session courte (~30 % d'un cœur avec la réfraction coupée) : le CPU sur la durée et quand la fenêtre est masquée n'est pas observé. L'app installée est celle de l'installeur du 13/10, essayée par l'utilisateur pour l'étape 4.
 - **Le suivi du temps d'écran ne mesure que Windows et que l'application Tauri** (dans un navigateur le bloc affiche « — »), et seulement tant que Soza tourne.
 - **À la clôture, la suite de tests n'était pas entièrement verte** : 2 des 20 scénarios d'acceptation échouaient (cadence du rendu figée à l'ancienne valeur de 30 images/s, voir le bug 14). Corrigé le 12/10.
+- **Recherche web : quota et fiabilité** : le palier gratuit de Groq limite à 200 000 jetons par jour et 8 000 par minute, partagés avec les briefings ; une batterie complète en consomme l'essentiel. La latence réelle n'est pas établie et la météo donnée par la recherche était probablement fausse dans un essai.
+- **Protocoles : le chemin réel n'est pas vu** : la boucle entre le PC et le vrai backend, le lancement réel des applications du premier protocole et un vrai message Telegram n'ont pas été essayés ; seuls les tests avec faux Redis et faux Telegram le sont. 2B et 6H9K sont reconnus mais sans étapes.
+- **Commandes locales** : « mets Son of a gun » est pris pour une commande de volume ; la batterie de la souris ne marche que pour une souris dont le fabricant expose la fonction « batterie unifiée » (lue 34 %, non comparée au logiciel du fabricant).
 - **Non vérifiés à la clôture** : le premier texte réel des briefings avec le nouveau code, les écritures Notion avec le client 4 (`test:live` jamais relancé depuis), et une passe sécurité.
 
 ---
@@ -333,14 +344,14 @@ La V1 a été déclarée terminée par l'utilisateur le 09/10/2026, après trois
 **Ce qui n'est pas vert à la clôture, et qui est écrit plutôt que caché**
 - 2 des 20 scénarios d'acceptation échouaient : ils figeaient la cadence de 30 images/s alors que le rendu tourne à 60. **Corrigé le 12/10** (étape 0).
 - Non vérifié : le démarrage automatique réel, le menu de la zone de notification et la reprise du rendu dans l'app installée, les écritures Notion avec le client 4, une passe sécurité, quelques jours d'usage, et le texte réel des premiers briefings avec le nouveau code.
-- Optionnel à la clôture, **fait le 12/10** (étape 1) : la catégorie Notion est lue par le code, et le statut « Terminé » existe pour les idées. Reste : les écritures réelles de ces deux champs dans Notion ne sont pas vérifiées (les tests simulent Notion).
+- Optionnel à la clôture, **fait le 12/10** (étape 1) : la catégorie Notion est lue par le code, et le statut « Terminé » existe pour les idées. Les écritures réelles de ces deux champs ont été vérifiées sur le vrai Notion le 13/10 (`Catégorie` écrite puis relue dans les trois bases ; `test:live` 48/48 après l'ajout du statut `Terminé` dans la base Idées).
 
 **Ce que la journée de clôture enseigne**
 - Un réglage validé sur une mesure (le CPU) peut être mauvais à l'usage (la fluidité) ; et un test qui recopie la valeur du réglage plutôt que de la lire échoue dès qu'on le change.
 - Une valeur « par défaut » écrite dans un prompt tend à se retrouver partout dans les réponses.
 - Déclarer « terminé » n'efface pas la liste de ce qu'on n'a pas vérifié : la clôture l'inscrit au lieu de l'omettre.
 
-**La suite** : la V2, décrite dans [`SozaV2.md`](../ai/SozaV2.md) (avancement dans [`STATUS-V2.md`](../ai/STATUS-V2.md)). Ses étapes 0 à 3 sont faites ; les étapes 4 à 12 (lancer des applications, recherche parlée, protocoles, voix, gestes) ne sont pas commencées.
+**La suite** : la V2, décrite dans [`SozaV2.md`](../ai/SozaV2.md) (avancement dans [`STATUS-V2.md`](../ai/STATUS-V2.md)). Ses étapes 0 à 7 sont faites et la 8 (protocoles) est livrée côté code avec un premier protocole, essai réel à faire ; les étapes 9 à 12 (voix, agent résident et widget, « qu'est-ce que je regarde ? », gestes de la main) ne sont pas commencées.
 
 ---
 
@@ -352,9 +363,11 @@ La V2 rapproche Soza d'un assistant du type Jarvis/FRIDAY : une seule personnali
 - **Principe « local plutôt que cloud »** : Notion reste la source de vérité pour ce qui doit être accessible à distance, le reste (réglages, défauts) vit sur la machine.
 - **Les fondations de l'agent local existent déjà**, posées en V1 par le suivi du temps d'écran : un thread Rust résident, une icône de zone de notification, le démarrage avec Windows et un installeur. La V2 s'y greffe.
 - **Deux canaux d'entrée distincts** : la voix en local, Telegram à distance. Un protocole qui démarre un PC éteint ne peut pas passer par la voix locale, puisque le micro est éteint avec la machine.
-- **Détection stricte des commandes à effet réel**, sur le modèle de l'ancienne commande `/mode` (supprimée avec le mode ACTIF/PAUSE, à réintroduire), pour qu'une phrase qui *parle* d'un protocole ne le déclenche jamais.
+- **Détection stricte des commandes à effet réel**, sur le modèle de l'ancienne commande `/mode` (supprimée avec le mode ACTIF/PAUSE, réintroduite le 17/10 à l'étape 8 pour un premier protocole), pour qu'une phrase qui *parle* d'un protocole ne le déclenche jamais.
 - **Gestes de la main par caméra**, avec un détecteur de mains dont le rendu de contrôle est le prérequis de tout geste, un geste d'engagement contre les déclenchements accidentels, et un traitement 100 % local.
 - **Sécurité traitée avant la fonctionnalité** : exécuter des actions sur une machine réelle depuis une commande à distance est sensible, le modèle de menace est posé en premier.
+
+**Ce qui est déjà construit de la V2 (17/10/2026)** : la barre `Ctrl+K` (applications, volume, musique, batterie), la recherche web, le multi-projets et le moteur de protocoles avec un premier protocole. Ce qui a été décidé en route : le PC va chercher ses protocoles (aucun port ouvert), la liste blanche des applications reste sur la machine, la fermeture est toujours douce, et l'allumage du PC par Soza est écarté (l'utilisateur le démarre avec l'application de sa prise connectée). L'essai réel de bout en bout n'est pas fait, et c'est écrit comme tel dans `STATUS-V2.md`.
 
 ---
 
