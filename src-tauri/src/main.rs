@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod apps;
+mod protocol;
 mod spotify;
 mod system;
 use std::{collections::BTreeMap, fs, path::PathBuf, sync::Mutex, thread, time::Duration};
@@ -129,6 +130,17 @@ fn main() {
       // Pour « mets <titre> » : identifiants d'une application créée sur developer.spotify.com (voir spotify.rs). Créé vide, relu à chaque commande.
       let spotify_file = dir.join("spotify.json");
       if !spotify_file.exists() { let _ = fs::write(&spotify_file, "{ \"client_id\": \"\", \"client_secret\": \"\" }\n"); }
+
+      // Protocoles lancés depuis Telegram (voir protocol.rs) : adresse et clé du backend, créés vides, relus à chaque tour.
+      let agent_file = dir.join("agent.json");
+      if !agent_file.exists() { let _ = fs::write(&agent_file, "{ \"api_url\": \"\", \"api_key\": \"\" }\n"); }
+      let apps_for_protocols = dir.join("apps.json");
+      thread::spawn(move || loop {
+        if let Some((url, key)) = protocol::config(&agent_file) {
+          if let Err(e) = protocol::poll_once(&url, &key, &apps_for_protocols) { eprintln!("[protocole] {e}"); }
+        }
+        thread::sleep(Duration::from_secs(protocol::POLL_SECS));
+      });
 
       // Le suivi tourne tant que Soza tourne, même fenêtre masquée dans la zone de notification.
       let handle = app.handle().clone();
