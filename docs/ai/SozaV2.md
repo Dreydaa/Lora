@@ -2,7 +2,7 @@
 
 Ce fichier porte la vision, les décisions de conception et la liste des étapes de la V2. **L'avancement (ce qui est fait, mesuré, vérifié ou pas) est dans [`STATUS-V2.md`](STATUS-V2.md)** ; l'état de la V1 reste dans `STATUS.md`.
 
-**Statut : la V1 est terminée (09/10/2026) et la V2 a démarré le 12/10/2026.** Les étapes 1 à 7 de la to-do ci-dessous sont faites (la 0 reste ouverte) ; le détail est dans `STATUS-V2.md`. Les chantiers 4 à 12 (hors ceux cochés) ne sont pas implémentés.
+**Statut : la V1 est terminée (09/10/2026) et la V2 a démarré le 12/10/2026.** Les étapes 1 à 7 de la to-do ci-dessous sont faites (la 0 reste ouverte : sa liste « non vérifié » n'est pas soldée) et la 8 (protocoles) est livrée côté code avec 7E3A (PR #23, essai réel à faire) ; le détail est dans `STATUS-V2.md`. Les étapes 9 à 12 ne sont pas commencées.
 
 ## Pourquoi cette direction (décidé 30/09/2026)
 
@@ -162,7 +162,7 @@ Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Ca
 - [x] 5. Recherche rapide parlée (chantier 3, fonction 2) — **fait le 14/10/2026 côté Telegram** : recherche intégrée de Groq, réponse courte lisible à voix haute (voir `STATUS-V2.md`) ; barre `Ctrl+K` et voix pas branchées
 - [x] 6. Musique, volume système, batterie de la souris (chantier 3) — **fait le 15/10/2026 via `Ctrl+K`** : volume (Core Audio), musique (commandes multimédia de Windows), batterie (HID++ Logitech, lue 34 %) ; « mets de la musique » lance Spotify, « mets <titre> » cherche et lance le morceau (essayé avec les vrais identifiants Spotify, voir `STATUS-V2.md`)
 - [x] 7. Plusieurs projets en parallèle (chantier 7) — **fait le 15/10/2026** : la limite n'existait déjà plus dans le code ; le bilan reçoit les projets travaillés (texte, sans colonne Notion), le soir donne le prochain jalon de chaque projet en cours, le matin les cite (voir `STATUS-V2.md`)
-- [ ] 8. Moteur de protocoles : 2B, 7E3A, 6H9K (chantier 2) — **commencé le 17/10/2026** : moteur, déclencheur strict et 7E3A faits côté code ; restent 2B, 6H9K (étapes non définies) et l'essai réel ; allumage du PC écarté (démarré à la main par l'application du plug) (voir `STATUS-V2.md`)
+- [ ] 8. Moteur de protocoles : 2B, 7E3A, 6H9K (chantier 2) — **premier lot livré le 17/10/2026 (PR #23)** : moteur, déclencheur strict et 7E3A faits côté code ; restent 2B, 6H9K (étapes non définies) et l'essai réel ; allumage du PC écarté (démarré à la main par l'application du plug) (voir `STATUS-V2.md`)
 - [ ] 9. Voix : mot d'activation, reconnaissance vocale, synthèse vocale, ruban réactif à l'audio (chantier 3)
 - [ ] 10. Agent résident en arrière-plan et widget animé (chantier 5)
 - [ ] 11. « Qu'est-ce que je regarde ? » (chantier 3, fonction 3)
