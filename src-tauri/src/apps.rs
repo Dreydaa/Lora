@@ -37,14 +37,21 @@ fn hidden(cmd: &mut Command) -> &mut Command {
   cmd
 }
 
-fn open(name: &str, path: &str) -> String {
+fn open(name: &str, path: &str) -> Result<String, String> {
   let mut cmd = Command::new(path);
   // Beaucoup d'applications cherchent leurs fichiers à côté de leur exécutable.
   if let Some(dir) = Path::new(path).parent() { cmd.current_dir(dir); }
   match cmd.spawn() {
-    Ok(_) => format!("Lancement de {name}."),
-    Err(e) => format!("Impossible de lancer {name} ({path}) : {e}"),
+    Ok(_) => Ok(format!("Lancement de {name}.")),
+    Err(e) => Err(format!("Impossible de lancer {name} ({path}) : {e}")),
   }
+}
+
+// Ouvre une application de apps.json et dit si cela a marché (utilisé par les protocoles, qui rendent un statut par étape).
+pub fn open_by_name(name: &str, file: &Path) -> Result<String, String> {
+  let name = name.to_lowercase();
+  let path = load(file).get(&name).cloned().ok_or_else(|| format!("« {name} » n'est pas dans apps.json"))?;
+  open(&name, &path)
 }
 
 // Fermeture douce (comme la croix de la fenêtre : l'application peut proposer d'enregistrer), jamais forcée.
@@ -65,7 +72,7 @@ pub fn run(text: &str, file: &Path) -> String {
   let Some(path) = load(file).get(&name).cloned() else {
     return format!("Je ne connais pas « {name} ». Ajoute-la dans {} (nom : chemin de l'exécutable).", file.display());
   };
-  match action { Action::Open => open(&name, &path), Action::Close => close(&name, &path) }
+  match action { Action::Open => open(&name, &path).unwrap_or_else(|e| e), Action::Close => close(&name, &path) }
 }
 
 #[cfg(test)]

@@ -56,6 +56,10 @@ describe("readWorkerJob", () => {
     expect(readWorkerJob({ ...job, chatId: "42" })).toBeNull();
     expect(readWorkerJob(null)).toBeNull();
   });
+  it("garde l'identifiant de délai d'un protocole, et refuse un autre type", () => {
+    expect(readWorkerJob({ ...job, protocolTimeout: "run-1" })).toEqual({ ...job, protocolTimeout: "run-1" });
+    expect(readWorkerJob({ ...job, protocolTimeout: 5 })).toBeNull();
+  });
 });
 
 // Équivalence avec l'ancienne validation par Zod (remplacée le 08/10/2026 pour alléger le webhook) : mêmes verdicts.

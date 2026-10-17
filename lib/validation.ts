@@ -23,5 +23,6 @@ export function readTelegramMessage(body: unknown): WorkerJob | null {
 export function readWorkerJob(body: unknown): WorkerJob | null {
   if (!isObject(body) || !isNumber(body.chatId) || !isNumber(body.messageId)) return null;
   if (typeof body.text !== "string" || body.text.length < 1 || body.text.length > MAX_TEXT) return null;
-  return { chatId: body.chatId, text: body.text, messageId: body.messageId };
+  if (body.protocolTimeout !== undefined && typeof body.protocolTimeout !== "string") return null;
+  return { chatId: body.chatId, text: body.text, messageId: body.messageId, ...(body.protocolTimeout ? { protocolTimeout: body.protocolTimeout } : {}) };
 }

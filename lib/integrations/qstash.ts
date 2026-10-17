@@ -8,13 +8,13 @@ function baseUrl() {
   return process.env.APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
 }
 
-export async function publishWorkerJob(job: WorkerJob) {
+export async function publishWorkerJob(job: WorkerJob, delaySeconds?: number) {
   const isDev = process.env.QSTASH_DEV === "true";
   const token = process.env.QSTASH_TOKEN;
   const url = baseUrl();
   if (!url || (!isDev && !token)) throw new Error("QSTASH_TOKEN and APP_URL are required");
   const client = new Client({ token, devMode: isDev });
-  return client.publishJSON({ url: `${url}/api/qstash-worker`, body: job });
+  return client.publishJSON({ url: `${url}/api/qstash-worker`, body: job, ...(delaySeconds ? { delay: delaySeconds } : {}) });
 }
 
 // Crée ou met à jour (même scheduleId = update en place) un schedule QStash récurrent,
