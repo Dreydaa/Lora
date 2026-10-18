@@ -14,7 +14,8 @@ export async function publishWorkerJob(job: WorkerJob, delaySeconds?: number) {
   const url = baseUrl();
   if (!url || (!isDev && !token)) throw new Error("QSTASH_TOKEN and APP_URL are required");
   const client = new Client({ token, devMode: isDev });
-  return client.publishJSON({ url: `${url}/api/qstash-worker`, body: job, ...(delaySeconds ? { delay: delaySeconds } : {}) });
+  // retries: 0 — le travail écrit dans Notion et n'est pas rejouable : une relance automatique de QStash créerait des doublons.
+  return client.publishJSON({ url: `${url}/api/qstash-worker`, body: job, retries: 0, ...(delaySeconds ? { delay: delaySeconds } : {}) });
 }
 
 // Crée ou met à jour (même scheduleId = update en place) un schedule QStash récurrent,

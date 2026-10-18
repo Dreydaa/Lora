@@ -43,19 +43,22 @@ describe("worker QStash : tâche longue exécutée hors du webhook", () => {
     expect(askSoza).not.toHaveBeenCalled();
   });
 
-  it("une erreur de Soza renvoie 500 sans rien envoyer sur Telegram", async () => {
+  // Un 5xx ferait relancer le message par QStash : les outils déjà passés (Notion) seraient rejoués et créeraient des doublons.
+  it("une erreur de Soza répond 200 (aucune relance) et prévient sur Telegram", async () => {
     askSoza.mockRejectedValue(new Error("quota dépassé"));
     const net = stubNetwork();
     const response = await call(JSON.stringify(job));
-    expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "quota dépassé" });
-    expect(net.telegram()).toHaveLength(0);
+    expect(response.status).toBe(200);
+    expect(askSoza).toHaveBeenCalledOnce();
+    expect(net.telegram()).toHaveLength(1);
+    expect(net.telegram()[0].body).toMatchObject({ chat_id: 42 });
+    expect(net.telegram()[0].body.text).toContain("vérifie avant de le renvoyer");
   });
 
   it("ne répond jamais à un chat non autorisé, même si le travail est signé", async () => {
     const net = stubNetwork();
     const response = await call(JSON.stringify({ ...job, chatId: 7 }));
-    expect(response.status).toBe(500); // sendTelegram refuse : « Blocked chat_id »
+    expect(response.status).toBe(200); // sendTelegram refuse (« Blocked chat_id ») : pas de relance, pas de message
     expect(net.telegram()).toHaveLength(0);
   });
 
