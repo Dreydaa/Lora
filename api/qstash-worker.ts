@@ -36,7 +36,7 @@ export default async function handler(request: Request) {
     }
     const protocol = readProtocolCommand(job.text);
     if (protocol) {
-      await startProtocol(job.chatId, protocol);
+      await startProtocol(job.chatId, protocol.code, protocol.skip);
       return Response.json({ ok: true });
     }
 
