@@ -18,6 +18,8 @@ function dateInstruction() {
   return `\n\nDate du jour : ${weekday} ${todayInParis()} (heure de Paris).`;
 }
 
+const ASK_TIMEOUT_MS = 20_000;
+
 export function resolveModel() {
   if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is missing");
   const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
@@ -50,6 +52,9 @@ export async function askSoza(chatId: number, input: string) {
   }
 
   const model = resolveModel();
+  // La fonction Edge est coupée (504) si elle ne répond pas en 25 s : mieux vaut échouer à 20 s et prévenir que se faire couper et rejouer.
+  // Un seul délai pour les deux essais (avec puis sans recherche).
+  const abortSignal = AbortSignal.timeout(ASK_TIMEOUT_MS);
 
   const history = await getHistory(chatId);
   const messages: ModelMessage[] = [...history, { role: "user", content: input }];
@@ -61,6 +66,7 @@ export async function askSoza(chatId: number, input: string) {
       model,
       ...askConfig(sozaTools, search),
       messages,
+      abortSignal,
       stopWhen: isStepCount(4),
       onStepFinish: (step) => {
         if (step.toolCalls.length > 0) localToolRan = true;

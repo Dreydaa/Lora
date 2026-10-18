@@ -59,13 +59,13 @@ describe("QStash livre vers l'URL stable de production", () => {
   it("APP_URL prime sur VERCEL_URL", async () => {
     process.env.VERCEL_URL = "soza-abc123-team.vercel.app";
     await publishWorkerJob(job);
-    expect(publishJSON).toHaveBeenCalledWith({ url: "https://soza.test/api/qstash-worker", body: job });
+    expect(publishJSON).toHaveBeenCalledWith({ url: "https://soza.test/api/qstash-worker", body: job, retries: 0 }); // jamais rejoué par QStash
   });
   it("VERCEL_URL ne sert que de repli quand APP_URL est absent", async () => {
     delete process.env.APP_URL;
     process.env.VERCEL_URL = "soza-abc123-team.vercel.app";
     await publishWorkerJob(job);
-    expect(publishJSON).toHaveBeenCalledWith({ url: "https://soza-abc123-team.vercel.app/api/qstash-worker", body: job });
+    expect(publishJSON).toHaveBeenCalledWith({ url: "https://soza-abc123-team.vercel.app/api/qstash-worker", body: job, retries: 0 });
   });
   it("sans aucune URL ni jeton : erreur claire plutôt qu'une livraison perdue", async () => {
     delete process.env.APP_URL;
