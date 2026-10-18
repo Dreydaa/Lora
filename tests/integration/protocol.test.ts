@@ -31,9 +31,14 @@ beforeEach(() => {
 
 describe("détection stricte de « Protocole X »", () => {
   it("accepte la phrase exacte, quelle que soit la casse ou la ponctuation finale", () => {
-    expect(readProtocolCommand("Protocole 7E3A")).toBe("7E3A");
-    expect(readProtocolCommand("  protocole 7e3a. ")).toBe("7E3A");
-    expect(readProtocolCommand("protocole 2b!")).toBe("2B");
+    expect(readProtocolCommand("Protocole 7E3A")).toEqual({ code: "7E3A", skip: [] });
+    expect(readProtocolCommand("  protocole 7e3a. ")).toEqual({ code: "7E3A", skip: [] });
+    expect(readProtocolCommand("protocole 2b!")).toEqual({ code: "2B", skip: [] });
+  });
+  it("lit les applications exclues après un « - »", () => {
+    expect(readProtocolCommand("Protocole 7E3A - Parsec")).toEqual({ code: "7E3A", skip: ["Parsec"] });
+    expect(readProtocolCommand("protocole 7e3a -parsec - VS code.")).toEqual({ code: "7E3A", skip: ["parsec", "VS code"] });
+    expect(readProtocolCommand("Protocole 7E3A -")).toBeNull();
   });
   it("refuse tout ce qui n'est pas exactement la phrase-clé ou un protocole inconnu", () => {
     for (const text of ["lance le protocole 7E3A", "Protocole 7E3A et ouvre blender", "protocole", "protocole 9Z9Z", "protocole 7E3A\nprotocole 2B", "7E3A"])
@@ -52,6 +57,25 @@ describe("worker : lancement d'un protocole", () => {
     expect(run).toMatchObject({ code: "7E3A", chatId: 42, claimed: false });
     expect(run.steps).toEqual([{ kind: "open", app: "parsec" }, { kind: "open", app: "code" }]);
     expect(publishWorkerJob).toHaveBeenCalledExactlyOnceWith({ chatId: 42, text: "Protocole 7E3A", messageId: 0, protocolTimeout: run.id }, 600);
+  });
+
+  it("« - Parsec » retire cette app des étapes (VS code seul), « - VS code » retire code", async () => {
+    const net = stubNetwork();
+    await sendJob(job("Protocole 7E3A - Parsec"));
+    expect(texts(net)).toEqual(["Lancement du protocole 7E3A (sans Parsec)."]);
+    expect((await getProtocolRun())!.steps).toEqual([{ kind: "open", app: "code" }]);
+    store.clear();
+    await sendJob(job("Protocole 7E3A - VS code"));
+    expect((await getProtocolRun())!.steps).toEqual([{ kind: "open", app: "parsec" }]);
+  });
+
+  it("exclusion inconnue ou totale : rien n'est lancé", async () => {
+    const net = stubNetwork();
+    await sendJob(job("Protocole 7E3A - Parssec"));
+    await sendJob(job("Protocole 7E3A - Parsec - Code"));
+    expect(texts(net)).toEqual(["Protocole 7E3A : application inconnue (Parssec). Rien n'a été lancé.", "Protocole 7E3A : toutes les applications sont exclues, rien à lancer."]);
+    expect(await getProtocolRun()).toBeNull();
+    expect(publishWorkerJob).not.toHaveBeenCalled();
   });
 
   it("protocole sans étapes : le dit, sans rien mettre en attente", async () => {
