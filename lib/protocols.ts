@@ -18,10 +18,21 @@ export const PROTOCOLS: Record<string, Protocol> = {
 const TIMEOUT_SECONDS = 10 * 60; // le PC est démarré à la main (application du plug) : au-delà, il est considéré comme injoignable
 
 // Détection stricte : le message entier doit être « Protocole <code> » (ponctuation finale tolérée), pas un mot dans une phrase.
-export function readProtocolCommand(text: string): string | null {
-  const code = text.trim().match(/^protocole\s+([0-9a-z]+)\s*[.!]?$/i)?.[1].toUpperCase();
-  return code && code in PROTOCOLS ? code : null;
+// Chaque « - <app> » à la suite exclut cette application du lancement (« Protocole 7E3A - Parsec »).
+export function readProtocolCommand(text: string): { code: string; skip: string[] } | null {
+  const m = text.trim().match(/^protocole\s+([0-9a-z]+)((?:\s+-\s*[^-\n]+)*)\s*[.!]?$/i);
+  const code = m?.[1].toUpperCase();
+  if (!m || !code || !(code in PROTOCOLS)) return null;
+  const skip = m[2].split("-").map((s) => s.trim().replace(/[.!]$/, "")).filter(Boolean);
+  return { code, skip };
 }
+
+// « VS code », « vs-code » et « code » désignent la même app (apps.json l'appelle « code »).
+const ALIASES: Record<string, string> = { vscode: "code" };
+const appKey = (name: string) => {
+  const key = name.toLowerCase().replace(/[\s_-]/g, "");
+  return ALIASES[key] ?? key;
+};
 
 export function summarize(code: string, results: StepResult[]): string {
   const failed = results.filter((r) => !r.ok);
@@ -29,13 +40,24 @@ export function summarize(code: string, results: StepResult[]): string {
   return `Protocole ${code} : ${failed.length} étape(s) en échec sur ${results.length}.\n${failed.map((r) => `- ${r.label} : ${r.detail ?? "échec"}`).join("\n")}`;
 }
 
-export async function startProtocol(chatId: number, code: string) {
+export async function startProtocol(chatId: number, code: string, skip: string[] = []) {
   const protocol = PROTOCOLS[code];
-  await sendTelegram(chatId, `Lancement du protocole ${code}.`);
-  if (!protocol.steps.length) return sendTelegram(chatId, `Le protocole ${code} n'a pas encore d'étapes.`);
+  if (!protocol.steps.length) {
+    await sendTelegram(chatId, `Lancement du protocole ${code}.`);
+    return sendTelegram(chatId, `Le protocole ${code} n'a pas encore d'étapes.`);
+  }
 
+  // Une exclusion inconnue (faute de frappe) bloque tout : mieux vaut refuser que lancer ce que l'utilisateur voulait éviter.
+  const skipKeys = skip.map(appKey);
+  const known = protocol.steps.map((s) => appKey(s.app));
+  const unknown = skip.filter((_, i) => !known.includes(skipKeys[i]));
+  if (unknown.length) return sendTelegram(chatId, `Protocole ${code} : application inconnue (${unknown.join(", ")}). Rien n'a été lancé.`);
+  const steps = protocol.steps.filter((s) => !skipKeys.includes(appKey(s.app)));
+  if (!steps.length) return sendTelegram(chatId, `Protocole ${code} : toutes les applications sont exclues, rien à lancer.`);
+
+  await sendTelegram(chatId, skip.length ? `Lancement du protocole ${code} (sans ${skip.join(", ")}).` : `Lancement du protocole ${code}.`);
   // Le PC se démarre à la main : s'il est éteint, le protocole attend que l'app Soza se lance avec Windows.
-  const run: ProtocolRun = { id: crypto.randomUUID(), code, chatId, steps: protocol.steps, claimed: false };
+  const run: ProtocolRun = { id: crypto.randomUUID(), code, chatId, steps, claimed: false };
   await saveProtocolRun(run);
   // Sans réponse du PC dans le délai, le worker prévient au lieu de laisser le silence.
   await publishWorkerJob({ chatId, text: `Protocole ${code}`, messageId: 0, protocolTimeout: run.id }, TIMEOUT_SECONDS);
