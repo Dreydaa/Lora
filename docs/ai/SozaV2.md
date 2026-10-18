@@ -170,6 +170,8 @@ Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Ca
 
 Chantier 8 (documentation portfolio) : en continu, hors liste. Chantier 1 : fait.
 
+**Correctif hors liste (18/10/2026) : messages Telegram à plusieurs outils bloqués par la limite Groq (8 000 jetons par minute).** Chaque appel envoie au moins 3 748 jetons fixes (personnalité + 14 outils), un bilan avec outils en fait 2 à 3 : Groq répond 429, Vercel coupe à 25 s, QStash relançait et créait des doublons dans Notion. Fait : plus de relance automatique, réponse 200 avec message Telegram en cas d'échec, échec à 20 s (PR #27, à fusionner et à déployer). **À faire** : alléger ce que chaque appel envoie, dans cet ordre : (1) choix des outils par mots-clés (`activeTools`) et descriptions d'outils plus courtes ; (2) si ça ne suffit pas, découper le message en actions traitées l'une après l'autre (idée de l'utilisateur) ; (3) ou le palier payant de Groq. Détail, chiffres et limites dans `STATUS-V2.md` (« Pièges rencontrés »).
+
 **Point d'attention** : les points 4 à 6 sont décrits comme déclenchés à la voix, mais l'écoute (point 9) arrive après. Les tester d'abord par une entrée texte (Telegram ou champ dans le ruban), comme prévu par « Ordre de test voulu ».
 
 ## Garde-fou
