@@ -29,21 +29,28 @@ export default async function handler(request: Request) {
     const job = readWorkerJob(JSON.parse(rawBody));
     if (!job) return new Response("Invalid job", { status: 400 });
 
-    // Les protocoles court-circuitent le modèle : phrase exacte, comportement déterministe.
-    if (job.protocolTimeout) {
-      await expireProtocol(job.protocolTimeout);
-      return Response.json({ ok: true });
-    }
-    const protocol = readProtocolCommand(job.text);
-    if (protocol) {
-      await startProtocol(job.chatId, protocol.code, protocol.skip);
-      return Response.json({ ok: true });
-    }
+    try {
+      // Les protocoles court-circuitent le modèle : phrase exacte, comportement déterministe.
+      if (job.protocolTimeout) {
+        await expireProtocol(job.protocolTimeout);
+        return Response.json({ ok: true });
+      }
+      const protocol = readProtocolCommand(job.text);
+      if (protocol) {
+        await startProtocol(job.chatId, protocol.code, protocol.skip);
+        return Response.json({ ok: true });
+      }
 
-    const result = await askSoza(job.chatId, job.text);
-    await sendTelegram(job.chatId, result.text);
+      const result = await askSoza(job.chatId, job.text);
+      await sendTelegram(job.chatId, result.text);
 
-    return Response.json({ ok: true });
+      return Response.json({ ok: true });
+    } catch (error) {
+      // Le message a peut-être déjà écrit dans Notion : on répond 200 pour qu'aucun rejeu ne crée de doublons, et on prévient.
+      console.error("[worker] échec du traitement, pas de relance :", error);
+      await sendTelegram(job.chatId, "Je n'ai pas pu finir de traiter ton message (limite de temps ou de débit). Une partie a peut-être déjà été enregistrée dans Notion : vérifie avant de le renvoyer.").catch(() => {});
+      return Response.json({ ok: false });
+    }
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 });
   }
