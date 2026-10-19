@@ -35,7 +35,14 @@ export function CommandBar() {
     if (!text) return;
     setOpen(false);
     clearTimeout(replyTimer.current);
-    setReply(await invoke<string>("run_command", { text }).catch((error) => `Erreur : ${error}`));
+    const answer = await invoke<string>("run_command", { text }).then(
+      (said) => {
+        void invoke("speak", { text: said }); // chaque réponse est dite, sauf les erreurs
+        return said;
+      },
+      (error) => `Erreur : ${error}`,
+    );
+    setReply(answer);
     replyTimer.current = window.setTimeout(() => setReply(""), REPLY_MS);
   };
 

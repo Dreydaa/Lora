@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod apps;
 mod protocol;
+mod speech;
 mod spotify;
 mod system;
 use std::{collections::BTreeMap, fs, path::PathBuf, sync::Mutex, thread, time::Duration};
@@ -76,6 +77,12 @@ fn run_command(text: String, apps: State<AppsFile>) -> String {
   system::run(&text, &apps.0.with_file_name("spotify.json")).unwrap_or_else(|| apps::run(&text, &apps.0))
 }
 
+// Dit la phrase à voix haute avec la voix de Windows. Rend la main tout de suite : la lecture tourne sur son propre thread.
+#[tauri::command]
+fn speak(text: String) {
+  thread::spawn(move || { if let Err(e) = speech::speak(&text) { eprintln!("[voix] lecture impossible : {e}"); } });
+}
+
 fn show_main(app: &AppHandle) {
   if let Some(window) = app.get_webview_window("main") { let _ = window.show(); let _ = window.set_focus(); let _ = window.emit(VISIBILITY_EVENT, true); }
 }
@@ -85,7 +92,7 @@ fn main() {
     .plugin(tauri_plugin_opener::init())
     // Lancée par Windows à l'ouverture de session avec --autostart : la fenêtre reste masquée (icône de la zone de notification).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
-    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command])
+    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command, speak])
     .setup(|app| {
       // Inscription au démarrage de Windows, seulement pour l'app installée : en dev, elle pointerait vers l'exécutable de debug.
       // Inscrite une seule fois par lancement sans toucher au choix de l'utilisateur (Gestionnaire des tâches > Démarrage).

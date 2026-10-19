@@ -8,7 +8,7 @@ Journal d'avancement de la V2, mis à jour à chaque étape. Trois fichiers, tro
 | **`STATUS-V2.md`** (ce fichier) | **Où en est la V2** : ce qui est fait, mesuré, vérifié ou pas, et la suite. |
 | `STATUS.md` | État de la V1 (livrée le 09/10/2026) et historique détaillé. Les travaux de la V2 s'écrivent ici, pas là-bas. |
 
-Dernière mise à jour : 18/10/2026, étape 8 complétée par l'exclusion d'applications (`Protocole 7E3A - Parsec`). Reste de l'étape 8 : essai réel de 7E3A, définitions de 2B et 6H9K. Étape en cours : 9 (voix).
+Dernière mise à jour : 19/10/2026, étape 9 : voix de Windows remise dans `Ctrl+K` en attendant les voix Piper. Reste de l'étape 8 : essai réel de 7E3A, définitions de 2B et 6H9K.
 
 ## Règles de travail (décidées avec l'utilisateur)
 
@@ -30,7 +30,7 @@ Dernière mise à jour : 18/10/2026, étape 8 complétée par l'exclusion d'appl
 | 6 | Musique, volume système, batterie de la souris | **Fait, via `Ctrl+K`** (essayé sur la vraie machine, y compris la recherche d'un morceau par son nom) | #21 |
 | 7 | Plusieurs projets en parallèle | **Fait** (17/10/2026 : l'utilisateur confirme que `record_progress`, le briefing Telegram et les jalons fonctionnent en réel) | #22 |
 | 8 | Moteur de protocoles (2B, 7E3A, 6H9K) | **Premier lot fait côté code** (testé avec faux Redis/Telegram) : moteur, déclencheur strict, 7E3A, exclusion d'apps (`- Parsec`), `apps.json` rempli ; 2B et 6H9K sans étapes ; essai réel à faire | #23 |
-| 9 | Voix : mot d'activation, reconnaissance et synthèse vocale, ruban réactif | **En cours** (18/10/2026) | |
+| 9 | Voix : mot d'activation, reconnaissance et synthèse vocale, ruban réactif | **En cours** : lot 1 (voix de Windows dans `Ctrl+K`) refait le 19/10/2026, voix Piper à venir | |
 | 10 | Agent résident en arrière-plan et widget animé | À faire | |
 | 11 | « Qu'est-ce que je regarde ? » | À faire | |
 | 12 | Gestes de la main | À faire | |
@@ -139,8 +139,10 @@ Les étapes 4 à 6 sont décrites comme déclenchées à la voix, mais l'écoute
 L'étape est découpée en lots ; l'ordre est choisi par l'utilisateur, un lot à la fois.
 
 - **Décisions de l'utilisateur (18/10/2026)** : premier lot = **synthèse vocale seule** (pas de micro, pas de mot d'activation) ; moteur de reconnaissance pour le lot suivant = **Whisper local (whisper.cpp)** (modèle à embarquer et compilateur C++ dans le build : à chiffrer avant de commencer).
-- **Lot 1, synthèse vocale avec la voix de Windows : fait puis retiré le 18/10/2026 à la demande de l'utilisateur** (code supprimé, plus rien dans le dépôt : `speech.rs`, la commande Tauri `speak`, les 4 fonctions de la crate `windows` et l'appel dans `Ctrl+K`). Ce qui avait été fait, au cas où on le refait : voix de Windows via WinRT (`SpeechSynthesizer` + `MediaPlayer`, locale, sans réseau ni clé), voix française Hortense (Julie et Paul aussi installées), la barre `Ctrl+K` disait chaque réponse sauf les erreurs ; l'attente d'un résultat WinRT se fait avec `.join()` (pas `.get()`) dans la crate `windows` 0.62. Le test de synthèse produisait un `audio/wav` de plus de 10 Ko ; **jamais écouté par l'utilisateur** ni essayé dans l'app installée.
-- **Reste de l'étape 9** : voix de sortie (clonage à reprendre, voir plus bas), reconnaissance vocale (Whisper local), mot d'activation (openWakeWord), ruban réactif à l'audio. Aucune voix de sortie n'existe dans le code pour l'instant.
+- **Lot 1, synthèse vocale avec la voix de Windows : fait le 18/10/2026, retiré le jour même, remis le 19/10/2026 à la demande de l'utilisateur** « en attendant » les voix Piper (il rassemble ce qu'il lui faut). Voix par défaut de Windows via WinRT (`SpeechSynthesizer` + `MediaPlayer`, locale, sans réseau ni clé ; Hortense en français, Julie et Paul aussi installées). Code : `src-tauri/src/speech.rs` (`speak`, bloque jusqu'à la fin de la lecture, 60 s au plus), commande Tauri `speak` (`main.rs`, lecture sur son propre thread, l'erreur est journalisée), appel dans `CommandBar.tsx` : chaque réponse de `Ctrl+K` est dite, sauf les erreurs. Crate `windows` 0.62 : l'attente d'un résultat WinRT se fait avec `.join()` (pas `.get()`) ; features ajoutées `Foundation`, `Media_Core`, `Media_Playback`, `Media_SpeechSynthesis`, `Storage_Streams`.
+  - **Tests (19/10/2026)** : `synthesis_produces_audio` (synthèse produit de l'audio, plus de 10 Ko, `audio/…`) ; `real_voice` (ignoré par défaut, joue « Bonjour, je suis Soza. » dans les haut-parleurs) est passé sans erreur. `cargo test` : 24 passent, 5 ignorés ; `tsc --noEmit` propre.
+  - **Non vérifié** : **personne n'a écouté** (le test réel ne prouve que l'absence d'erreur, pas que le son sorte) ; pas essayé dans l'app installée (build à refaire) ; deux réponses rapprochées se superposent (un thread par phrase, pas de file) ; le texte est dit tel quel, y compris les noms d'applications ou les titres anglais prononcés à la française.
+- **Reste de l'étape 9** : voix Piper (clonage ou voix de l'utilisateur, à reprendre quand il aura rassemblé ses éléments, voir plus bas), reconnaissance vocale (Whisper local), mot d'activation (openWakeWord), ruban réactif à l'audio.
 
 #### Essais de voix (18/10/2026) : tout retiré, clonage à reprendre de zéro
 
