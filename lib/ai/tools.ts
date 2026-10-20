@@ -16,24 +16,30 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const category = z
   .enum(CATEGORIES)
   .nullish()
-  .describe("Catégorie (logo du dashboard) la plus proche du sujet ; « Autre » si aucune ne convient.");
+  .describe("Détermine le logo du dashboard : la plus proche du sujet, « Autre » sinon.");
 
 export const sozaTools = {
   create_idea: tool({
     description:
-      "Enregistre une idée dans Notion. Estime toi-même la taille selon l'ampleur réelle, sans la demander (sauf si l'utilisateur l'a précisée : respecte son choix). Dans `notes`, rédige une synthèse complète du fond (objectif, portée, enjeux, éléments clés) et de la forme (structure, étapes, composants évoqués), compréhensible seule plus tard sans la conversation. N'invente aucun fait : organise et clarifie ce qui a été dit.",
+      "Enregistre une idée dans Notion. Estime toi-même la taille selon l'ampleur réelle, sans jamais la demander (sauf si l'utilisateur l'a précisée : respecte son choix). Rédige dans `notes` une synthèse complète, pas un résumé de quelques lignes : le fond (objectif, portée, enjeux, éléments clés) et la forme (structure, étapes, composants évoqués), assez riche pour comprendre l'idée plus tard sans la conversation. N'invente aucun fait : organise et clarifie seulement.",
     inputSchema: z.object({
       title: z.string(),
       size: z
         .enum(["Petit", "Moyen", "Grand"])
-        .describe("Petit : quelques heures à 1-2 jours ; Moyen : plusieurs jours à ~3 semaines ; Grand : long, complexe ou à plusieurs composants. Décide seul."),
+        .describe(
+          "Petit: quelques heures à 1-2 jours ; Moyen: plusieurs jours à ~3 semaines ; Grand: long, complexe ou à plusieurs composants. Décide seul.",
+        ),
       notes: z
         .string()
-        .describe("Synthèse complète du fond ET de la forme de l'idée, pas un résumé minimal. Si la description est très longue, condense sans perdre l'essentiel."),
+        .describe(
+          "Synthèse structurée du fond ET de la forme, telle que décrite par l'utilisateur. Si sa description est très longue, condense-la sans perdre l'essentiel.",
+        ),
       statut: z
         .enum(["Brute", "En cours", "Archivée"])
         .nullish()
-        .describe("Seulement si l'utilisateur donne explicitement un statut de départ ; sinon vide (créée en « Brute »)."),
+        .describe(
+          "Seulement si l'utilisateur précise un statut de départ (« ajoute ce projet et marque-le en cours »). Sinon vide : l'idée est créée « Brute ».",
+        ),
       category,
     }),
     execute: async ({ title, size, notes, statut, category }) => {
@@ -48,10 +54,12 @@ export const sozaTools = {
 
   update_idea_notes: tool({
     description:
-      "Réécrit la synthèse d'une idée déjà enregistrée quand l'utilisateur la détaille ou la complète. Le texte REMPLACE l'ancienne note : fusionne-y ce que tu connais déjà via la conversation plutôt que d'écraser une note riche. Mêmes règles que create_idea (fond et forme, rien d'inventé).",
+      "Réécrit la synthèse (notes) d'une idée déjà enregistrée quand l'utilisateur la détaille ou la complète. Ce texte REMPLACE l'ancienne note : combine ce que tu connais déjà de l'idée avec les nouvelles précisions, sans écraser une note riche par une plus pauvre. Mêmes règles que create_idea.",
     inputSchema: z.object({
-      title: z.string().describe("Titre (ou extrait) de l'idée"),
-      notes: z.string().describe("Nouvelle synthèse complète, remplace l'ancienne."),
+      title: z.string().describe("Le titre (ou un extrait) de l'idée/projet à compléter"),
+      notes: z
+        .string()
+        .describe("Nouvelle synthèse complète (remplace l'ancienne), fond ET forme, structurée."),
     }),
     execute: async ({ title, notes }) => {
       console.log("[tool] update_idea_notes →", { title, notesLength: notes.length });
@@ -64,7 +72,7 @@ export const sozaTools = {
 
   update_idea_status: tool({
     description:
-      "Change le statut d'une idée existante (Brute, En cours, Archivée = abandonnée), sur demande explicite. Ni pour en créer une, ni pour la terminer (voir complete_project, qui gère aussi le jalon lié).",
+      "Change le statut d'une idée existante (Brute, En cours, Archivée = abandonné) sur demande explicite. Ni pour en créer une, ni pour la marquer terminée (complete_project, qui gère aussi le jalon lié).",
     inputSchema: z.object({
       title: z.string().describe("Titre (ou extrait) de l'idée"),
       statut: z.enum(["Brute", "En cours", "Archivée"]),
@@ -111,7 +119,7 @@ export const sozaTools = {
 
   suggest_projects: tool({
     description:
-      "Propose 3 idées à commencer, une par taille (Grand/Moyen/Petit), les plus anciennes d'abord ; si une taille est vide, les 3 plus anciennes toutes tailles. Après un projet terminé ou sur demande.",
+      "Propose 3 idées à commencer, une par taille (Grand/Moyen/Petit), les plus anciennes d'abord ; sans idée disponible pour une taille, les 3 plus anciennes toutes tailles. À utiliser après qu'un projet vient d'être marqué terminé, ou sur demande.",
     inputSchema: z.object({}),
     execute: async () => {
       console.log("[tool] suggest_projects");
@@ -122,11 +130,18 @@ export const sozaTools = {
 
   add_agenda_item: tool({
     description:
-      "Ajoute un item ponctuel (tâche, rendez-vous) à l'agenda Notion. Ni un jalon de plusieurs jours, ni un planning récurrent (voir add_shift_schedule).",
+      "Ajoute à l'agenda Notion une tâche ou un rendez-vous ponctuel (pas un jalon de plusieurs jours, pas un planning récurrent : add_shift_schedule).",
     inputSchema: z.object({
       title: z.string(),
-      date: z.string().describe("YYYY-MM-DD ; si une heure est donnée, YYYY-MM-DDTHH:mm (ex: 2026-10-05T14:30) pour un horaire précis dans Notion Calendar."),
-      endDate: z.string().nullish().describe("Fin, même format que `date`, si une durée est donnée (rdv de 14h à 15h30)."),
+      date: z
+        .string()
+        .describe(
+          "Date ISO. Avec une heure : YYYY-MM-DDTHH:mm (ex: 2026-10-05T14:30), pour un horaire précis dans Notion Calendar. Sinon YYYY-MM-DD.",
+        ),
+      endDate: z
+        .string()
+        .nullish()
+        .describe("Fin, même format que `date`, si une durée est précisée (rdv de 14h à 15h30)."),
       category,
     }),
     execute: async ({ title, date, endDate, category }) => {
@@ -139,7 +154,7 @@ export const sozaTools = {
 
   add_shift_schedule: tool({
     description:
-      "Ajoute un planning de travail récurrent (shift) à l'agenda : un bloc de type Shift par jour ouvré de la plage, avec heures de début et de fin. Pour un rythme répété (« 5h à 13h du lundi au vendredi jusqu'au 24 octobre »), pas un rendez-vous ponctuel (voir add_agenda_item).",
+      "Ajoute un planning de travail récurrent (shift à horaires fixes) : un bloc par jour ouvré de la plage, de type Shift (couleur distincte des rendez-vous dans Notion Calendar). Pour un rythme répété (« je travaille de 5h à 13h du lundi au vendredi jusqu'au 24 octobre »), pas pour un rendez-vous ponctuel (add_agenda_item).",
     inputSchema: z.object({
       startDate: z.string().describe("YYYY-MM-DD du premier jour ; aujourd'hui si non précisé."),
       endDate: z.string().describe("YYYY-MM-DD du dernier jour, inclus (ex: fin de contrat)."),
@@ -187,7 +202,7 @@ export const sozaTools = {
 
   set_break: tool({
     description:
-      "Met Soza en pause sur une période sans travail (week-end, vacances) : plus de briefing ni de bilan, l'absence de bilan n'est pas reprochée, la reprise est accueillie au retour. Quand l'utilisateur annonce qu'il ne bossera pas sur des jours précis. Remplace toute pause précédente. Convertis toi-même « ce week-end », « jusqu'à dimanche » en dates à partir de la date du jour.",
+      "Met Soza en pause sur des jours sans travail (week-end, vacances) : plus de briefing du matin ni de bilan du soir, absence de bilan non reprochée, le briefing accueille la reprise. À utiliser quand l'utilisateur annonce qu'il ne bossera pas ces jours-là. Remplace toute pause précédente. Convertis toi-même « ce week-end », « jusqu'à dimanche » en dates à partir de la date du jour.",
     inputSchema: z.object({
       startDate: z.string().regex(ISO_DAY).describe("Premier jour, YYYY-MM-DD (aujourd'hui si la pause commence maintenant)."),
       endDate: z.string().regex(ISO_DAY).describe("Dernier jour, inclus, YYYY-MM-DD."),
