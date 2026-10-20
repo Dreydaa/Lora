@@ -2,6 +2,7 @@ import { generateText, isStepCount, type ModelMessage } from "ai";
 import { browserSearch, createGroq } from "@ai-sdk/groq";
 import { fridayPrompt } from "./prompts/friday";
 import { sozaTools } from "./tools";
+import { pickTools } from "./tool-routing";
 import { getHistory, appendToHistory } from "../memory";
 import { todayInParis } from "../date";
 
@@ -42,10 +43,12 @@ const NO_SEARCH_INSTRUCTION = `
 La recherche web est indisponible pour cette réponse. Si la question demande une information récente ou extérieure, dis-le franchement en une phrase et propose de réessayer plus tard ; n'invente rien et ne réponds de mémoire que pour ce que tu sais avec certitude.`;
 
 // Consigne et outils d'un échange, partagés avec la batterie de test de la recherche (scripts/search-battery.ts).
-export function askConfig(tools: typeof sozaTools = sozaTools, search = true) {
+// `input` restreint les outils à ceux que le message évoque (voir tool-routing.ts) ; sans lui, tous sont envoyés.
+export function askConfig(tools: typeof sozaTools = sozaTools, search = true, input?: string) {
+  const picked = input === undefined ? tools : pickTools(tools, input);
   return {
     system: fridayPrompt + DOUBT_INSTRUCTION + (search ? SEARCH_INSTRUCTION : NO_SEARCH_INSTRUCTION) + dateInstruction(),
-    tools: search ? { ...tools, web_search: browserSearch({}) } : tools,
+    tools: search ? { ...picked, web_search: browserSearch({}) } : picked,
   };
 }
 
@@ -76,7 +79,7 @@ export async function askSoza(chatId: number, input: string) {
   const run = (model: (typeof models)[number], search: boolean) =>
     generateText({
       model,
-      ...askConfig(sozaTools, search),
+      ...askConfig(sozaTools, search, input),
       messages,
       abortSignal,
       maxRetries: 0,

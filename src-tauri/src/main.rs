@@ -142,11 +142,15 @@ fn main() {
       let agent_file = dir.join("agent.json");
       if !agent_file.exists() { let _ = fs::write(&agent_file, "{ \"api_url\": \"\", \"api_key\": \"\" }\n"); }
       let apps_for_protocols = dir.join("apps.json");
-      thread::spawn(move || loop {
-        if let Some((url, key)) = protocol::config(&agent_file) {
-          if let Err(e) = protocol::poll_once(&url, &key, &apps_for_protocols) { eprintln!("[protocole] {e}"); }
+      thread::spawn(move || {
+        let mut synced_apps = None;
+        loop {
+          if let Some((url, key)) = protocol::config(&agent_file) {
+            if let Err(e) = protocol::sync_apps(&url, &key, &apps_for_protocols, &mut synced_apps) { eprintln!("[protocole] {e}"); }
+            if let Err(e) = protocol::poll_once(&url, &key, &apps_for_protocols) { eprintln!("[protocole] {e}"); }
+          }
+          thread::sleep(Duration::from_secs(protocol::POLL_SECS));
         }
-        thread::sleep(Duration::from_secs(protocol::POLL_SECS));
       });
 
       // Le suivi tourne tant que Soza tourne, même fenêtre masquée dans la zone de notification.

@@ -74,3 +74,15 @@ export async function getProtocolRun(): Promise<ProtocolRun | null> {
 export async function clearProtocolRun() {
   await redis.del(RUN_KEY);
 }
+
+// Noms (jamais les chemins) des applications de apps.json sur le PC, envoyés par l'app Soza quand la liste change :
+// c'est ce qui permet de reconnaître « ouvre blender » sans prendre pour une commande toute phrase qui commence par « ouvre ».
+const AGENT_APPS_KEY = "agent:apps";
+
+export async function saveAgentApps(apps: string[]) {
+  await redis.set(AGENT_APPS_KEY, apps);
+}
+
+export async function getAgentApps(): Promise<string[]> {
+  return (await redis.get<string[]>(AGENT_APPS_KEY)) ?? [];
+}

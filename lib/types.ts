@@ -12,5 +12,6 @@ export type WorkerJob = { chatId: number; text: string; messageId: number; proto
 // Étape d'un protocole exécutée sur le PC, et son statut rendu par l'app Soza.
 export type ProtocolStep = { kind: "open"; app: string };
 export type StepResult = { label: string; ok: boolean; detail?: string };
-// Protocole en cours : `claimed` passe à vrai quand le PC l'a pris.
-export type ProtocolRun = { id: string; code: string; chatId: number; steps: ProtocolStep[]; claimed: boolean };
+// Protocole en cours : `claimed` passe à vrai quand le PC l'a pris. `direct` : ouverture d'une seule application demandée
+// par « ouvre <app> » (pas un protocole) ; `code` porte alors le nom de l'application.
+export type ProtocolRun = { id: string; code: string; chatId: number; steps: ProtocolStep[]; claimed: boolean; direct?: boolean };

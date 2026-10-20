@@ -1,7 +1,7 @@
 import { Receiver } from "@upstash/qstash";
 import { askSoza } from "../lib/ai/client";
 import { sendTelegram } from "../lib/integrations/telegram";
-import { expireProtocol, readProtocolCommand, startProtocol } from "../lib/protocols";
+import { expireProtocol, readOpenCommand, readProtocolCommand, startAppLaunch, startProtocol } from "../lib/protocols";
 import { readWorkerJob } from "../lib/validation";
 
 export const config = {
@@ -37,7 +37,13 @@ export default async function handler(request: Request) {
       }
       const protocol = readProtocolCommand(job.text);
       if (protocol) {
-        await startProtocol(job.chatId, protocol.code, protocol.skip);
+        await startProtocol(job.chatId, protocol.code, protocol.skip, protocol.add);
+        return Response.json({ ok: true });
+      }
+      // « ouvre blender » : seulement pour une application que le PC a déclarée, jamais pour une phrase qui commence par « ouvre ».
+      const app = await readOpenCommand(job.text);
+      if (app) {
+        await startAppLaunch(job.chatId, app);
         return Response.json({ ok: true });
       }
 
