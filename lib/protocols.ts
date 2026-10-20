@@ -2,7 +2,7 @@
 // Les étapes « PC » ne tournent pas ici : l'app Soza du PC les récupère (api/protocol.ts) et rend le statut de chacune.
 import { sendTelegram } from "./integrations/telegram";
 import { publishWorkerJob } from "./integrations/qstash";
-import { saveProtocolRun, getProtocolRun, clearProtocolRun } from "./memory";
+import { saveProtocolRun, getProtocolRun, clearProtocolRun, getAgentApps } from "./memory";
 import type { ProtocolRun, StepResult } from "./types";
 
 // Les noms d'applications sont ceux de apps.json sur le PC (la liste blanche reste locale : le backend ne donne jamais de chemin).
@@ -18,21 +18,49 @@ export const PROTOCOLS: Record<string, Protocol> = {
 const TIMEOUT_SECONDS = 10 * 60; // le PC est démarré à la main (application du plug) : au-delà, il est considéré comme injoignable
 
 // Détection stricte : le message entier doit être « Protocole <code> » (ponctuation finale tolérée), pas un mot dans une phrase.
-// Chaque « - <app> » à la suite exclut cette application du lancement (« Protocole 7E3A - Parsec »).
-export function readProtocolCommand(text: string): { code: string; skip: string[] } | null {
-  const m = text.trim().match(/^protocole\s+([0-9a-z]+)((?:\s+-\s*[^-\n]+)*)\s*[.!]?$/i);
+// Chaque « - <app> » à la suite exclut cette application du lancement (« Protocole 7E3A - Parsec »), chaque « + <app> » en
+// ajoute une (« Protocole 7E3A + Spotify - Parsec »).
+export function readProtocolCommand(text: string): { code: string; skip: string[]; add: string[] } | null {
+  const m = text.trim().match(/^protocole\s+([0-9a-z]+)((?:\s+[+-]\s*[^+\-\n]+)*)\s*[.!]?$/i);
   const code = m?.[1].toUpperCase();
   if (!m || !code || !(code in PROTOCOLS)) return null;
-  const skip = m[2].split("-").map((s) => s.trim().replace(/[.!]$/, "")).filter(Boolean);
-  return { code, skip };
+  const skip: string[] = [];
+  const add: string[] = [];
+  for (const [, sign, name] of m[2].matchAll(/([+-])\s*([^+\-]+)/g)) {
+    const app = name.trim().replace(/[.!]$/, "").trim();
+    if (app) (sign === "+" ? add : skip).push(app);
+  }
+  return { code, skip, add };
 }
 
 // « VS code », « vs-code » et « code » désignent la même app (apps.json l'appelle « code »).
 const ALIASES: Record<string, string> = { vscode: "code" };
-const appKey = (name: string) => {
-  const key = name.toLowerCase().replace(/[\s_-]/g, "");
-  return ALIASES[key] ?? key;
-};
+const squeeze = (name: string) => name.toLowerCase().replace(/[\s_-]/g, "");
+const appKey = (name: string) => ALIASES[squeeze(name)] ?? squeeze(name);
+// Nom écrit dans l'étape : celui de apps.json (« VS code » devient « code »), sinon tel que tapé, en minuscules.
+const stepName = (name: string) => ALIASES[squeeze(name)] ?? name.trim().toLowerCase();
+
+// « ouvre blender », « lance l'application Spotify » : une demande d'ouverture directe, sans protocole. Même vocabulaire que
+// la barre Ctrl+K du PC (src-tauri/src/apps.rs). Le nom tapé n'est qu'un candidat : voir readOpenCommand.
+const OPEN_VERBS = ["ouvre", "ouvrir", "lance", "lancer", "demarre", "démarre"];
+const FILLER = ["le", "la", "les", "l", "mon", "ma", "mes", "application", "appli", "app", "logiciel"];
+export function readOpenRequest(text: string): string | null {
+  if (text.includes("\n")) return null;
+  const words = text.toLowerCase().replace(/['’]/g, " ").split(/\s+/).filter(Boolean);
+  if (!OPEN_VERBS.includes(words[0])) return null;
+  const rest = words.slice(1);
+  while (rest.length && FILLER.includes(rest[0])) rest.shift();
+  const name = rest.join(" ").replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+  return name ? name : null;
+}
+
+// La liste des applications vient du PC (apps.json, noms seulement) : sans elle, « lance une recherche » ou « ouvre un jalon »
+// seraient pris pour une application. Rend le nom de apps.json si le message est exactement une ouverture d'application connue.
+export async function readOpenCommand(text: string): Promise<string | null> {
+  const typed = readOpenRequest(text);
+  if (!typed) return null;
+  return (await getAgentApps()).find((app) => appKey(app) === appKey(typed)) ?? null;
+}
 
 export function summarize(code: string, results: StepResult[]): string {
   const failed = results.filter((r) => !r.ok);
@@ -40,7 +68,7 @@ export function summarize(code: string, results: StepResult[]): string {
   return `Protocole ${code} : ${failed.length} étape(s) en échec sur ${results.length}.\n${failed.map((r) => `- ${r.label} : ${r.detail ?? "échec"}`).join("\n")}`;
 }
 
-export async function startProtocol(chatId: number, code: string, skip: string[] = []) {
+export async function startProtocol(chatId: number, code: string, skip: string[] = [], add: string[] = []) {
   const protocol = PROTOCOLS[code];
   if (!protocol.steps.length) {
     await sendTelegram(chatId, `Lancement du protocole ${code}.`);
@@ -53,9 +81,14 @@ export async function startProtocol(chatId: number, code: string, skip: string[]
   const unknown = skip.filter((_, i) => !known.includes(skipKeys[i]));
   if (unknown.length) return sendTelegram(chatId, `Protocole ${code} : application inconnue (${unknown.join(", ")}). Rien n'a été lancé.`);
   const steps = protocol.steps.filter((s) => !skipKeys.includes(appKey(s.app)));
+  // Les ajouts passent après les étapes du protocole. Un nom absent de apps.json échouera sur le PC, avec son propre statut.
+  for (const name of add) {
+    if (!steps.some((s) => appKey(s.app) === appKey(name))) steps.push({ kind: "open", app: stepName(name) });
+  }
   if (!steps.length) return sendTelegram(chatId, `Protocole ${code} : toutes les applications sont exclues, rien à lancer.`);
 
-  await sendTelegram(chatId, skip.length ? `Lancement du protocole ${code} (sans ${skip.join(", ")}).` : `Lancement du protocole ${code}.`);
+  const changes = [add.length ? `avec ${add.join(", ")}` : "", skip.length ? `sans ${skip.join(", ")}` : ""].filter(Boolean);
+  await sendTelegram(chatId, `Lancement du protocole ${code}${changes.length ? ` (${changes.join(", ")})` : ""}.`);
   // Le PC se démarre à la main : s'il est éteint, le protocole attend que l'app Soza se lance avec Windows.
   const run: ProtocolRun = { id: crypto.randomUUID(), code, chatId, steps, claimed: false };
   await saveProtocolRun(run);
@@ -63,12 +96,23 @@ export async function startProtocol(chatId: number, code: string, skip: string[]
   await publishWorkerJob({ chatId, text: `Protocole ${code}`, messageId: 0, protocolTimeout: run.id }, TIMEOUT_SECONDS);
 }
 
+// Ouverture d'une seule application, sans protocole : même circuit (le PC la récupère et rend son statut).
+// Une ouverture ou un protocole encore en attente est remplacé, comme pour deux protocoles qui se suivent.
+export async function startAppLaunch(chatId: number, app: string) {
+  const pending = await getProtocolRun();
+  await sendTelegram(chatId, `Lancement de ${app}.${pending ? " La demande précédente, encore en attente, est remplacée." : ""}`);
+  const run: ProtocolRun = { id: crypto.randomUUID(), code: app, chatId, steps: [{ kind: "open", app }], claimed: false, direct: true };
+  await saveProtocolRun(run);
+  await publishWorkerJob({ chatId, text: `Ouvre ${app}`, messageId: 0, protocolTimeout: run.id }, TIMEOUT_SECONDS);
+}
+
 // Le PC a rendu le statut de ses étapes : message de fin, puis le protocole est clos.
 export async function finishProtocol(runId: string, local: StepResult[]): Promise<boolean> {
   const run = await getProtocolRun();
   if (!run || run.id !== runId) return false;
   await clearProtocolRun();
-  await sendTelegram(run.chatId, summarize(run.code, local));
+  const failed = local.find((r) => !r.ok);
+  await sendTelegram(run.chatId, run.direct ? (failed ? `Impossible de lancer ${run.code} : ${failed.detail ?? "échec"}` : `${run.code} lancé.`) : summarize(run.code, local));
   return true;
 }
 
@@ -77,6 +121,10 @@ export async function expireProtocol(runId: string) {
   const run = await getProtocolRun();
   if (!run || run.id !== runId) return;
   await clearProtocolRun();
+  if (run.direct) {
+    const why = run.claimed ? "le PC a pris la demande mais n'a pas rendu son statut" : "le PC n'a pas répondu, rien n'a été lancé";
+    return void (await sendTelegram(run.chatId, `${run.code} : ${why} (${TIMEOUT_SECONDS / 60} minutes).`));
+  }
   const why = run.claimed ? "le PC a pris le protocole mais n'a pas rendu le statut de ses étapes" : "le PC n'a pas répondu, ses étapes n'ont pas été lancées";
   await sendTelegram(run.chatId, `Protocole ${run.code} : ${why} (${TIMEOUT_SECONDS / 60} minutes).`);
 }

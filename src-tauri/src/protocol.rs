@@ -36,8 +36,29 @@ fn answer(body: &Value, apps_file: &Path) -> Option<Value> {
   Some(json!({ "id": run["id"], "results": run_steps(&run["steps"], apps_file) }))
 }
 
+fn http_agent() -> ureq::Agent {
+  ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(10))).build().into()
+}
+
+// Noms (jamais les chemins) des applications de apps.json, triés : le backend s'en sert pour reconnaître « ouvre blender »
+// envoyé sur Telegram sans prendre pour une commande toute phrase qui commence par « ouvre ».
+fn app_names(apps_file: &Path) -> Vec<String> {
+  crate::apps::load(apps_file).into_keys().collect()
+}
+
+// Envoie la liste au backend au démarrage, puis seulement quand apps.json a changé (`last` garde la dernière liste reçue).
+// Un échec n'efface pas `last` : le prochain tour réessaie.
+pub fn sync_apps(url: &str, key: &str, apps_file: &Path, last: &mut Option<Vec<String>>) -> Result<(), String> {
+  let names = app_names(apps_file);
+  if last.as_ref() == Some(&names) { return Ok(()); }
+  http_agent().post(format!("{url}/api/protocol")).header("x-dashboard-key", key).send_json(&json!({ "apps": names }))
+    .map_err(|e| format!("envoi de la liste des applications échoué : {e}"))?;
+  *last = Some(names);
+  Ok(())
+}
+
 pub fn poll_once(url: &str, key: &str, apps_file: &Path) -> Result<(), String> {
-  let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(10))).build().into();
+  let agent = http_agent();
   let body: Value = agent.get(format!("{url}/api/protocol")).header("x-dashboard-key", key).call()
     .map_err(|e| format!("interrogation du backend échouée : {e}"))?
     .body_mut().read_json().map_err(|e| format!("réponse illisible : {e}"))?;
@@ -94,6 +115,26 @@ mod tests {
     assert_eq!(report["results"][0]["label"], "Ouvrir Parsec");
     assert_eq!(report["results"][0]["ok"], false);
     assert!(report["results"][0]["detail"].as_str().unwrap().contains("n'est pas dans apps.json"));
+  }
+
+  #[test]
+  fn only_app_names_are_shared_with_the_backend() {
+    let apps = temp_file("apps-names", r#"{ "Parsec": "C:\\secret\\parsecd.exe", "code": "C:\\secret\\code.exe" }"#);
+    assert_eq!(app_names(&apps), vec!["code".to_string(), "parsec".to_string()]);
+    let _ = fs::remove_file(apps);
+  }
+
+  #[test]
+  fn an_unchanged_list_is_not_sent_again() {
+    let apps = temp_file("apps-sync", r#"{ "code": "C:\\code.exe" }"#);
+    // Adresse injoignable : si une requête partait, ce serait une erreur.
+    let mut last = Some(vec!["code".to_string()]);
+    assert!(sync_apps("http://127.0.0.1:1", "k", &apps, &mut last).is_ok());
+    // Liste modifiée : la requête part, échoue, et `last` reste inchangé pour réessayer au tour suivant.
+    fs::write(&apps, r#"{ "code": "C:\\code.exe", "parsec": "C:\\parsec.exe" }"#).unwrap();
+    assert!(sync_apps("http://127.0.0.1:1", "k", &apps, &mut last).is_err());
+    assert_eq!(last, Some(vec!["code".to_string()]));
+    let _ = fs::remove_file(apps);
   }
 
   #[test]

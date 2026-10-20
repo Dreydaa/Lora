@@ -1,5 +1,5 @@
 import { assertDashboardKey } from "../lib/auth";
-import { getProtocolRun, saveProtocolRun } from "../lib/memory";
+import { getProtocolRun, saveAgentApps, saveProtocolRun } from "../lib/memory";
 import { finishProtocol } from "../lib/protocols";
 import type { StepResult } from "../lib/types";
 
@@ -8,11 +8,13 @@ export const config = {
 };
 
 const MAX_STEPS = 20;
+const MAX_APPS = 200;
+const MAX_APP_NAME = 60;
 const isResult = (r: unknown): r is StepResult =>
   typeof r === "object" && r !== null && typeof (r as StepResult).label === "string" && typeof (r as StepResult).ok === "boolean";
 
 // Appelé par l'app Soza du PC (même clé que le dashboard) :
-// GET = « y a-t-il un protocole à exécuter ? » ; POST = statut de chaque étape exécutée.
+// GET = « y a-t-il un protocole à exécuter ? » ; POST = statut de chaque étape exécutée, ou la liste des applications du PC.
 export default async function handler(request: Request) {
   try {
     assertDashboardKey(request);
@@ -30,6 +32,12 @@ export default async function handler(request: Request) {
 
   if (request.method === "POST") {
     const body = await request.json().catch(() => null);
+    // Liste des applications du PC (noms seulement), envoyée au démarrage de Soza et à chaque modification de apps.json.
+    if (body && Array.isArray(body.apps)) {
+      if (body.apps.length > MAX_APPS || !body.apps.every((a: unknown) => typeof a === "string" && a.length > 0 && a.length <= MAX_APP_NAME)) return new Response("Invalid body", { status: 400 });
+      await saveAgentApps(body.apps);
+      return Response.json({ ok: true });
+    }
     if (!body || typeof body.id !== "string" || !Array.isArray(body.results) || body.results.length > MAX_STEPS || !body.results.every(isResult))
       return new Response("Invalid body", { status: 400 });
     const results: StepResult[] = body.results.map((r: StepResult) => ({ label: r.label.slice(0, 80), ok: r.ok, ...(typeof r.detail === "string" ? { detail: r.detail.slice(0, 200) } : {}) }));
