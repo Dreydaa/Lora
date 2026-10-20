@@ -74,7 +74,7 @@ export const sozaTools = {
     description:
       "Change le statut d'une idée existante (Brute, En cours, Archivée = abandonné) sur demande explicite. Ni pour en créer une, ni pour la marquer terminée (complete_project, qui gère aussi le jalon lié).",
     inputSchema: z.object({
-      title: z.string().describe("Le titre (ou un extrait) de l'idée/projet à mettre à jour"),
+      title: z.string().describe("Titre (ou extrait) de l'idée"),
       statut: z.enum(["Brute", "En cours", "Archivée"]),
     }),
     execute: async ({ title, statut }) => {
@@ -103,9 +103,9 @@ export const sozaTools = {
   }),
 
   complete_project: tool({
-    description: "Marque un projet comme terminé : passe l'idée correspondante en statut Terminé et valide son jalon lié dans Notion.",
+    description: "Marque un projet terminé : l'idée passe en statut Terminé et son jalon lié est validé.",
     inputSchema: z.object({
-      projectTitle: z.string().describe("Le titre (ou un extrait) de l'idée/projet terminé"),
+      projectTitle: z.string().describe("Titre (ou extrait) du projet terminé"),
     }),
     execute: async ({ projectTitle }) => {
       console.log("[tool] complete_project →", { projectTitle });
@@ -156,14 +156,14 @@ export const sozaTools = {
     description:
       "Ajoute un planning de travail récurrent (shift à horaires fixes) : un bloc par jour ouvré de la plage, de type Shift (couleur distincte des rendez-vous dans Notion Calendar). Pour un rythme répété (« je travaille de 5h à 13h du lundi au vendredi jusqu'au 24 octobre »), pas pour un rendez-vous ponctuel (add_agenda_item).",
     inputSchema: z.object({
-      startDate: z.string().describe("Date ISO (YYYY-MM-DD) du premier jour du planning. Aujourd'hui si l'utilisateur ne précise pas de début."),
-      endDate: z.string().describe("Date ISO (YYYY-MM-DD) du dernier jour concerné, incluse — ex: la date de fin de contrat mentionnée."),
-      startTime: z.string().describe("Heure de début du shift, format HH:mm"),
-      endTime: z.string().describe("Heure de fin du shift, format HH:mm"),
+      startDate: z.string().describe("YYYY-MM-DD du premier jour ; aujourd'hui si non précisé."),
+      endDate: z.string().describe("YYYY-MM-DD du dernier jour, inclus (ex: fin de contrat)."),
+      startTime: z.string().describe("Début du shift, HH:mm"),
+      endTime: z.string().describe("Fin du shift, HH:mm"),
       weekdays: z
         .array(z.enum(["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]))
         .nullish()
-        .describe("Jours de la semaine concernés. Par défaut lundi à vendredi si l'utilisateur ne précise rien d'autre."),
+        .describe("Jours concernés ; lundi à vendredi par défaut."),
     }),
     execute: async ({ startDate, endDate, startTime, endTime, weekdays }) => {
       console.log("[tool] add_shift_schedule →", { startDate, endDate, startTime, endTime, weekdays });
@@ -185,10 +185,10 @@ export const sozaTools = {
 
   update_briefing_schedule: tool({
     description:
-      "Change l'heure d'envoi du briefing du matin ou du bilan du soir. À utiliser quand l'utilisateur demande explicitement de décaler l'un de ces deux messages automatiques.",
+      "Change l'heure d'envoi du briefing du matin ou du bilan du soir, sur demande explicite.",
     inputSchema: z.object({
       type: z.enum(["morning", "evening"]).describe("morning = briefing du matin, evening = bilan du soir"),
-      time: z.string().describe("Heure au format HH:mm, ex: 07:30"),
+      time: z.string().describe("HH:mm, ex: 07:30"),
     }),
     execute: async ({ type, time }) => {
       console.log("[tool] update_briefing_schedule →", { type, time });
@@ -204,8 +204,8 @@ export const sozaTools = {
     description:
       "Met Soza en pause sur des jours sans travail (week-end, vacances) : plus de briefing du matin ni de bilan du soir, absence de bilan non reprochée, le briefing accueille la reprise. À utiliser quand l'utilisateur annonce qu'il ne bossera pas ces jours-là. Remplace toute pause précédente. Convertis toi-même « ce week-end », « jusqu'à dimanche » en dates à partir de la date du jour.",
     inputSchema: z.object({
-      startDate: z.string().regex(ISO_DAY).describe("Premier jour de pause, YYYY-MM-DD (aujourd'hui si la pause commence maintenant)."),
-      endDate: z.string().regex(ISO_DAY).describe("Dernier jour de pause, inclus, YYYY-MM-DD."),
+      startDate: z.string().regex(ISO_DAY).describe("Premier jour, YYYY-MM-DD (aujourd'hui si la pause commence maintenant)."),
+      endDate: z.string().regex(ISO_DAY).describe("Dernier jour, inclus, YYYY-MM-DD."),
     }),
     execute: async ({ startDate, endDate }) => {
       console.log("[tool] set_break →", { startDate, endDate });
@@ -233,7 +233,7 @@ export const sozaTools = {
         .array(z.string())
         .nullish()
         .describe(
-          "Les seuls projets sur lesquels l'utilisateur a TRAVAILLÉ aujourd'hui, nommés ou confirmés par lui. Un projet cité comme non touché, laissé de côté ou seulement évoqué n'y figure PAS. N'en déduis aucun. Écris le nom tel qu'il l'a dit. Exemple : « Soza avancé, personnage 3D pas touché » donne [\"Soza\"], pas [\"Soza\", \"personnage 3D\"]. Omets le champ si aucun projet n'est nommé.",
+          "Seuls les projets TRAVAILLÉS aujourd'hui, nommés ou confirmés par l'utilisateur, tels qu'il les a dits. Un projet non touché, laissé de côté ou seulement évoqué n'y figure PAS ; n'en déduis aucun. « Soza avancé, personnage 3D pas touché » donne [\"Soza\"]. Omets le champ si aucun projet n'est nommé.",
         ),
     }),
     execute: async ({ review, projectsWorkedOn }) => {
