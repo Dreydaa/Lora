@@ -9,6 +9,10 @@ import { todayInParis } from "../date";
 const DOUBT_INSTRUCTION = `
 Quand l'utilisateur mentionne quelque chose qui pourrait être une idée de projet ou un jalon, n'utilise create_idea ou create_milestone que si tu es raisonnablement sûr que c'est son intention. Si c'est ambigu, n'appelle pas l'outil — pose d'abord une question courte pour confirmer.`;
 
+// Un modèle comble les trous par du plausible : l'aveu d'ignorance est demandé explicitement, partout.
+const HONESTY_INSTRUCTION = `
+Ne devine et n'invente jamais une information, un résultat ou une réponse. Sur Soza et sur l'utilisateur (réglages, heures, pause, agenda, projets, jalons, applications, état du PC), ne dis que ce qu'un outil a rendu dans cet échange ou ce qui a été dit dans la conversation. Si tu ne sais pas, ou si un outil a échoué ou répond « indisponible », dis-le explicitement en une phrase (« je ne sais pas », « je n'ai pas pu lire ça ») et propose comment l'obtenir. N'annonce jamais une action comme faite sans la confirmation de l'outil.`;
+
 // La réponse sera lue à voix haute plus tard (TTS) : courte, sans liste, sans adresse web.
 const SEARCH_INSTRUCTION = `
 Tu disposes d'une recherche web (web_search). Ne l'utilise que pour une question qui demande une information extérieure ou récente (recette, fait, actualité, « cherche comment… »), jamais pour l'agenda, les idées ou les jalons de l'utilisateur. Réponds en deux ou trois phrases dites à voix haute : aucune liste, aucun lien, aucune adresse web, aucune marque de citation.`;
@@ -34,7 +38,7 @@ export function resolveModel(id = process.env.GROQ_MODEL ?? DEFAULT_MODEL) {
 
 const isRateLimited = (error: unknown) => (error as { statusCode?: number } | null)?.statusCode === 429;
 
-// Une fois un outil exécuté, le modèle n'a plus qu'à confirmer : lui renvoyer les 13 outils coûte ~2 400 jetons pour rien.
+// Une fois un outil exécuté, le modèle n'a plus qu'à confirmer : lui renvoyer tous les outils coûte ~2 400 jetons pour rien.
 // suggest_projects reste disponible pour l'enchaînement « projet terminé, voici trois idées ».
 const FOLLOW_UP_TOOLS = ["suggest_projects"] as const;
 
@@ -47,7 +51,7 @@ La recherche web est indisponible pour cette réponse. Si la question demande un
 export function askConfig(tools: typeof sozaTools = sozaTools, search = true, input?: string) {
   const picked = input === undefined ? tools : pickTools(tools, input);
   return {
-    system: fridayPrompt + DOUBT_INSTRUCTION + (search ? SEARCH_INSTRUCTION : NO_SEARCH_INSTRUCTION) + dateInstruction(),
+    system: fridayPrompt + DOUBT_INSTRUCTION + HONESTY_INSTRUCTION + (search ? SEARCH_INSTRUCTION : NO_SEARCH_INSTRUCTION) + dateInstruction(),
     tools: search ? { ...picked, web_search: browserSearch({}) } : picked,
   };
 }

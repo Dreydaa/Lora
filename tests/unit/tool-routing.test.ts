@@ -35,6 +35,12 @@ describe("selectToolNames", () => {
     expect(picked).toEqual(expect.arrayContaining(["record_progress", "add_agenda_item"]));
   });
 
+  it("garde l'outil de réglages seul pour une question sur les réglages", () => {
+    expect(names("quels sont tes réglages actuels ?")).toEqual(["get_settings"]);
+    expect(names("à quelle heure est mon briefing ?")).toContain("get_settings");
+    expect(names("je ne bosse pas ce week-end")).not.toContain("get_settings");
+  });
+
   it("garde le bilan et les jalons", () => {
     expect(names("c'est mon bilan du jour, j'ai avancé sur Soza")).toContain("record_progress");
     expect(names("liste mes jalons")).toContain("list_milestones");
