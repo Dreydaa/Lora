@@ -206,12 +206,44 @@ describe("ouverture directe d'une application", () => {
 
   it("ne retient que les applications déclarées par le PC", async () => {
     await saveAgentApps(["blender", "code"]);
-    expect(await readOpenCommand("ouvre Blender")).toBe("blender");
-    expect(await readOpenCommand("ouvre VS code")).toBe("code");
+    expect(await readOpenCommand("ouvre Blender")).toEqual(["blender"]);
+    expect(await readOpenCommand("ouvre VS code")).toEqual(["code"]);
     expect(await readOpenCommand("ouvre un jalon pour demain")).toBeNull();
     expect(await readOpenCommand("lance une recherche sur les pâtes")).toBeNull();
     store.clear();
     expect(await readOpenCommand("ouvre blender")).toBeNull(); // le PC ne s'est jamais déclaré
+  });
+
+  it("plusieurs applications dans un message : séparateurs, mots de liaison, doublons", async () => {
+    await saveAgentApps(["blender", "code", "spotify"]);
+    expect(await readOpenCommand("ouvre spotify et blender")).toEqual(["spotify", "blender"]);
+    expect(await readOpenCommand("Lance Spotify, l'application Blender puis VS code !")).toEqual(["spotify", "blender", "code"]);
+    expect(await readOpenCommand("ouvre spotify et spotify")).toEqual(["spotify"]);
+    // Une seule inconnue ou un reste de phrase et rien n'est lancé : le message va au modèle.
+    for (const text of ["ouvre spotify et photoshop", "ouvre un jalon et lance une recherche", "ouvre spotify et", "ouvre spotify et crée une idée"]) {
+      expect(await readOpenCommand(text), text).toBeNull();
+    }
+  });
+
+  it("plusieurs applications : une étape chacune, un seul message de fin", async () => {
+    const net = stubNetwork();
+    await saveAgentApps(["blender", "spotify"]);
+    await sendJob(job("Ouvre Spotify et Blender"));
+    expect(askSoza).not.toHaveBeenCalled();
+    expect(texts(net)).toEqual(["Lancement de spotify, blender."]);
+    expect(await getProtocolRun()).toMatchObject({ code: "spotify, blender", direct: true, steps: [{ kind: "open", app: "spotify" }, { kind: "open", app: "blender" }] });
+    const { run } = await (await agent("GET")).json();
+    await agent("POST", { id: run.id, results: [{ label: "Ouvrir spotify", ok: true }, { label: "Ouvrir blender", ok: true }] });
+    expect(texts(net).at(-1)).toBe("spotify, blender lancés.");
+  });
+
+  it("plusieurs applications : le message de fin nomme celles qui ont échoué", async () => {
+    const net = stubNetwork();
+    await saveAgentApps(["blender", "spotify"]);
+    await sendJob(job("ouvre spotify et blender"));
+    const { run } = await (await agent("GET")).json();
+    await agent("POST", { id: run.id, results: [{ label: "Ouvrir spotify", ok: true }, { label: "Ouvrir blender", ok: false, detail: "Impossible de lancer blender" }] });
+    expect(texts(net).at(-1)).toBe("Lancement de spotify, blender : 1 échec(s) sur 2.\n- Ouvrir blender : Impossible de lancer blender");
   });
 
   it("n'interroge pas le modèle et met l'ouverture en attente pour le PC", async () => {
@@ -270,11 +302,11 @@ describe("ouverture directe d'une application", () => {
 describe("api/protocol : liste des applications du PC", () => {
   it("enregistre les noms envoyés par le PC, refuse le reste", async () => {
     expect((await agent("POST", { apps: ["blender", "code"] })).status).toBe(200);
-    expect(await readOpenCommand("ouvre blender")).toBe("blender");
+    expect(await readOpenCommand("ouvre blender")).toEqual(["blender"]);
     expect((await agent("POST", { apps: ["ok", 3] })).status).toBe(400);
     expect((await agent("POST", { apps: [""] })).status).toBe(400);
     expect((await agent("POST", { apps: ["a".repeat(61)] })).status).toBe(400);
     expect((await agent("POST", { apps: ["autre"] }, "mauvaise")).status).toBe(401);
-    expect(await readOpenCommand("ouvre blender")).toBe("blender"); // les refus n'ont rien écrasé
+    expect(await readOpenCommand("ouvre blender")).toEqual(["blender"]); // les refus n'ont rien écrasé
   });
 });

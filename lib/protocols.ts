@@ -54,18 +54,41 @@ export function readOpenRequest(text: string): string | null {
   return name ? name : null;
 }
 
+// « ouvre spotify et blender », « lance spotify, l'application steam puis code » : plusieurs applications dans un message.
+const SEPARATOR = /\s*(?:[,;&]|\bet\b|\bpuis\b)\s*/;
+const bare = (part: string) => {
+  const words = part.split(/\s+/).filter(Boolean);
+  while (words.length && FILLER.includes(words[0])) words.shift();
+  return words.join(" ");
+};
+
 // La liste des applications vient du PC (apps.json, noms seulement) : sans elle, « lance une recherche » ou « ouvre un jalon »
-// seraient pris pour une application. Rend le nom de apps.json si le message est exactement une ouverture d'application connue.
-export async function readOpenCommand(text: string): Promise<string | null> {
+// seraient pris pour une application. Rend les noms de apps.json si le message est exactement une ouverture d'applications
+// connues ; une seule inconnue dans la liste et tout reste au modèle (rien n'est lancé à moitié).
+export async function readOpenCommand(text: string): Promise<string[] | null> {
   const typed = readOpenRequest(text);
   if (!typed) return null;
-  return (await getAgentApps()).find((app) => appKey(app) === appKey(typed)) ?? null;
+  const apps = await getAgentApps();
+  const find = (name: string) => apps.find((app) => appKey(app) === appKey(name));
+  // shortcut: une application dont le nom contient « et » ou « puis » est reconnue seule, pas dans une liste ; à revoir si apps.json en a une.
+  const whole = find(typed);
+  if (whole) return [whole];
+  const found = typed.split(SEPARATOR).map((part) => find(bare(part)));
+  return found.every((app): app is string => !!app) ? [...new Set(found)] : null;
 }
 
 export function summarize(code: string, results: StepResult[]): string {
   const failed = results.filter((r) => !r.ok);
   if (!failed.length) return `Protocole ${code} terminé.`;
   return `Protocole ${code} : ${failed.length} étape(s) en échec sur ${results.length}.\n${failed.map((r) => `- ${r.label} : ${r.detail ?? "échec"}`).join("\n")}`;
+}
+
+// Une application : « blender lancé. » ou la raison donnée par le PC. Plusieurs : un message, avec le détail de celles qui ont échoué.
+function summarizeLaunch(run: ProtocolRun, results: StepResult[]): string {
+  const failed = results.filter((r) => !r.ok);
+  if (!failed.length) return `${run.code} ${run.steps.length > 1 ? "lancés" : "lancé"}.`;
+  if (run.steps.length === 1) return `Impossible de lancer ${run.code} : ${failed[0].detail ?? "échec"}`;
+  return `Lancement de ${run.code} : ${failed.length} échec(s) sur ${results.length}.\n${failed.map((r) => `- ${r.label} : ${r.detail ?? "échec"}`).join("\n")}`;
 }
 
 export async function startProtocol(chatId: number, code: string, skip: string[] = [], add: string[] = []) {
@@ -96,14 +119,15 @@ export async function startProtocol(chatId: number, code: string, skip: string[]
   await publishWorkerJob({ chatId, text: `Protocole ${code}`, messageId: 0, protocolTimeout: run.id }, TIMEOUT_SECONDS);
 }
 
-// Ouverture d'une seule application, sans protocole : même circuit (le PC la récupère et rend son statut).
+// Ouverture d'une ou plusieurs applications, sans protocole : même circuit (le PC les récupère et rend le statut de chacune).
 // Une ouverture ou un protocole encore en attente est remplacé, comme pour deux protocoles qui se suivent.
-export async function startAppLaunch(chatId: number, app: string) {
+export async function startAppLaunch(chatId: number, apps: string[]) {
+  const names = apps.join(", ");
   const pending = await getProtocolRun();
-  await sendTelegram(chatId, `Lancement de ${app}.${pending ? " La demande précédente, encore en attente, est remplacée." : ""}`);
-  const run: ProtocolRun = { id: crypto.randomUUID(), code: app, chatId, steps: [{ kind: "open", app }], claimed: false, direct: true };
+  await sendTelegram(chatId, `Lancement de ${names}.${pending ? " La demande précédente, encore en attente, est remplacée." : ""}`);
+  const run: ProtocolRun = { id: crypto.randomUUID(), code: names, chatId, steps: apps.map((app) => ({ kind: "open", app })), claimed: false, direct: true };
   await saveProtocolRun(run);
-  await publishWorkerJob({ chatId, text: `Ouvre ${app}`, messageId: 0, protocolTimeout: run.id }, TIMEOUT_SECONDS);
+  await publishWorkerJob({ chatId, text: `Ouvre ${names}`, messageId: 0, protocolTimeout: run.id }, TIMEOUT_SECONDS);
 }
 
 // Le PC a rendu le statut de ses étapes : message de fin, puis le protocole est clos.
@@ -111,8 +135,7 @@ export async function finishProtocol(runId: string, local: StepResult[]): Promis
   const run = await getProtocolRun();
   if (!run || run.id !== runId) return false;
   await clearProtocolRun();
-  const failed = local.find((r) => !r.ok);
-  await sendTelegram(run.chatId, run.direct ? (failed ? `Impossible de lancer ${run.code} : ${failed.detail ?? "échec"}` : `${run.code} lancé.`) : summarize(run.code, local));
+  await sendTelegram(run.chatId, run.direct ? summarizeLaunch(run, local) : summarize(run.code, local));
   return true;
 }
 
