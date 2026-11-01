@@ -40,10 +40,10 @@ export default async function handler(request: Request) {
         await startProtocol(job.chatId, protocol.code, protocol.skip, protocol.add);
         return Response.json({ ok: true });
       }
-      // « ouvre blender » : seulement pour une application que le PC a déclarée, jamais pour une phrase qui commence par « ouvre ».
-      const app = await readOpenCommand(job.text);
-      if (app) {
-        await startAppLaunch(job.chatId, app);
+      // « ouvre blender et spotify » : seulement pour des applications que le PC a déclarées, jamais pour une phrase qui commence par « ouvre ».
+      const apps = await readOpenCommand(job.text);
+      if (apps) {
+        await startAppLaunch(job.chatId, apps);
         return Response.json({ ok: true });
       }
 

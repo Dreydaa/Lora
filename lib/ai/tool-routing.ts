@@ -23,6 +23,10 @@ const GROUPS: ToolGroup[] = [
   { tools: ["add_shift_schedule"], pattern: /shift|travaille|boulot|horaire|planning|tous les jours|du (lundi|mardi|mercredi|jeudi|vendredi)|contrat|\d\s?h\b/ },
   { tools: ["update_briefing_schedule"], pattern: /briefing|bilan|decale|heure d.envoi|matin|soir|reveil/ },
   { tools: ["set_break", "cancel_break"], pattern: /pause|vacance|week-?end|repos|conge|ne (vais|travaille|bosse)|pas (bosser|travailler)|jusqu.a|reprend|annule/ },
+  {
+    tools: ["get_settings"],
+    pattern: /reglage|parametre|configur|\bsettings?\b|heure du (briefing|bilan)|a quelle heure|ma pause|pause (actuelle|en cours|prevue)|quelles? (applications?|apps?)/,
+  },
   { tools: ["record_progress"], pattern: /bilan|aujourd|avance|travaille|bosse|j.ai fait|progres|journee|ce soir|touche/ },
 ];
 

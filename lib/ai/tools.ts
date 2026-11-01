@@ -6,9 +6,10 @@ import { CATEGORIES } from "../types";
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
 import { addAgendaItem, addShiftSchedule } from "../notion/agenda";
 import { saveProgress } from "../notion/progress";
-import { saveBriefingTime } from "../notion/settings";
+import { getSettings, saveBriefingTime } from "../notion/settings";
 import { upsertSchedule } from "../integrations/qstash";
-import { clearBreak, setBreak } from "../memory";
+import { clearBreak, getAgentApps, getBreak, setBreak } from "../memory";
+import { todayInParis } from "../date";
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -222,6 +223,27 @@ export const sozaTools = {
       console.log("[tool] cancel_break");
       await clearBreak();
       return { success: true };
+    },
+  }),
+
+  get_settings: tool({
+    description:
+      "Lit les réglages actuels de Soza : heures du briefing du matin et du bilan du soir, pause en cours ou à venir, applications qu'elle peut ouvrir sur le PC. À appeler dès qu'on te demande tes réglages ; ne les donne jamais de mémoire.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] get_settings");
+      const [settings, brk, apps] = await Promise.allSettled([getSettings(), getBreak(), getAgentApps()]);
+      // Une lecture en échec devient « indisponible » : le modèle doit l'avouer, pas deviner (chaque source échoue seule).
+      const read = <T>(result: PromiseSettledResult<T>, pick: (value: T) => unknown) => {
+        if (result.status === "fulfilled") return pick(result.value);
+        console.error("[tool] get_settings, lecture en échec :", result.reason);
+        return "indisponible (lecture impossible)";
+      };
+      return {
+        briefing: read(settings, (s) => ({ matin: s.morningTime || "non renseignée", soir: s.eveningTime || "non renseignée" })),
+        pause: read(brk, (b) => (b && b.end >= todayInParis() ? { debut: b.start, fin: b.end } : "aucune pause en cours ni à venir")),
+        applications: read(apps, (a) => (a.length ? a : "inconnues : l'app Soza du PC n'a pas encore envoyé sa liste")),
+      };
     },
   }),
 
