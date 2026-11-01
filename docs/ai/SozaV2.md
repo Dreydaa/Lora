@@ -68,6 +68,8 @@ Un protocole est une **séquence nommée d'actions** (lancer une app, en fermer 
 2. **Recherche rapide parlée** (ex. "cherche comment faire des pâtes carbonara") — réutilise le pattern tool-calling déjà en place (Groq), plus un outil de recherche web à ajouter ; réponse à dire à voix haute (dépend du TTS).
 3. **"Qu'est-ce que je suis en train de regarder ?"** — capture d'écran répétée (pour analyser une vidéo par ex.) + modèle avec vision. Le plus lourd techniquement et le plus sensible côté vie privée (peut capturer un mot de passe ou un document confidentiel à l'écran) — volontairement en dernier.
 
+**Entrée texte conservée (décidé 01/11/2026)** : quand les commandes vocales seront ajoutées, la zone de texte de la barre `Ctrl+K` reste dans Soza. Elle sert de secours si un problème matériel ou physique empêche l'utilisateur de parler ou si le micro ne marche plus ; la voix s'ajoute, elle ne remplace pas le texte.
+
 **Non ordonné / à décider plus tard** :
 - "On se met au boulot" — probablement pas une fonctionnalité séparée mais un protocole comme 7E3A, juste déclenché à la voix plutôt que nommé.
 - Musique / volume système / % batterie souris — trois intégrations isolées au niveau OS/matériel. La batterie de la souris est la plus incertaine : dépend entièrement du fabricant et de si le périphérique expose sa batterie par un protocole standard ou propriétaire (à vérifier sur le matériel réel le moment venu).
@@ -168,11 +170,39 @@ Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Ca
 - [ ] 11. « Qu'est-ce que je regarde ? » (chantier 3, fonction 3)
 - [ ] 12. Gestes de la main (chantier 9) : détecteur et rendu de contrôle, puis scroll → son → zoom → déplacement de fenêtre
 
-Chantier 8 (documentation portfolio) : en continu, hors liste. Chantier 1 : fait.
+Chantier 8 (documentation portfolio) : en continu, hors liste. Chantier 1 : fait. **Extras** (confort, après l'étape 12, voir la section « Extra » plus bas) : articles et actualités du briefing du matin, développés.
 
 **Correctif hors liste (18/10/2026) : messages Telegram à plusieurs outils bloqués par la limite Groq (8 000 jetons par minute).** Chaque appel envoie au moins 3 748 jetons fixes (personnalité + 14 outils), un bilan avec outils en fait 2 à 3 : Groq répond 429, Vercel coupe à 25 s, QStash relançait et créait des doublons dans Notion. Fait : plus de relance automatique, réponse 200 avec message Telegram en cas d'échec, échec à 20 s (PR #27, à fusionner et à déployer). **Fait le 20/10/2026 : (1) choix des outils par mots-clés et descriptions plus courtes** (`lib/ai/tool-routing.ts`, voir `STATUS-V2.md`), à vérifier sur un vrai message Telegram. **À faire seulement si ça ne suffit pas** : (2) découper le message en actions traitées l'une après l'autre (idée de l'utilisateur). Le palier payant de Groq est écarté par l'utilisateur (pas de paiement au jeton). Détail, chiffres et limites dans `STATUS-V2.md` (« Pièges rencontrés »).
 
 **Point d'attention** : les points 4 à 6 sont décrits comme déclenchés à la voix, mais l'écoute (point 9) arrive après. Les tester d'abord par une entrée texte (Telegram ou champ dans le ruban), comme prévu par « Ordre de test voulu ».
+
+## Extra — confort, à faire tout à la fin (ajouté le 01/11/2026)
+
+Ce qui suit n'est pas une étape de la V2 : c'est de l'amélioration et du confort pour l'utilisateur, à traiter **après l'étape 12**, jamais avant. Aucun code tant que les étapes de la liste ne sont pas finies (voir le garde-fou plus bas).
+
+### Extra 1 — Des articles et actualités plus développés dans le briefing du matin
+
+**Demande (01/11/2026)** : que les articles et les nouvelles donnés dans le briefing du matin soient développés plus en profondeur, au lieu d'un simple titre.
+
+**État actuel (lu dans le code le 01/11/2026)** :
+- Deux flux RSS configurés par variables d'environnement : Tech (`NEWS_RSS_URL_TECH`, TechCrunch) et Mode (`NEWS_RSS_URL_FASHION`, Vogue). Un flux injoignable est ignoré (délai de 4 s) (`lib/integrations/news.ts`).
+- Le briefing du matin sur Telegram reçoit **2 titres par flux**, au format `[Tech] titre`, sans lien ni contenu (`getNews`, `BRIEFING_TITLES_PER_FEED`). La consigne dit de ne les citer que s'ils « apportent vraiment quelque chose » (`lib/briefing.ts`).
+- Le dashboard affiche **3 titres cliquables par thème** (`DASHBOARD_TITLES_PER_FEED`), et la version courte du briefing du dashboard n'en parle pas.
+- Le modèle ne voit donc que des titres : il ne peut rien développer de ce qu'il n'a pas lu.
+
+**Pistes, non décidées** (à trancher avec l'utilisateur au moment de s'y mettre ; aucune n'est retenue) :
+- lui donner plus que le titre : le résumé que le flux RSS fournit déjà dans la plupart des cas, ou le début de l'article ;
+- plus d'articles ou plus de sources, ou choisir les plus pertinents plutôt que les premiers du flux ;
+- une phrase ou deux de contexte par article retenu, avec le lien, plutôt qu'une liste de titres ;
+- le dire aussi dans le dashboard, ou seulement dans le briefing Telegram.
+
+**Contraintes à garder en tête** :
+- **Budget Groq** : palier gratuit à 8 000 jetons par minute et 200 000 par jour, partagés avec les briefings et le chat ; le palier payant est écarté. Donner du texte d'article au modèle coûte des jetons, et la recherche web de Groq (19 000 à 41 000 jetons d'entrée par recherche) est trop lourde pour ça. Mesurer avant de choisir.
+- **Le briefing est un cron** : un seul appel au modèle, à fiabiliser comme les autres (repli sur le texte de base si le modèle ou un flux échoue).
+- **Principe du projet** : les faits (quels articles, quel texte) sont choisis dans le code, le modèle ne fait que rédiger ; ne pas lui laisser inventer de contenu absent de la source.
+- Les flux laissent parfois des entités HTML dans les titres (déjà traité par `decodeEntities`) : un résumé ou un texte d'article aura le même besoin de nettoyage.
+
+**À vérifier au moment de commencer** : ce que contient vraiment le flux de chaque source (`<description>`, `<content:encoded>`), car c'est de là que dépend ce qu'on peut développer sans aller chercher les pages.
 
 ## Garde-fou
 
