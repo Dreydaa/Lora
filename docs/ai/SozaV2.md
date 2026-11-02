@@ -165,12 +165,12 @@ Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Ca
 - [x] 6. Musique, volume système, batterie de la souris (chantier 3) — **fait le 15/10/2026 via `Ctrl+K`** : volume (Core Audio), musique (commandes multimédia de Windows), batterie (HID++ Logitech, lue 34 %) ; « mets de la musique » lance Spotify, « mets <titre> » cherche et lance le morceau (essayé avec les vrais identifiants Spotify, voir `STATUS-V2.md`)
 - [x] 7. Plusieurs projets en parallèle (chantier 7) — **fait le 15/10/2026** : la limite n'existait déjà plus dans le code ; le bilan reçoit les projets travaillés (texte, sans colonne Notion), le soir donne le prochain jalon de chaque projet en cours, le matin les cite (voir `STATUS-V2.md`)
 - [ ] 8. Moteur de protocoles : 2B, 7E3A, 6H9K (chantier 2) — **premier lot livré le 17/10/2026 (PR #23)** : moteur, déclencheur strict et 7E3A faits côté code ; restent 2B, 6H9K (étapes non définies) et l'essai réel ; **18/10/2026 : exclusion d'applications `Protocole 7E3A - Parsec`** ; **20/10/2026 : ajout `+ App` (combinable avec `-`) et ouverture directe `Ouvre <app>` depuis Telegram** ; allumage du PC écarté (démarré à la main par l'application du plug) (voir `STATUS-V2.md`)
-- [ ] 9. Voix : mot d'activation, reconnaissance vocale, synthèse vocale, ruban réactif à l'audio (chantier 3) — **commencée le 18/10/2026** : lot 1 (voix de Windows dans `Ctrl+K`) fait puis retiré le 18/10/2026, plus aucune voix de sortie dans le code ; restent reconnaissance (Whisper local, choisi), mot d'activation, ruban réactif ; **voix : essais Piper, féminisation de la voix de l'utilisateur et XTTS-v2 faits puis retirés le 18/10/2026, clonage d'une voix de proche (avec accord) à reprendre de zéro** (voir `STATUS-V2.md`)
+- [ ] 9. Voix : mot d'activation, reconnaissance vocale, synthèse vocale, ruban réactif à l'audio (chantier 3) — **commencée le 18/10/2026** : lot 1 (voix de Windows dans `Ctrl+K`) fait puis retiré le 18/10/2026, plus aucune voix de sortie dans le code ; restent reconnaissance (Whisper local, choisi), mot d'activation, ruban réactif ; **voix : essais Piper, féminisation de la voix de l'utilisateur et XTTS-v2 faits puis retirés le 18/10/2026, clonage d'une voix de proche (avec accord) à reprendre de zéro** ; **02/11/2026 : XTTS-v2 réessayé puis abandonné (qualité « très médiocre » pour l'utilisateur), les sorties ElevenLabs ne peuvent pas entraîner Piper (politique d'usage) ; choix : Piper sur la voix d'un ami (accord écrit signé), 695 phrases préparées, environ 45 minutes enregistrées en MP3, pas encore traitées ni installées** (voir `STATUS-V2.md`)
 - [ ] 10. Agent résident en arrière-plan et widget animé (chantier 5)
 - [ ] 11. « Qu'est-ce que je regarde ? » (chantier 3, fonction 3)
 - [ ] 12. Gestes de la main (chantier 9) : détecteur et rendu de contrôle, puis scroll → son → zoom → déplacement de fenêtre
 
-Chantier 8 (documentation portfolio) : en continu, hors liste. Chantier 1 : fait. **Extras** (confort, après l'étape 12, voir la section « Extra » plus bas) : articles et actualités du briefing du matin, développés.
+Chantier 8 (documentation portfolio) : en continu, hors liste. Chantier 1 : fait. **Extras** (confort, après l'étape 12, voir la section « Extra » plus bas) : 1) articles et actualités du briefing du matin, développés ; 2) Soza qui prend la parole d'elle-même selon les événements de l'ordinateur.
 
 **Correctif hors liste (18/10/2026) : messages Telegram à plusieurs outils bloqués par la limite Groq (8 000 jetons par minute).** Chaque appel envoie au moins 3 748 jetons fixes (personnalité + 14 outils), un bilan avec outils en fait 2 à 3 : Groq répond 429, Vercel coupe à 25 s, QStash relançait et créait des doublons dans Notion. Fait : plus de relance automatique, réponse 200 avec message Telegram en cas d'échec, échec à 20 s (PR #27, à fusionner et à déployer). **Fait le 20/10/2026 : (1) choix des outils par mots-clés et descriptions plus courtes** (`lib/ai/tool-routing.ts`, voir `STATUS-V2.md`), à vérifier sur un vrai message Telegram. **À faire seulement si ça ne suffit pas** : (2) découper le message en actions traitées l'une après l'autre (idée de l'utilisateur). Le palier payant de Groq est écarté par l'utilisateur (pas de paiement au jeton). Détail, chiffres et limites dans `STATUS-V2.md` (« Pièges rencontrés »).
 
@@ -203,6 +203,33 @@ Ce qui suit n'est pas une étape de la V2 : c'est de l'amélioration et du confo
 - Les flux laissent parfois des entités HTML dans les titres (déjà traité par `decodeEntities`) : un résumé ou un texte d'article aura le même besoin de nettoyage.
 
 **À vérifier au moment de commencer** : ce que contient vraiment le flux de chaque source (`<description>`, `<content:encoded>`), car c'est de là que dépend ce qu'on peut développer sans aller chercher les pages.
+
+### Extra 2 — Soza prend la parole d'elle-même selon ce qui se passe sur l'ordinateur
+
+**Demande (02/11/2026)** : que Soza se mette à parler en fonction des événements qui se passent sur l'ordinateur de l'utilisateur, sans qu'il ait à lui écrire ou à lui parler d'abord.
+
+**État actuel (lu dans le code le 02/11/2026)** :
+- Soza ne parle aujourd'hui qu'**en réponse** : la commande `speak` (`src-tauri/src/main.rs`) lit une phrase à voix haute avec la voix de Windows, mais seule l'interface l'appelle, après une commande tapée dans `Ctrl+K`. Rien dans le code natif ne la déclenche seul.
+- Ce que l'app native observe déjà, en continu et en local : l'application au premier plan toutes les `SAMPLE_SECS` secondes (suivi du temps d'écran, sans compter Soza elle-même ni l'inactivité) et l'inactivité de l'utilisateur (`user-idle`, seuil `IDLE_SECS`).
+- Ce qu'elle sait lire seulement **à la demande** (`system.rs`) : le volume, la session Spotify, la batterie de la souris.
+- Une boucle d'arrière-plan interroge déjà le backend toutes les `POLL_SECS` secondes pour les protocoles lancés depuis Telegram (`protocol.rs`) : c'est le seul endroit où un événement venu de l'extérieur arrive dans l'app.
+- **Aucun détecteur d'événement système n'existe** : ni batterie de l'ordinateur, ni réseau, ni périphérique branché, ni mise à jour Windows, ni fin de téléchargement.
+
+**Exemples d'événements possibles, non décidés** (à trancher avec l'utilisateur au moment de s'y mettre ; aucun n'est retenu) :
+- état de la machine : batterie de l'ordinateur ou de la souris basse, réseau perdu puis revenu, périphérique branché ou débranché, mise à jour Windows en attente, disque presque plein ;
+- ce que fait l'utilisateur : application lancée ou fermée (par exemple Blender), temps passé sur une application au-delà d'un seuil, longue période sans pause, retour après une longue inactivité, heure tardive (il a déjà demandé à être prévenu quand il travaille trop tard, voir le briefing du soir) ;
+- ce qui vient de l'agenda : un rendez-vous dans quelques minutes (la donnée est déjà dans le backend Notion) ;
+- ce qui vient du travail : fin d'un téléchargement, d'une compilation ou d'une série de tests (suppose de surveiller un processus ou un dossier).
+
+**Contraintes à garder en tête** :
+- **Ne pas être envahissante.** Une assistante qui parle toute seule devient vite pénible : une règle activable ou non par type d'événement, une fréquence maximale par événement et par heure, silence en plein écran, en réunion ou pendant la pause. Prévoir l'interrupteur global **avant** le premier événement (la pause existante, clé Redis `break`, en est la base).
+- **Vie privée.** Observer l'ordinateur, c'est approcher des choses sensibles (titres de fenêtres, applications ouvertes). Tout se décide et se garde **en local** ; rien ne part au backend ni au modèle sans nécessité, seulement l'événement et jamais le contenu des fenêtres. L'utilisateur active lui-même chaque type d'observation.
+- **Budget Groq.** Un appel au modèle par événement est exclu (palier gratuit à 8 000 jetons par minute et 200 000 par jour, partagés avec les briefings et le chat, palier payant écarté). Les phrases viennent de **modèles de phrases fixes** remplies avec des faits (heure, pourcentage, nom de l'application) : ça garde un ton stable et respecte la règle « jamais d'invention ».
+- **Dépend de la voix de sortie.** Le point de départ est la voix de Windows (`speak`). Une liste finie de phrases fixes se prête bien à une voix locale : quand la voix finale sera prête (voir « Essais de voix » dans `STATUS-V2.md`), ces phrases seront à vérifier une par une.
+- **Ordre de test**, comme pour les points 4 à 6 : afficher d'abord la phrase (texte ou notification) avant de la dire à voix haute.
+- **La zone de texte `Ctrl+K` reste** (décision du 01/11/2026) comme repli.
+
+**À vérifier au moment de commencer** : quels événements Windows sont lisibles depuis Rust sans droits particuliers (pistes à confirmer : état d'alimentation, notifications du système pour le réseau et les périphériques) et le coût en processeur d'un sondage plus fréquent que celui du suivi actuel.
 
 ## Garde-fou
 
