@@ -25,9 +25,13 @@ Colonne droite :
 
 ## Barre de commande (`Ctrl+K`)
 Disponible seulement dans l'app Tauri, sans réseau. `Ctrl+K` l'ouvre, `Échap` la ferme, elle se referme après l'envoi. Elle flotte en bas au centre sans toucher à la grille et recouvre un peu le bas des cartes (position validée par l'utilisateur le 13/10/2026). Commandes reconnues (`CommandBar.tsx`, puis `run_command` côté Rust) :
-- applications de la liste blanche `apps.json` : `ouvre`, `lance`, `ferme` + le nom (fermeture douce, jamais forcée) ;
-- volume (`volume 30`, `monte le son`, `coupe le son`), musique (`pause`, `musique suivante`, `mets de la musique`, `mets <titre>` pour un morceau Spotify) et `batterie de la souris`.
+- applications de la liste blanche `apps.json` : `ouvre`, `lance`, `démarre` + le nom ; `ferme`, `quitte` + le nom (fermeture douce, jamais forcée) ;
+- volume : `volume` (dit le niveau), `volume 30`, `monte le son` / `baisse le volume` (de 10 points), `coupe le son` (ou `mute`), `remets le son` ;
+- musique : `pause`, `reprends` ou `mets de la musique`, `musique suivante`, `morceau précédent`, `mets <titre>` (morceau Spotify, demande `spotify.json`) ;
+- `batterie de la souris`.
 Un nom inconnu ou une phrase non reconnue est refusé, rien n'est exécuté. Le détail et les limites : `docs/ai/STATUS-V2.md`, étapes 4 et 6.
+
+**Voix (04/11/2026).** Chaque réponse est dite à voix haute avec la voix de Soza : Piper, en local, modèle affiné sur la voix d'un proche avec son accord, lancé à la première phrase et gardé en mémoire 10 minutes ; la voix de Windows prend le relais si les fichiers de Piper manquent. Les guillemets et signes de mise en forme ne sont pas lus. Réglages dans `voice.json` (dossier de données de l'app) : `volume` (0 à 1) et `english` (les noms d'applications dits avec l'accent anglais). `voice.log` garde ce qui a été dit et les phonèmes, les 30 derniers WAV sont dans `voice/history/`. Détail, limites et installation : `docs/ai/STATUS-V2.md`, étape 9.
 
 ## Zone de notification
 Fermer la fenêtre la masque. Clic gauche sur l'icône : afficher. Clic droit : Afficher Soza / Quitter. Au démarrage de Windows (app installée), Soza se lance fenêtre masquée.
