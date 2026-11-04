@@ -46,6 +46,14 @@ describe("ton de Soza : pas de flèches dans les messages", () => {
   });
 });
 
+// Demandé le 04/11/2026 : la voix lit les textes de Soza, qui ne doit jamais prononcer le prénom de l'utilisateur.
+describe("ton de Soza : jamais le prénom de l'utilisateur", () => {
+  it("la personnalité l'interdit et n'en cite aucun", () => {
+    expect(fridayPrompt).toMatch(/jamais le prénom/);
+    expect(fridayPrompt).not.toMatch(/\bAlan\b/);
+  });
+});
+
 describe("briefing du matin : bilan périmé", () => {
   // Avant le fix, le briefing reprenait le dernier bilan quel que soit son âge (« Hier : … ») et le répétait en boucle.
   it("un bilan vieux de 4 jours est annoncé comme manquant et n'est pas ressorti", async () => {

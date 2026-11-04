@@ -65,8 +65,8 @@ async function main() {
   }
 
   if (idea && milestone) {
-    const completedId = await completeMilestoneForIdea(idea.id);
-    record("completeMilestoneForIdea valide le bon jalon", completedId === milestone.id);
+    const completed = await completeMilestoneForIdea(idea.id);
+    record("completeMilestoneForIdea valide le jalon lié", completed >= 1, `${completed} jalon(s)`);
   }
 
   console.log("\n=== 2. suggest_projects (normal + fallback) ===");

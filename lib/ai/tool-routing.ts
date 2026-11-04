@@ -12,7 +12,7 @@ const GROUPS: ToolGroup[] = [
   },
   {
     tools: ["complete_project", "suggest_projects"],
-    pattern: /termin|\bfini|complet|achev|valide|propos|sugger|quoi (faire|commencer)|commenc|demarr|prochain projet|suivant/,
+    pattern: /termin|\bfini|livr|boucl|finalis|complet|achev|valide|propos|sugger|quoi (faire|commencer)|commenc|demarr|prochain projet|suivant/,
   },
   { tools: ["create_milestone", "list_milestones"], pattern: /jalon|echeance|deadline|milestone|etape|objectif/ },
   {

@@ -19,6 +19,17 @@ const category = z
   .nullish()
   .describe("Détermine le logo du dashboard : la plus proche du sujet, « Autre » sinon.");
 
+// Marque un projet terminé : l'idée passe en Terminé et ses jalons ouverts sont validés. Le nom dit par l'utilisateur est d'abord
+// rapproché des projets en cours (« le site d'Andy » devient « Site pour Andy »), comme pour le bilan.
+async function finishProject(projectTitle: string) {
+  const known = await getProjectsInProgress().catch(() => []);
+  const idea = await findIdeaByTitle(resolveProjectNames([projectTitle], known)[0] ?? projectTitle);
+  if (!idea) return { success: false, projectTitle, reason: "Idée introuvable dans Notion" };
+  await completeIdea(idea.id);
+  const milestones = await completeMilestoneForIdea(idea.id);
+  return { success: true, projectTitle, ideaCompleted: true, milestonesValidated: milestones };
+}
+
 export const sozaTools = {
   create_idea: tool({
     description:
@@ -110,11 +121,7 @@ export const sozaTools = {
     }),
     execute: async ({ projectTitle }) => {
       console.log("[tool] complete_project →", { projectTitle });
-      const idea = await findIdeaByTitle(projectTitle);
-      if (!idea) return { success: false, reason: "Idée introuvable dans Notion" };
-      await completeIdea(idea.id);
-      const milestoneId = await completeMilestoneForIdea(idea.id);
-      return { success: true, ideaCompleted: true, milestoneValidated: !!milestoneId };
+      return finishProject(projectTitle);
     },
   }),
 
@@ -257,13 +264,22 @@ export const sozaTools = {
         .describe(
           "Seuls les projets TRAVAILLÉS aujourd'hui, nommés ou confirmés par l'utilisateur, tels qu'il les a dits. Un projet non touché, laissé de côté ou seulement évoqué n'y figure PAS ; n'en déduis aucun. « Soza avancé, personnage 3D pas touché » donne [\"Soza\"]. Omets le champ si aucun projet n'est nommé.",
         ),
+      finishedProjects: z
+        .array(z.string())
+        .nullish()
+        .describe(
+          "Les projets que l'utilisateur dit TERMINÉS dans ce bilan, tels qu'il les a dits : ils passent en Terminé et leurs jalons sont validés (inutile d'appeler complete_project). Un projet seulement avancé n'y figure PAS. Omets le champ si aucun n'est fini.",
+        ),
     }),
-    execute: async ({ review, projectsWorkedOn }) => {
-      console.log("[tool] record_progress →", { review, projectsWorkedOn });
+    execute: async ({ review, projectsWorkedOn, finishedProjects }) => {
+      console.log("[tool] record_progress →", { review, projectsWorkedOn, finishedProjects });
       // Les noms sont rapprochés des vrais titres des projets en cours ; si cette lecture échoue, ils restent tels que tapés.
       const known = projectsWorkedOn?.length ? await getProjectsInProgress().catch(() => []) : [];
       const page = await saveProgress(review, projectsWorkedOn ? resolveProjectNames(projectsWorkedOn, known) : undefined);
-      return { success: true, pageId: page.id };
+      // Après le bilan, qui a besoin des projets encore « En cours » pour rapprocher les noms. Une panne ici ne perd pas le bilan.
+      const finished = [];
+      for (const name of finishedProjects ?? []) finished.push(await finishProject(name).catch(() => ({ success: false, projectTitle: name, reason: "Notion injoignable" })));
+      return { success: true, pageId: page.id, ...(finished.length ? { finished } : {}) };
     },
   }),
 };

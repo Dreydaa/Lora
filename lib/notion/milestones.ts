@@ -38,19 +38,25 @@ export async function createMilestone(title: string, dueDate: string, ideaPageId
   });
 }
 
-// Retourne l'id du jalon validé, ou null si aucun jalon n'est lié à cette idée
-// (cas des jalons créés avant l'ajout de la relation "Idée liée").
-export async function completeMilestoneForIdea(ideaPageId: string): Promise<string | null> {
+const setStatus = (pageId: string, name: string) => notion().pages.update({ page_id: pageId, properties: { Statut: { select: { name } } } });
+
+// Valide tous les jalons encore ouverts (« À faire » ou « Manqué ») liés à cette idée : les relances du 18/10 en ont créé plusieurs.
+// Retourne leur nombre, 0 si aucun n'est lié (jalons créés avant l'ajout de la relation "Idée liée").
+export async function completeMilestoneForIdea(ideaPageId: string): Promise<number> {
   const data = await notion().databases.query({
     database_id: database(),
-    filter: { property: "Idée liée", relation: { contains: ideaPageId } },
-    page_size: 1,
+    filter: { and: [{ property: "Idée liée", relation: { contains: ideaPageId } }, { property: "Statut", select: { does_not_equal: "Validé" } }] },
   });
-  const milestone = data.results[0];
-  if (!milestone) return null;
-  await notion().pages.update({
-    page_id: milestone.id,
-    properties: { Statut: { select: { name: "Validé" } } },
+  for (const milestone of data.results) await setStatus(milestone.id, "Validé"); // l'un après l'autre : Notion limite à ~3 requêtes par seconde
+  return data.results.length;
+}
+
+// Un jalon « À faire » dont l'échéance est passée devient « Manqué » (posé par le cron du matin). Retourne leur nombre.
+export async function markMissedMilestones(today: string): Promise<number> {
+  const data = await notion().databases.query({
+    database_id: database(),
+    filter: { and: [{ property: "Statut", select: { equals: "À faire" } }, { property: "Échéance", date: { before: today } }] },
   });
-  return milestone.id;
+  for (const milestone of data.results) await setStatus(milestone.id, "Manqué");
+  return data.results.length;
 }

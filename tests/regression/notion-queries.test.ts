@@ -7,7 +7,8 @@ vi.mock("@notionhq/client", () => import("../helpers/notion-mock"));
 import { addAgendaItem, getUpcomingAgenda } from "../../lib/notion/agenda";
 import { addIdea, completeIdea, findIdeaByTitle, getProjectsInProgress, resolveProjectNames, updateIdeaNotes } from "../../lib/notion/idees";
 import { sozaTools } from "../../lib/ai/tools";
-import { createMilestone, getMilestones } from "../../lib/notion/milestones";
+import { completeMilestoneForIdea, createMilestone, getMilestones, markMissedMilestones } from "../../lib/notion/milestones";
+import { milestonePage } from "../helpers/notion-mock";
 import { getLatestProgress, saveProgress } from "../../lib/notion/progress";
 
 const lastFilter = () => JSON.stringify(notionCalls.at(-1)?.filter ?? null);
@@ -40,6 +41,55 @@ describe("jalons : ceux en retard restent visibles", () => {
   it("avec les jalons validés : aucun filtre (le dashboard calcule la progression x/y)", async () => {
     await getMilestones(true);
     expect(notionCalls.at(-1)?.filter).toBeUndefined();
+  });
+});
+
+// Constaté le 03/11/2026 : « le site de Andy est terminé » dit dans un bilan n'avait rien changé dans Notion.
+describe("projet terminé et jalons manqués", () => {
+  const statuses = () => updatedPages.map((p) => p.properties.Statut.select.name);
+  it("valide tous les jalons ouverts liés à l'idée, pas seulement le premier", async () => {
+    notionData["db-milestones"] = [milestonePage("m1", "Maquette", "2026-10-20", "À faire", "i1"), milestonePage("m2", "Maquette (doublon)", "2026-10-20", "Manqué", "i1")];
+    expect(await completeMilestoneForIdea("i1")).toBe(2);
+    expect(updatedPages.map((p) => p.page_id)).toEqual(["m1", "m2"]);
+    expect(statuses()).toEqual(["Validé", "Validé"]);
+    expect(lastFilter()).toContain('"does_not_equal":"Validé"'); // un jalon déjà validé n'est pas réécrit
+  });
+  it("aucun jalon lié : 0, et rien n'est écrit", async () => {
+    expect(await completeMilestoneForIdea("i1")).toBe(0);
+    expect(updatedPages).toHaveLength(0);
+  });
+  it("markMissedMilestones passe en Manqué les jalons « À faire » dont l'échéance est passée", async () => {
+    notionData["db-milestones"] = [milestonePage("m1", "Site", "2026-10-20")];
+    expect(await markMissedMilestones("2026-11-03")).toBe(1);
+    expect(lastFilter()).toContain('"equals":"À faire"');
+    expect(lastFilter()).toContain('"before":"2026-11-03"');
+    expect(statuses()).toEqual(["Manqué"]);
+  });
+  it("complete_project retrouve « Site pour Andy » depuis « le site d'Andy », et valide son jalon", async () => {
+    notionData["db-ideas"] = [projectPage("i1", "Site pour Andy")];
+    notionData["db-milestones"] = [milestonePage("m1", "Développer le site", "2026-10-20", "À faire", "i1")];
+    const execute = (sozaTools.complete_project as any).execute as (input: unknown) => Promise<Record<string, unknown>>;
+    expect(await execute({ projectTitle: "le site d'Andy" })).toMatchObject({ success: true, milestonesValidated: 1 });
+    expect(JSON.stringify(notionCalls)).toContain('"contains":"Site pour Andy"'); // le titre exact, pas la formulation de l'utilisateur
+    expect(updatedPages.map((p) => p.properties.Statut.select.name)).toEqual(["Terminé", "Validé"]);
+  });
+  it("record_progress avec finishedProjects enregistre le bilan puis termine le projet et son jalon", async () => {
+    notionData["db-ideas"] = [projectPage("i1", "Site pour Andy")];
+    notionData["db-milestones"] = [milestonePage("m1", "Développer le site", "2026-10-20", "À faire", "i1")];
+    const execute = (sozaTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean; finished?: unknown[] }>;
+    const result = await execute({ review: "Site livré", projectsWorkedOn: ["site d'Andy"], finishedProjects: ["site d'Andy"] });
+    expect(result.success).toBe(true);
+    expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Projets : Site pour Andy. Site livré");
+    expect(result.finished).toEqual([expect.objectContaining({ success: true, milestonesValidated: 1 })]);
+    expect(updatedPages.map((p) => p.properties.Statut.select.name)).toEqual(["Terminé", "Validé"]);
+  });
+  it("record_progress : une panne en terminant le projet ne perd pas le bilan", async () => {
+    Object.defineProperty(notionData, "db-ideas", { get: () => { throw new Error("notion 500"); }, configurable: true, enumerable: true });
+    const execute = (sozaTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean; finished?: unknown[] }>;
+    const result = await execute({ review: "Site livré", finishedProjects: ["Site pour Andy"] });
+    expect(result.success).toBe(true);
+    expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Site livré");
+    expect(result.finished).toEqual([expect.objectContaining({ success: false })]);
   });
 });
 
