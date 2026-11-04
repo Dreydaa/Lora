@@ -77,10 +77,12 @@ fn run_command(text: String, apps: State<AppsFile>) -> String {
   system::run(&text, &apps.0.with_file_name("spotify.json")).unwrap_or_else(|| apps::run(&text, &apps.0))
 }
 
-// Dit la phrase à voix haute avec la voix de Windows. Rend la main tout de suite : la lecture tourne sur son propre thread.
+// Dit la phrase à voix haute avec la voix de Soza (Piper, sinon celle de Windows : voir speech.rs). Rend la main tout de suite :
+// la lecture tourne sur son propre thread.
 #[tauri::command]
-fn speak(text: String) {
-  thread::spawn(move || { if let Err(e) = speech::speak(&text) { eprintln!("[voix] lecture impossible : {e}"); } });
+fn speak(text: String, apps: State<AppsFile>) {
+  let dir = apps.0.parent().map(PathBuf::from).unwrap_or_default();
+  thread::spawn(move || { if let Err(e) = speech::speak(&text, &dir) { eprintln!("[voix] lecture impossible : {e}"); } });
 }
 
 fn show_main(app: &AppHandle) {
@@ -137,6 +139,11 @@ fn main() {
       // Pour « mets <titre> » : identifiants d'une application créée sur developer.spotify.com (voir spotify.rs). Créé vide, relu à chaque commande.
       let spotify_file = dir.join("spotify.json");
       if !spotify_file.exists() { let _ = fs::write(&spotify_file, "{ \"client_id\": \"\", \"client_secret\": \"\" }\n"); }
+
+      // Voix de Soza, relue à chaque phrase (voir speech.rs) : "volume" de 0 à 1 à régler à l'oreille, "english" les mots dits avec
+      // l'accent anglais (noms d'applications : ["blender", "discord"]). Piper et son modèle vont dans voice/.
+      let voice_file = dir.join("voice.json");
+      if !voice_file.exists() { let _ = fs::write(&voice_file, format!("{{ \"volume\": {}, \"english\": [] }}\n", speech::DEFAULT_VOLUME)); }
 
       // Protocoles lancés depuis Telegram (voir protocol.rs) : adresse et clé du backend, créés vides, relus à chaque tour.
       let agent_file = dir.join("agent.json");
