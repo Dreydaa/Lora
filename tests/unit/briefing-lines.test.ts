@@ -1,11 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { agendaLine, bilanLine, dayLine, milestoneLine, projectMilestonesLine, projectsLine } from "../../lib/briefing";
+import { agendaLine, bilanLine, dayLine, milestoneLine, projectMilestonesLine, projectsLine, shiftRelativeDays } from "../../lib/briefing";
 import type { AgendaItem, Milestone } from "../../lib/types";
 
 const TODAY = "2026-10-07"; // un mercredi
 
 const item = (title: string, date: string | null, status = "À faire"): AgendaItem => ({ id: title, title, date, status, type: "Perso" });
 const milestone = (title: string, dueDate: string | null, status = "À faire"): Milestone => ({ id: title, title, dueDate, status });
+
+describe("shiftRelativeDays : le bilan écrit hier, lu aujourd'hui", () => {
+  it.each([
+    ["prêt demain matin", "prêt ce matin"],
+    ["demain soir", "ce soir"],
+    ["demain midi", "ce midi"],
+    ["demain après-midi", "cet après-midi"],
+    ["demain apres-midi", "cet après-midi"],
+    ["à rendre demain", "à rendre aujourd'hui"],
+    ["après-demain", "demain"],
+    ["apres-demain matin", "demain matin"],
+    ["aujourd'hui j'ai avancé", "hier j'ai avancé"],
+    ["aujourd’hui", "hier"], // apostrophe typographique
+    ["ce matin et ce soir", "hier matin et hier soir"],
+    ["cet après-midi", "hier après-midi"],
+    ["hier et avant-hier", "avant-hier et il y a trois jours"],
+    ["Demain je finis", "Aujourd'hui je finis"], // la majuscule est gardée
+  ])("%s -> %s", (input, expected) => {
+    expect(shiftRelativeDays(input)).toBe(expected);
+  });
+  it("un seul passage : « après-demain » devient « demain » sans redevenir « aujourd'hui »", () => {
+    expect(shiftRelativeDays("demain puis après-demain")).toBe("aujourd'hui puis demain");
+  });
+  it("ne touche ni les mots qui contiennent ces mots, ni le reste du texte", () => {
+    expect(shiftRelativeDays("Demainville, ce matin-là, aujourd'huit, hier-soir")).toBe("Demainville, ce matin-là, aujourd'huit, hier-soir");
+    expect(shiftRelativeDays("jeudi 05/11, le 6, la semaine prochaine")).toBe("jeudi 05/11, le 6, la semaine prochaine");
+  });
+});
 
 describe("bilanLine (bilan d'hier)", () => {
   it("reprend le bilan d'hier tel quel", () => {
@@ -22,6 +50,21 @@ describe("bilanLine (bilan d'hier)", () => {
   });
   it("aucun bilan jamais enregistré", () => {
     expect(bilanLine({ review: "Aucun bilan", date: null }, TODAY)).toContain("jamais");
+  });
+  // Constaté le 04/11/2026 : le bilan du 03/11 disait « disponible demain matin », le briefing du matin a répété « demain matin ».
+  it("les mots relatifs du bilan d'hier sont décalés d'un jour avant d'arriver au modèle", () => {
+    const line = bilanLine({ review: "Voix du bilan du jour en training, disponible demain matin.", date: "2026-10-06" }, TODAY);
+    expect(line).toContain("disponible ce matin");
+    expect(line).not.toContain("demain");
+  });
+  it("un bilan saisi après minuit (daté d'aujourd'hui) garde ses mots d'origine", () => {
+    expect(bilanLine({ review: "prêt demain", date: TODAY }, TODAY)).toBe("Bilan d'hier: prêt demain.");
+  });
+  it("un vieux bilan n'est pas ressorti, donc rien à décaler", () => {
+    expect(bilanLine({ review: "prêt demain", date: "2026-10-03" }, TODAY)).not.toContain("prêt");
+  });
+  it("retour de pause : le bilan d'avant la pause garde ses mots d'origine", () => {
+    expect(bilanLine({ review: "à finir demain", date: "2026-10-09" }, "2026-10-12", { start: "2026-10-10", end: "2026-10-11" })).toContain("à finir demain");
   });
   it("retour de pause : pas de reproche, dernier bilan rappelé", () => {
     const line = bilanLine({ review: "rig fini", date: "2026-10-09" }, "2026-10-12", { start: "2026-10-10", end: "2026-10-11" });

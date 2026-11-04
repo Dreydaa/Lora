@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { stubNetwork } from "../helpers/network";
-import { agendaPage, milestonePage, notionData, progressPage, projectPage, resetNotion } from "../helpers/notion-mock";
+import { agendaPage, milestonePage, notionData, progressPage, projectPage, resetNotion, updatedPages } from "../helpers/notion-mock";
 import { store } from "../helpers/redis-mock";
 
 const generateText = vi.hoisted(() => vi.fn());
@@ -95,6 +95,17 @@ describe("cron du matin", () => {
     expect((await run(morning)).status).toBe(200);
     expect(net.telegram()[0].body.text).toContain("SOZA — briefing");
     expect(net.telegram()[0].body.text).toContain("Bilan d'hier");
+  });
+
+  it("un jalon dont l'échéance est passée devient « Manqué » avant le briefing, et une panne de cette étape ne l'empêche pas", async () => {
+    notionData["db-milestones"] = [milestonePage("m1", "Site", "2026-10-01")];
+    const net = stubNetwork();
+    expect((await run(morning)).status).toBe(200);
+    expect(updatedPages.map((p) => [p.page_id, p.properties.Statut.select.name])).toEqual([["m1", "Manqué"]]);
+    updatedPages.length = 0;
+    Object.defineProperty(notionData, "db-milestones", { get: () => { throw new Error("notion 500"); }, configurable: true, enumerable: true });
+    expect((await run(morning)).status).toBe(200);
+    expect(net.telegram().map((c) => c.body.text)).toEqual(["BRIEFING-COMPLET", "BRIEFING-COMPLET"]);
   });
 
   it("pendant une pause de plusieurs jours : rien n'est envoyé", async () => {
