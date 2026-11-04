@@ -82,7 +82,9 @@ export async function getProjectsInProgress(): Promise<Project[]> {
   return data.results.map((page: any) => ({ id: page.id, title: page.properties.Titre?.title?.[0]?.plain_text ?? "(sans titre)" }));
 }
 
-const tokens = (text: string) => new Set(text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+// Les petits mots (« d' », « le », « pour »…) sont ignorés : ils empêchaient « le site d'Andy » de désigner « Site pour Andy ».
+const STOP_WORDS = new Set(["le", "la", "les", "un", "une", "de", "du", "des", "pour", "et", "au", "aux"]);
+const tokens = (text: string) => new Set(text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1 && !STOP_WORDS.has(t)));
 const covers = (big: Set<string>, small: Set<string>) => small.size > 0 && [...small].every((t) => big.has(t));
 
 // Le modèle ne connaît pas les titres exacts : il écrit « le portfolio » ou « rig personnage 3D ». Chaque nom est remplacé par le titre

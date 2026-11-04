@@ -13,7 +13,7 @@ import { fridayPrompt, nicknameInstruction } from "./ai/prompts/friday";
 
 const BILAN_RULES = `
 - Bilan : si les données indiquent qu'AUCUN bilan n'a été fait hier, dis-le clairement dès le début et précise que ce n'est pas une bonne chose ; ne reprends jamais un ancien bilan comme s'il datait d'hier. S'il y a un bilan d'hier qui mentionne une tâche inachevée ou en cours, propose explicitement de la reprendre aujourd'hui.
-- Dates du bilan : le bilan a été écrit hier, donc ses mots relatifs sont décalés d'un jour (« aujourd'hui » = hier, « demain » = aujourd'hui, « après-demain » = demain). Ne recopie jamais « demain » ou « ce soir » du bilan tel quel : reformule avec la bonne date (ex. « la v2 démarre aujourd'hui »).
+- Dates du bilan : le code a déjà converti les mots relatifs du bilan écrit hier (« demain matin » y est devenu « ce matin », « demain » « aujourd'hui »…) : prends-les tels quels, sans les décaler une seconde fois. Ne parle jamais de « demain » pour ce que le bilan prévoyait pour ce matin ou aujourd'hui.
 - Pause : si les données indiquent un retour de pause, accueille la reprise sans pression et sans reproche (pas de bilan manquant à signaler) ; rappelle le dernier bilan avant la pause et propose de reprendre là où il en était.`;
 
 // Briefing complet, envoyé sur Telegram.
@@ -46,9 +46,31 @@ Tu écris le briefing du soir affiché sur le dashboard. Rédige un message trè
 
 const AGENDA_HORIZON_DAYS = 7;
 
-// Un bilan daté d'hier (ou d'aujourd'hui, saisi après minuit) compte comme "le bilan d'hier".
+// Le bilan est écrit la veille : ses mots relatifs (« demain matin », « ce soir ») sont décalés d'un jour à la lecture. Une consigne au
+// modèle ne suffisait pas (le 13/10, puis le 04/11/2026 : « disponible demain matin » ressortait tel quel le matin même) : on les convertit
+// ici, en un seul passage pour ne rien décaler deux fois (« après-demain » devient « demain », qui ne devient pas « aujourd'hui »).
+const SHIFTED_DAYS: Record<string, string> = {
+  "avant-hier": "il y a trois jours",
+  "hier": "avant-hier", "hier matin": "avant-hier matin", "hier soir": "avant-hier soir",
+  "aujourd'hui": "hier", "ce matin": "hier matin", "ce midi": "hier midi", "cet après-midi": "hier après-midi", "ce soir": "hier soir",
+  "demain": "aujourd'hui", "demain matin": "ce matin", "demain midi": "ce midi", "demain après-midi": "cet après-midi", "demain soir": "ce soir",
+  "après-demain": "demain",
+};
+const RELATIVE_DAYS = /(?<![\p{L}\p{N}])(avant-hier|hier matin|hier soir|hier|aujourd['’]hui|ce matin|ce midi|cet apr[eè]s-midi|ce soir|demain matin|demain midi|demain apr[eè]s-midi|demain soir|demain|apr[eè]s-demain)(?![\p{L}\p{N}]|-\p{L})/giu; // pas « ce matin-là » ni « hier-soir »
+
+export function shiftRelativeDays(text: string): string {
+  return text.replace(RELATIVE_DAYS, (word) => {
+    const key = word.toLowerCase().replace("’", "'").replace("apres", "après");
+    const shifted = SHIFTED_DAYS[key] ?? word;
+    return /^\p{Lu}/u.test(word) ? shifted[0].toUpperCase() + shifted.slice(1) : shifted;
+  });
+}
+
+// Un bilan daté d'hier (ou d'aujourd'hui, saisi après minuit) compte comme "le bilan d'hier". Seul celui d'hier a ses mots relatifs décalés.
 export function bilanLine(progress: { review: string; date: string | null }, today: string, brk: Break | null = null): string {
-  if (progress.date && progress.date >= addDays(today, -1)) return `Bilan d'hier: ${progress.review}.`;
+  if (progress.date && progress.date >= addDays(today, -1)) {
+    return `Bilan d'hier: ${progress.date === addDays(today, -1) ? shiftRelativeDays(progress.review) : progress.review}.`;
+  }
   if (inBreak(brk, addDays(today, -1))) {
     return `Retour de pause (du ${brk!.start} au ${brk!.end}) : il n'y a pas de bilan d'hier et ce n'est pas un manquement. Dernier bilan avant la pause (${progress.date ?? "aucun"}): ${progress.review}.`;
   }
