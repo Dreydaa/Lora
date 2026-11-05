@@ -5,6 +5,24 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 // dans un navigateur. En attendant la voix (étape 9), c'est la manière d'essayer les commandes ; les applications permises sont dans apps.json.
 const inTauri = "__TAURI_INTERNALS__" in window;
 const REPLY_MS = 6000;
+const CHARS_MS = 40; // une réponse longue reste affichée plus longtemps (elle est dite en même temps)
+const ASK_TIMEOUT_MS = 25_000;
+
+// Ce qui n'est pas une commande locale (briefing, Notion, météo, recherche, calcul, avis…) : même cerveau que Telegram, via api/ask.
+async function askBackend(text: string): Promise<string> {
+  const apiUrl = import.meta.env.VITE_API_URL;
+  const apiKey = import.meta.env.VITE_DASHBOARD_API_KEY;
+  if (!apiUrl || !apiKey) throw new Error("VITE_API_URL ou VITE_DASHBOARD_API_KEY manquant");
+  const response = await fetch(`${apiUrl}/api/ask`, {
+    method: "POST",
+    headers: { "x-dashboard-key": apiKey, "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+    signal: AbortSignal.timeout(ASK_TIMEOUT_MS),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok || typeof body?.text !== "string") throw new Error(body?.error ?? `réponse ${response.status}`);
+  return body.text;
+}
 
 export function CommandBar() {
   const [open, setOpen] = useState(false);
@@ -35,15 +53,18 @@ export function CommandBar() {
     if (!text) return;
     setOpen(false);
     clearTimeout(replyTimer.current);
-    const answer = await invoke<string>("run_command", { text }).then(
-      (said) => {
-        void invoke("speak", { text: said }); // chaque réponse est dite, sauf les erreurs
-        return said;
-      },
-      (error) => `Erreur : ${error}`,
-    );
+    setReply("…"); // la réponse du backend peut prendre plusieurs secondes
+    const answer = await invoke<string | null>("run_command", { text })
+      .then((local) => local ?? askBackend(text))
+      .then(
+        (said) => {
+          void invoke("speak", { text: said }); // chaque réponse est dite, sauf les erreurs
+          return said;
+        },
+        (error) => `Erreur : ${error}`,
+      );
     setReply(answer);
-    replyTimer.current = window.setTimeout(() => setReply(""), REPLY_MS);
+    replyTimer.current = window.setTimeout(() => setReply(""), REPLY_MS + answer.length * CHARS_MS);
   };
 
   if (!inTauri || (!open && !reply)) return null;
@@ -51,7 +72,7 @@ export function CommandBar() {
     <div className="command-bar" role="search">
       {open && (
         <form onSubmit={submit}>
-          <input ref={input} type="text" placeholder="ouvre blender, volume 30, mets de la musique…" aria-label="Commande" autoComplete="off" spellCheck={false} />
+          <input ref={input} type="text" placeholder="ouvre blender, volume 30, mon briefing, une question…" aria-label="Commande" autoComplete="off" spellCheck={false} />
         </form>
       )}
       {reply && <p role="status">{reply}</p>}

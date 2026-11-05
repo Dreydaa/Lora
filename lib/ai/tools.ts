@@ -1,17 +1,19 @@
 // lib/ai/tools.ts
 import { tool } from "ai";
 import { z } from "zod";
-import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose, getProjectsInProgress, resolveProjectNames } from "../notion/idees";
+import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose, getProjectsInProgress, getAllIdeas, resolveProjectNames } from "../notion/idees";
 import { CATEGORIES } from "../types";
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
-import { addAgendaItem, addShiftSchedule } from "../notion/agenda";
-import { saveProgress } from "../notion/progress";
+import { addAgendaItem, addShiftSchedule, getUpcomingAgenda } from "../notion/agenda";
+import { getLatestProgress, saveProgress } from "../notion/progress";
 import { getSettings, saveBriefingTime } from "../notion/settings";
 import { upsertSchedule } from "../integrations/qstash";
-import { clearBreak, getAgentApps, getBreak, setBreak } from "../memory";
+import { getWeather } from "../integrations/weather";
+import { clearBreak, getAgentApps, getBreak, getLastBriefing, setBreak } from "../memory";
 import { todayInParis } from "../date";
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_IDEAS_READ = 25; // chaque idée lue coûte des jetons, et Groq n'en laisse que 8 000 par minute
 
 // Choisit le logo affiché dans le dashboard ; null accepté parce que Groq envoie parfois null au lieu d'omettre.
 const category = z
@@ -251,6 +253,64 @@ export const sozaTools = {
         pause: read(brk, (b) => (b && b.end >= todayInParis() ? { debut: b.start, fin: b.end } : "aucune pause en cours ni à venir")),
         applications: read(apps, (a) => (a.length ? a : "inconnues : l'app Soza du PC n'a pas encore envoyé sa liste")),
       };
+    },
+  }),
+
+  // Lectures : Soza sait enfin dire ce qu'il y a dans Notion (avant, seuls list_milestones et get_settings lisaient).
+  get_agenda: tool({
+    description: "Lit les prochains rendez-vous et tâches de l'agenda Notion (hors shifts), avec leur date. À appeler dès qu'on te demande l'agenda ou ce qui est prévu ; ne le donne jamais de mémoire.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] get_agenda");
+      const items = await getUpcomingAgenda();
+      // Le jour de la semaine est donné : le modèle le calculait mal à partir de la date seule (« mardi 15 novembre » pour un dimanche).
+      const weekday = (day: string) => new Intl.DateTimeFormat("fr-FR", { weekday: "long", timeZone: "UTC" }).format(new Date(`${day.slice(0, 10)}T12:00:00Z`));
+      return { today: todayInParis(), items: items.map(({ title, date, end, status }) => ({ title, jour: date ? weekday(date) : null, date, end, status })) };
+    },
+  }),
+
+  list_ideas: tool({
+    description:
+      "Lit les idées et projets de Notion (titre, taille, statut). Les projets sont les idées « En cours ». Avec `search`, ajoute un extrait des notes des idées qui correspondent. À appeler pour parler des idées, des projets en cours ou en donner un avis.",
+    inputSchema: z.object({
+      statut: z.enum(["Brute", "En cours", "Archivée", "Terminé"]).nullish().describe("Seulement ce statut ; vide = tous."),
+      search: z.string().nullish().describe("Mot du titre à chercher."),
+    }),
+    execute: async ({ statut, search }) => {
+      console.log("[tool] list_ideas →", { statut, search });
+      const wanted = search?.trim().toLowerCase();
+      const ideas = (await getAllIdeas())
+        .filter((i) => (!statut || i.status === statut) && (!wanted || i.title.toLowerCase().includes(wanted)))
+        .slice(0, MAX_IDEAS_READ)
+        .map(({ title, size, status, notes }) => ({ title, size, status, ...(wanted ? { notes: notes.slice(0, 200) } : {}) }));
+      return { ideas };
+    },
+  }),
+
+  get_weather: tool({
+    description: "Lit la météo actuelle (température et code météo WMO de Open-Meteo : 0 dégagé, 1-3 nuageux à couvert, 45-48 brouillard, 51-67 pluie, 71-77 neige, 80-82 averses, 95-99 orage). Traduis le code en mots, ne le lis jamais. Ne l'invente jamais.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] get_weather");
+      return { weather: await getWeather() };
+    },
+  }),
+
+  get_last_progress: tool({
+    description: "Lit le dernier bilan enregistré dans Notion (texte et date).",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] get_last_progress");
+      return getLatestProgress();
+    },
+  }),
+
+  get_briefing: tool({
+    description: "Lit le dernier briefing déjà généré (matin ou soir), prêt à être dit : redis-le presque tel quel, sans rien y ajouter.",
+    inputSchema: z.object({ type: z.enum(["morning", "evening"]).describe("morning = matin, evening = soir") }),
+    execute: async ({ type }) => {
+      console.log("[tool] get_briefing →", { type });
+      return { briefing: (await getLastBriefing(type)) ?? "Aucun briefing disponible pour l'instant (pause, ou pas encore envoyé)." };
     },
   }),
 

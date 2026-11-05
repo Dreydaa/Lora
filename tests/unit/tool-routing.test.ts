@@ -48,6 +48,20 @@ describe("selectToolNames", () => {
   });
 });
 
+describe("lectures vocales", () => {
+  it("route chaque demande de lecture vers son outil", () => {
+    expect(names("donne-moi mon briefing du matin")).toContain("get_briefing");
+    expect(names("quelle est la météo ?")).toContain("get_weather");
+    expect(names("quels sont mes projets en cours ?")).toEqual(expect.arrayContaining(["list_ideas", "list_milestones"]));
+    expect(names("qu'est-ce que j'ai de prévu demain ?")).toContain("get_agenda");
+    expect(names("qu'est-ce que j'ai fait hier ?")).toContain("get_last_progress");
+  });
+
+  it("n'envoie pas la météo pour un changement d'heure de briefing", () => {
+    expect(names("décale le briefing à 8h")).not.toContain("get_weather");
+  });
+});
+
 describe("pickTools", () => {
   it("renvoie un sous-ensemble des vrais outils", () => {
     const picked = pickTools(sozaTools, "liste mes jalons");
