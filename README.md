@@ -17,7 +17,8 @@ Notion est la source de vérité pour toutes les données (idées, agenda, jalon
 7. **Plusieurs projets en parallèle** : le bilan du soir enregistre sur lesquels l'utilisateur a avancé, le briefing du soir donne le prochain jalon de chaque projet en cours.
 8. **Recherche web** (Telegram) : pour une question extérieure ou récente, le modèle utilise la recherche intégrée de Groq et répond en deux ou trois phrases ; si la recherche échoue, il réessaie sans elle.
 9. **Protocoles** : le message exact « Protocole 7E3A » est reconnu par le worker (jamais par le modèle) ; le PC récupère le protocole via `api/protocol.ts`, exécute ses étapes (ouvrir des applications) et le résultat revient sur Telegram.
-10. **Barre de commande `Ctrl+K`** (app de bureau seulement, sans réseau) : ouvrir ou fermer une application d'une liste blanche, régler le volume, piloter la musique (Spotify : « mets <titre> »), lire la batterie de la souris. Chaque réponse est dite à voix haute avec la voix de Løra (Piper, en local ; repli sur la voix de Windows).
+10. **Barre de commande `Ctrl+K`** (app de bureau seulement) : ouvrir ou fermer une application d'une liste blanche, régler le volume, piloter la musique (Spotify : « mets <titre> »), lire la batterie de la souris (ces commandes locales marchent sans réseau) ; toute autre phrase (briefing, agenda, idées, météo, recherche, calcul, avis) part au backend `api/ask`, même cerveau que Telegram. Chaque réponse est dite à voix haute avec la voix de Løra (Piper, en local ; repli sur la voix de Windows).
+11. **Mot d'activation « Løra »** (app de bureau, micro) : Whisper (whisper.cpp) tourne en local sur la carte graphique ; une phrase qui commence par « Løra » est traitée comme une phrase tapée dans `Ctrl+K` et la réponse est dite. Avant toute écriture dans Notion, Løra demande confirmation. L'écoute se coupe depuis le menu de la zone de notification ; elle demande Whisper installé à la main (voir `docs/ai/STATUS-V2.md`).
 
 ## Stack
 
