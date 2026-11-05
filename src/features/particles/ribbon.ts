@@ -6,7 +6,7 @@ export const RIBBON_HALF_WIDTH = 75;
 const RIBBON_THICKNESS = 3;
 export const RIBBON_SIZE = 0.75;
 const RIBBON_WOBBLE = 2.5;
-const RIBBON_TILT = THREE.MathUtils.degToRad(58);
+export const RIBBON_TILT = THREE.MathUtils.degToRad(58);
 export const RIBBON_SPIN = 0.5;
 
 const tiltCos = Math.cos(RIBBON_TILT);
@@ -46,12 +46,15 @@ export function ribbonPosition(
   ph: number,
   scale: number,
   out: THREE.Vector3,
+  // L'inclinaison peut être redressée pendant que Løra parle (introScene.ts) : cos et sin de l'angle, ceux du repos par défaut.
+  cosTilt = tiltCos,
+  sinTilt = tiltSin,
 ) {
   const spunX = lx * spinCos - ly * spinSin;
   const spunY = lx * spinSin + ly * spinCos;
   out.set(
     spunX * scale + Math.cos(ph * 0.8) * RIBBON_WOBBLE,
-    (spunY * tiltCos - lz * tiltSin) * scale + Math.sin(ph) * RIBBON_WOBBLE,
-    (spunY * tiltSin + lz * tiltCos) * scale + Math.sin(ph * 0.6) * RIBBON_WOBBLE,
+    (spunY * cosTilt - lz * sinTilt) * scale + Math.sin(ph) * RIBBON_WOBBLE,
+    (spunY * sinTilt + lz * cosTilt) * scale + Math.sin(ph * 0.6) * RIBBON_WOBBLE,
   );
 }

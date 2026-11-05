@@ -11,7 +11,7 @@ use std::{
   process::{Child, Command, Stdio},
   sync::{
     atomic::{AtomicBool, Ordering},
-    mpsc, Mutex,
+    mpsc, Mutex, OnceLock,
   },
   thread,
   time::{Duration, Instant},
@@ -120,6 +120,9 @@ impl Segmenter {
   fn new(rate: u32, threshold: f32) -> Self {
     Self { frame: rate as usize * FRAME_MS / 1000, threshold, floor: None, seen: 0, leftover: vec![], preroll: VecDeque::new(), loud_run: 0, active: None, quiet: 0, loud_frames: 0 }
   }
+
+  // Une phrase est en cours de capture (de la voix a été entendue, la fin n'est pas arrivée).
+  fn hearing(&self) -> bool { self.active.is_some() }
 
   fn reset(&mut self) {
     self.leftover.clear();
@@ -257,6 +260,18 @@ pub fn stop() {
   if let Some(mut child) = SERVER.lock().unwrap().take() { let _ = child.kill(); }
 }
 
+// Ce que fait la voix, pour le ruban de l'interface (idle, listening, speaking). N'émet que les changements.
+pub const STATE_EVENT: &str = "lora://state";
+static APP: OnceLock<AppHandle> = OnceLock::new();
+static STATE: Mutex<&'static str> = Mutex::new("idle");
+
+pub fn emit_state(state: &'static str) {
+  let mut last = STATE.lock().unwrap_or_else(|e| e.into_inner());
+  if *last == state { return; }
+  *last = state;
+  if let Some(app) = APP.get() { let _ = app.emit(STATE_EVENT, state); }
+}
+
 pub fn set_enabled(on: bool) { ENABLED.store(on, Ordering::Relaxed); }
 pub fn enabled_in_config(dir: &Path) -> bool { config(dir).enabled }
 
@@ -288,6 +303,7 @@ pub fn start(app: AppHandle, dir: PathBuf) {
   let listen_file = dir.join("listen.json");
   if !listen_file.exists() { let _ = fs::write(&listen_file, DEFAULT_CONFIG); }
   set_enabled(config(&dir).enabled);
+  let _ = APP.set(app.clone());
   thread::spawn(move || { if let Err(e) = run(&app, &dir) { eprintln!("[écoute] arrêtée : {e}"); } });
 }
 
@@ -323,14 +339,11 @@ fn run(app: &AppHandle, dir: &Path) -> Result<(), String> {
       armed_until = None;
       playing = wanted;
     }
-    let chunk = match rx.recv_timeout(Duration::from_millis(500)) {
-      Ok(chunk) => chunk,
-      Err(mpsc::RecvTimeoutError::Timeout) => continue,
-      Err(mpsc::RecvTimeoutError::Disconnected) => return Err("le micro s'est arrêté".into()),
-    };
+    let received = rx.recv_timeout(Duration::from_millis(500));
+    if let Err(mpsc::RecvTimeoutError::Disconnected) = received { return Err("le micro s'est arrêté".into()); }
     // Løra ne doit pas s'entendre elle-même (sa voix contient son propre nom) : pendant qu'elle parle, et un instant après, on jette tout.
-    if !wanted || crate::speech::busy() { segmenter.reset(); continue; }
-    for utterance in segmenter.push(&chunk) {
+    if received.is_ok() && (!wanted || crate::speech::busy()) { segmenter.reset(); continue; }
+    for utterance in received.iter().flat_map(|chunk| segmenter.push(chunk)).collect::<Vec<_>>() {
       let cfg = config(dir);
       segmenter.threshold = cfg.threshold;
       let peak = rms(&utterance);
@@ -358,6 +371,12 @@ fn run(app: &AppHandle, dir: &Path) -> Result<(), String> {
       };
       log(dir, cfg.log, &format!("« {heard} » -> demande « {command} » (niveau {peak:.3})"));
       let _ = app.emit(HEARD_EVENT, command);
+    }
+    // Ruban réduit tant qu'elle écoute : après un « Løra » seul (elle attend la demande) et pendant qu'une phrase est captée.
+    // Quand elle parle, c'est speech.rs qui annonce « speaking » : on n'y touche pas.
+    if !crate::speech::busy() {
+      let armed = armed_until.is_some_and(|t| Instant::now() < t);
+      emit_state(if wanted && (armed || segmenter.hearing()) { "listening" } else { "idle" });
     }
   }
 }
@@ -455,6 +474,26 @@ mod tests {
     let quiet_voice: Vec<f32> = (0..RATE as usize).map(|i| 0.02 * (i as f32 * 0.1).sin()).collect(); // niveau 0.014 : sous l'ancien seuil de 0.02
     let got: Vec<_> = [hiss.clone(), quiet_voice, hiss].iter().flat_map(|p| seg.push(p)).collect();
     assert_eq!(got.len(), 1);
+  }
+
+  #[test]
+  fn hearing_is_true_only_while_a_sentence_is_being_captured() {
+    let mut seg = Segmenter::new(RATE, 0.02);
+    seg.push(&silence(2.0));
+    assert!(!seg.hearing());
+    seg.push(&voice(0.5));
+    assert!(seg.hearing()); // elle écoute : le ruban se réduit
+    seg.push(&silence(1.5));
+    assert!(!seg.hearing()); // phrase finie
+  }
+
+  #[test]
+  fn state_events_are_deduplicated_and_harmless_without_an_app() {
+    emit_state("listening");
+    assert_eq!(*STATE.lock().unwrap(), "listening");
+    emit_state("listening"); // même état : rien à émettre
+    emit_state("idle");
+    assert_eq!(*STATE.lock().unwrap(), "idle");
   }
 
   #[test]
