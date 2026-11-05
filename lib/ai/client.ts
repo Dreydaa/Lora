@@ -17,6 +17,10 @@ Ne devine et n'invente jamais une information, un résultat ou une réponse. Sur
 const SEARCH_INSTRUCTION = `
 Tu disposes d'une recherche web (web_search). Ne l'utilise que pour une question qui demande une information extérieure ou récente (recette, fait, actualité, « cherche comment… »), jamais pour l'agenda, les idées ou les jalons de l'utilisateur. Réponds en deux ou trois phrases dites à voix haute : aucune liste, aucun lien, aucune adresse web, aucune marque de citation.`;
 
+// Demandes venues de l'app (Ctrl+K) : la réponse est dite à voix haute, pas lue sur un écran.
+const SPOKEN_INSTRUCTION = `
+Cette réponse sera dite à voix haute par la voix de Soza : deux à quatre phrases au ton parlé, sans liste, sans markdown, sans symbole ni adresse web ; écris les nombres et les heures comme on les prononce. Briefing demandé : appelle get_briefing (matin ou soir) et redis-le. Calcul : fais-le avec soin et donne seulement le résultat et, si utile, une phrase d'explication. Avis ou commentaire sur un projet ou une tâche : appuie-toi sur ce que les outils ont rendu (idées, jalons, agenda, bilan), donne un avis franc en une ou deux phrases, sans rien inventer, et tu ne réserves, ne bloques et ne programmes rien toi-même : tu peux seulement le proposer. Les confirmations « C'est fait » ou « En cours » ne servent qu'après une action : jamais à la fin d'une réponse d'information. Météo : dis le temps en mots (« couvert », « pluvieux ») et la température, jamais le code.`;
+
 // Sans la date du jour, le modèle ne peut pas convertir « demain » ou « ce week-end » en dates réelles pour les outils.
 function dateInstruction() {
   const weekday = new Intl.DateTimeFormat("fr-FR", { weekday: "long", timeZone: "Europe/Paris" }).format(new Date());
@@ -48,10 +52,10 @@ La recherche web est indisponible pour cette réponse. Si la question demande un
 
 // Consigne et outils d'un échange, partagés avec la batterie de test de la recherche (scripts/search-battery.ts).
 // `input` restreint les outils à ceux que le message évoque (voir tool-routing.ts) ; sans lui, tous sont envoyés.
-export function askConfig(tools: typeof sozaTools = sozaTools, search = true, input?: string) {
+export function askConfig(tools: typeof sozaTools = sozaTools, search = true, input?: string, spoken = false) {
   const picked = input === undefined ? tools : pickTools(tools, input);
   return {
-    system: fridayPrompt + DOUBT_INSTRUCTION + HONESTY_INSTRUCTION + (search ? SEARCH_INSTRUCTION : NO_SEARCH_INSTRUCTION) + dateInstruction(),
+    system: fridayPrompt + DOUBT_INSTRUCTION + HONESTY_INSTRUCTION + (search ? SEARCH_INSTRUCTION : NO_SEARCH_INSTRUCTION) + (spoken ? SPOKEN_INSTRUCTION : "") + dateInstruction(),
     tools: search ? { ...picked, web_search: browserSearch({}) } : picked,
   };
 }
@@ -61,7 +65,7 @@ export function cleanAnswer(text: string) {
   return text.replace(/【[^】]*】/g, "");
 }
 
-export async function askSoza(chatId: number, input: string) {
+export async function askSoza(chatId: number, input: string, spoken = false) {
   if (typeof chatId !== "number" || !Number.isFinite(chatId)) {
     throw new Error(`askSoza: chatId must be a number, got ${typeof chatId}`);
   }
@@ -83,7 +87,7 @@ export async function askSoza(chatId: number, input: string) {
   const run = (model: (typeof models)[number], search: boolean) =>
     generateText({
       model,
-      ...askConfig(sozaTools, search, input),
+      ...askConfig(sozaTools, search, input, spoken),
       messages,
       abortSignal,
       maxRetries: 0,
@@ -129,7 +133,9 @@ export async function askSoza(chatId: number, input: string) {
   );
 
   const hadToolCall = steps.some((s) => s.toolCalls.length > 0);
-  const cleanText = text ? cleanAnswer(text) : "";
+  // Dite à voix haute, une réponse d'information ne finit pas par « C'est fait. » (le modèle copie ce tic de l'historique) : seules les actions le gardent.
+  const wrote = toolCalls.some(({ name }) => !/^(get|list|suggest)_/.test(name));
+  const cleanText = text ? (spoken && !wrote ? cleanAnswer(text).replace(/\s*\b(C'est fait|C’est fait|En cours|Noté)\s*\.?\s*$/i, "") : cleanAnswer(text)) : "";
   const finalText = cleanText.trim()
     ? cleanText
     : hadToolCall

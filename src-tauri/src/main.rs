@@ -72,9 +72,23 @@ fn tint_title_bar(window: &WebviewWindow) {
 
 // Commande tapée dans la barre de commande du dashboard (Ctrl+K) : exécutée en local, la réponse est une phrase à afficher.
 // Volume, musique et batterie d'abord (system.rs), puis ouvrir/fermer une application (apps.rs).
+// None = ce n'est pas une commande locale : le front envoie alors la phrase au backend (api/ask), qui répond comme sur Telegram.
 #[tauri::command]
-fn run_command(text: String, apps: State<AppsFile>) -> String {
-  system::run(&text, &apps.0.with_file_name("spotify.json")).unwrap_or_else(|| apps::run(&text, &apps.0))
+fn run_command(text: String, apps: State<AppsFile>) -> Option<String> {
+  system::run(&text, &apps.0.with_file_name("spotify.json")).or_else(|| apps::parse(&text).map(|_| apps::run(&text, &apps.0)))
+}
+
+// say.txt (dossier de données) : un autre programme y ajoute une phrase par ligne (hook Stop de Claude Code : « Claude Code a terminé »),
+// Soza la dit puis vide le fichier. Renommé avant lecture : ce qui est ajouté pendant ce temps part dans un nouveau fichier.
+// Fichier encore ouvert par l'écrivain (Windows refuse le renommage) : on réessaie au tour suivant.
+const SAY_POLL_SECS: u64 = 1;
+fn take_say(file: &std::path::Path) -> Option<String> {
+  let taken = file.with_extension("taken");
+  fs::rename(file, &taken).ok()?;
+  let text = fs::read_to_string(&taken);
+  let _ = fs::remove_file(&taken);
+  let lines: Vec<String> = text.ok()?.trim_start_matches('\u{feff}').lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
+  if lines.is_empty() { None } else { Some(lines.join(" ")) }
 }
 
 // Dit la phrase à voix haute avec la voix de Soza (Piper, sinon celle de Windows : voir speech.rs). Rend la main tout de suite :
@@ -145,6 +159,17 @@ fn main() {
       let voice_file = dir.join("voice.json");
       if !voice_file.exists() { let _ = fs::write(&voice_file, format!("{{ \"volume\": {}, \"english\": [] }}\n", speech::DEFAULT_VOLUME)); }
 
+      // Ce qui a été écrit pendant que Soza était éteinte est périmé : on repart d'un fichier vide.
+      let say_file = dir.join("say.txt");
+      let _ = fs::remove_file(&say_file);
+      let say_dir = dir.clone();
+      thread::spawn(move || loop {
+        if let Some(text) = take_say(&say_file) {
+          if let Err(e) = speech::speak(&text, &say_dir) { eprintln!("[voix] lecture impossible : {e}"); }
+        }
+        thread::sleep(Duration::from_secs(SAY_POLL_SECS));
+      });
+
       // Protocoles lancés depuis Telegram (voir protocol.rs) : adresse et clé du backend, créés vides, relus à chaque tour.
       let agent_file = dir.join("agent.json");
       if !agent_file.exists() { let _ = fs::write(&agent_file, "{ \"api_url\": \"\", \"api_key\": \"\" }\n"); }
@@ -195,6 +220,16 @@ mod tests {
     state.save();
     assert_eq!(load(&file), data);
     let _ = fs::remove_file(file);
+  }
+
+  #[test]
+  fn take_say_joins_the_lines_once_then_empties_the_file() {
+    let file = temp_file("say");
+    assert_eq!(take_say(&file), None); // fichier absent
+    fs::write(&file, "\u{feff}Claude Code a terminé sur Soza.\r\n\r\nClaude Code a besoin de toi.\n").unwrap();
+    assert_eq!(take_say(&file).as_deref(), Some("Claude Code a terminé sur Soza. Claude Code a besoin de toi."));
+    assert!(!file.exists());
+    assert_eq!(take_say(&file), None); // rien n'est redit
   }
 
   #[test]
