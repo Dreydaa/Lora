@@ -6,7 +6,7 @@ vi.mock("@notionhq/client", () => import("../helpers/notion-mock"));
 
 import { addAgendaItem, getUpcomingAgenda } from "../../lib/notion/agenda";
 import { addIdea, completeIdea, findIdeaByTitle, getProjectsInProgress, resolveProjectNames, updateIdeaNotes } from "../../lib/notion/idees";
-import { sozaTools } from "../../lib/ai/tools";
+import { loraTools } from "../../lib/ai/tools";
 import { completeMilestoneForIdea, createMilestone, getMilestones, markMissedMilestones } from "../../lib/notion/milestones";
 import { milestonePage } from "../helpers/notion-mock";
 import { getLatestProgress, saveProgress } from "../../lib/notion/progress";
@@ -68,7 +68,7 @@ describe("projet terminé et jalons manqués", () => {
   it("complete_project retrouve « Site pour Andy » depuis « le site d'Andy », et valide son jalon", async () => {
     notionData["db-ideas"] = [projectPage("i1", "Site pour Andy")];
     notionData["db-milestones"] = [milestonePage("m1", "Développer le site", "2026-10-20", "À faire", "i1")];
-    const execute = (sozaTools.complete_project as any).execute as (input: unknown) => Promise<Record<string, unknown>>;
+    const execute = (loraTools.complete_project as any).execute as (input: unknown) => Promise<Record<string, unknown>>;
     expect(await execute({ projectTitle: "le site d'Andy" })).toMatchObject({ success: true, milestonesValidated: 1 });
     expect(JSON.stringify(notionCalls)).toContain('"contains":"Site pour Andy"'); // le titre exact, pas la formulation de l'utilisateur
     expect(updatedPages.map((p) => p.properties.Statut.select.name)).toEqual(["Terminé", "Validé"]);
@@ -76,7 +76,7 @@ describe("projet terminé et jalons manqués", () => {
   it("record_progress avec finishedProjects enregistre le bilan puis termine le projet et son jalon", async () => {
     notionData["db-ideas"] = [projectPage("i1", "Site pour Andy")];
     notionData["db-milestones"] = [milestonePage("m1", "Développer le site", "2026-10-20", "À faire", "i1")];
-    const execute = (sozaTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean; finished?: unknown[] }>;
+    const execute = (loraTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean; finished?: unknown[] }>;
     const result = await execute({ review: "Site livré", projectsWorkedOn: ["site d'Andy"], finishedProjects: ["site d'Andy"] });
     expect(result.success).toBe(true);
     expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Projets : Site pour Andy. Site livré");
@@ -85,7 +85,7 @@ describe("projet terminé et jalons manqués", () => {
   });
   it("record_progress : une panne en terminant le projet ne perd pas le bilan", async () => {
     Object.defineProperty(notionData, "db-ideas", { get: () => { throw new Error("notion 500"); }, configurable: true, enumerable: true });
-    const execute = (sozaTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean; finished?: unknown[] }>;
+    const execute = (loraTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean; finished?: unknown[] }>;
     const result = await execute({ review: "Site livré", finishedProjects: ["Site pour Andy"] });
     expect(result.success).toBe(true);
     expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Site livré");
@@ -95,27 +95,27 @@ describe("projet terminé et jalons manqués", () => {
 
 describe("bilan du jour", () => {
   it("les projets travaillés sont écrits en tête du bilan, sans colonne en plus", async () => {
-    await saveProgress("Rig fini, UV à reprendre", ["Personnage 3D", " Soza "]);
-    expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Projets : Personnage 3D, Soza. Rig fini, UV à reprendre");
+    await saveProgress("Rig fini, UV à reprendre", ["Personnage 3D", " Løra "]);
+    expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Projets : Personnage 3D, Løra. Rig fini, UV à reprendre");
     expect(Object.keys(createdPages.at(-1).properties)).toEqual(["Date", "Bilan"]);
   });
   // Le modèle ne connaît pas les titres exacts (constaté : « Portfolio » pour « Portfolio web », « Rig personnage 3D » pour « Personnage 3D »).
-  const IN_PROGRESS = [{ id: "i1", title: "Soza" }, { id: "i2", title: "Portfolio web" }, { id: "i3", title: "Personnage 3D" }];
+  const IN_PROGRESS = [{ id: "i1", title: "Løra" }, { id: "i2", title: "Portfolio web" }, { id: "i3", title: "Personnage 3D" }];
   it("resolveProjectNames remplace un nom approximatif par le titre du seul projet qu'il désigne", () => {
-    expect(resolveProjectNames(["portfolio", "Rig personnage 3D", "SOZA"], IN_PROGRESS)).toEqual(["Portfolio web", "Personnage 3D", "Soza"]);
+    expect(resolveProjectNames(["portfolio", "Rig personnage 3D", "LØRA"], IN_PROGRESS)).toEqual(["Portfolio web", "Personnage 3D", "Løra"]);
     expect(resolveProjectNames(["le Portfolio Web"], IN_PROGRESS)).toEqual(["Portfolio web"]);
   });
   it("resolveProjectNames garde tel quel un nom inconnu ou ambigu, sans doublon", () => {
     // « portfolio » désigne deux projets : il reste tel quel ; « 3D » n'en désigne qu'un seul.
     expect(resolveProjectNames(["Site de recettes", "3D", "portfolio", "Portfolio web"], [...IN_PROGRESS, { id: "i4", title: "Portfolio photo" }])).toEqual(["Site de recettes", "Personnage 3D", "portfolio", "Portfolio web"]);
-    expect(resolveProjectNames(["soza", "Soza"], IN_PROGRESS)).toEqual(["Soza"]);
+    expect(resolveProjectNames(["lora", "Løra"], IN_PROGRESS)).toEqual(["Løra"]);
     expect(resolveProjectNames(["café"], [{ id: "x", title: "Cafe" }])).toEqual(["Cafe"]); // accents ignorés
     expect(resolveProjectNames(["", "  "], IN_PROGRESS)).toEqual([]);
-    expect(resolveProjectNames(["Soza"], [])).toEqual(["Soza"]);
+    expect(resolveProjectNames(["Løra"], [])).toEqual(["Løra"]);
   });
   it("l'outil record_progress écrit les vrais titres, et accepte null ou une absence de projets", async () => {
     notionData["db-ideas"] = IN_PROGRESS.map((p) => projectPage(p.id, p.title));
-    const execute = (sozaTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean }>;
+    const execute = (loraTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean }>;
     expect((await execute({ review: "Rig fini", projectsWorkedOn: ["portfolio", "rig personnage 3D"] })).success).toBe(true);
     expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Projets : Portfolio web, Personnage 3D. Rig fini");
     for (const projectsWorkedOn of [null, undefined, []]) {
@@ -127,9 +127,9 @@ describe("bilan du jour", () => {
   });
   it("l'outil record_progress enregistre quand même le bilan si la lecture des projets échoue", async () => {
     Object.defineProperty(notionData, "db-ideas", { get: () => { throw new Error("notion 500"); }, configurable: true, enumerable: true });
-    const execute = (sozaTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean }>;
-    expect((await execute({ review: "Rig fini", projectsWorkedOn: ["Soza"] })).success).toBe(true);
-    expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Projets : Soza. Rig fini");
+    const execute = (loraTools.record_progress as any).execute as (input: unknown) => Promise<{ success: boolean }>;
+    expect((await execute({ review: "Rig fini", projectsWorkedOn: ["Løra"] })).success).toBe(true);
+    expect(createdPages.at(-1).properties.Bilan.rich_text[0].text.content).toBe("Projets : Løra. Rig fini");
   });
   it("sans projet nommé, le bilan reste tel quel", async () => {
     await saveProgress("Journée calme");
@@ -141,13 +141,13 @@ describe("bilan du jour", () => {
 
 describe("idées", () => {
   it("findIdeaByTitle ignore les idées archivées et terminées (sinon un titre proche vise la mauvaise page)", async () => {
-    await findIdeaByTitle("Soza");
+    await findIdeaByTitle("Løra");
     expect(lastFilter()).toContain('"does_not_equal":"Archivée"');
     expect(lastFilter()).toContain('"does_not_equal":"Terminé"');
   });
   it("getProjectsInProgress lit les idées « En cours », sans limite de nombre", async () => {
-    notionData["db-ideas"] = [projectPage("i1", "Soza"), projectPage("i2", "Portfolio"), projectPage("i3", "Personnage 3D")];
-    expect(await getProjectsInProgress()).toEqual([{ id: "i1", title: "Soza" }, { id: "i2", title: "Portfolio" }, { id: "i3", title: "Personnage 3D" }]);
+    notionData["db-ideas"] = [projectPage("i1", "Løra"), projectPage("i2", "Portfolio"), projectPage("i3", "Personnage 3D")];
+    expect(await getProjectsInProgress()).toEqual([{ id: "i1", title: "Løra" }, { id: "i2", title: "Portfolio" }, { id: "i3", title: "Personnage 3D" }]);
     expect(lastFilter()).toContain('"equals":"En cours"');
     expect(JSON.stringify(notionCalls.at(-1))).not.toContain("page_size");
   });

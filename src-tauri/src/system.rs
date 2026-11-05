@@ -94,7 +94,7 @@ fn session() -> windows::core::Result<Option<Session>> {
   }
 }
 
-// Spotify est le lecteur de Soza : « mets de la musique » le lance s'il n'y a aucun lecteur, puis attend qu'il apparaisse
+// Spotify est le lecteur de Løra : « mets de la musique » le lance s'il n'y a aucun lecteur, puis attend qu'il apparaisse
 // dans les commandes multimédia de Windows (jusqu'à 20 s : démarrage à froid).
 fn start_spotify() -> windows::core::Result<Option<Session>> {
   if spotify::open_uri("spotify:").is_err() { return Ok(None); }
@@ -144,12 +144,12 @@ const LOGITECH: u16 = 0x046D;
 const VENDOR_PAGE: u16 = 0xFF00;
 const LONG_REPORT_USAGE: u16 = 0x0002; // rapports de 20 octets (0x11)
 const UNIFIED_BATTERY: u16 = 0x1004;
-const SOZA_SWID: u8 = 0x01; // identifiant logiciel : essayé avec 0x0B, ce récepteur ne répondait pas ; 0x01 répond
+const LORA_SWID: u8 = 0x01; // identifiant logiciel : essayé avec 0x0B, ce récepteur ne répondait pas ; 0x01 répond
 
 // Requête → réponse de même fonction ; une erreur du récepteur ou le silence de l'appareil rendent None.
 fn hidpp(dev: &hidapi::HidDevice, index: u8, feature: u8, func: u8, params: &[u8]) -> Option<[u8; 20]> {
   let mut req = [0u8; 20];
-  req[..4].copy_from_slice(&[0x11, index, feature, (func << 4) | SOZA_SWID]);
+  req[..4].copy_from_slice(&[0x11, index, feature, (func << 4) | LORA_SWID]);
   req[4..4 + params.len()].copy_from_slice(params);
   dev.write(&req).ok()?;
   for _ in 0..10 {
@@ -225,7 +225,7 @@ mod tests {
   }
 
   fn absent_spotify_file() -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("soza-test-{}-no-spotify.json", std::process::id()))
+    std::env::temp_dir().join(format!("lora-test-{}-no-spotify.json", std::process::id()))
   }
 
   #[test]

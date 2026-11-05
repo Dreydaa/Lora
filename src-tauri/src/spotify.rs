@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::{fs, io, path::Path, process::Command, time::Duration};
 
 // Lancer Spotify et jouer un morceau demandé par son nom. Le lancement passe par le gestionnaire de protocole de Windows
-// (spotify:…), pas par un exécutable : Soza n'ouvre toujours que des adresses de ce schéma, avec un texte encodé.
+// (spotify:…), pas par un exécutable : Løra n'ouvre toujours que des adresses de ce schéma, avec un texte encodé.
 // La recherche utilise l'API web de Spotify (flux « client credentials », sans compte à connecter) avec une application
 // créée sur developer.spotify.com, dont l'identifiant et le secret sont dans spotify.json (dossier de données de l'app).
 
@@ -73,11 +73,11 @@ mod tests {
     assert!(first_track(&serde_json::json!({"tracks":{"items":[{"id":"x:play&y","name":"n","artists":[]}]}})).is_none());
   }
 
-  // Vrai réseau, faux identifiants : `cargo test bad_credentials -- --ignored`. Spotify doit refuser, et Soza l'expliquer.
+  // Vrai réseau, faux identifiants : `cargo test bad_credentials -- --ignored`. Spotify doit refuser, et Løra l'expliquer.
   #[test]
   #[ignore = "demande le réseau"]
   fn bad_credentials_are_refused_readably() {
-    let file = std::env::temp_dir().join(format!("soza-test-{}-badspotify.json", std::process::id()));
+    let file = std::env::temp_dir().join(format!("lora-test-{}-badspotify.json", std::process::id()));
     fs::write(&file, r#"{ "client_id": "faux", "client_secret": "faux" }"#).unwrap();
     let result = search(&file, "get lucky");
     let _ = fs::remove_file(&file);
@@ -86,7 +86,7 @@ mod tests {
 
   #[test]
   fn credentials_need_both_fields() {
-    let file = std::env::temp_dir().join(format!("soza-test-{}-spotify.json", std::process::id()));
+    let file = std::env::temp_dir().join(format!("lora-test-{}-spotify.json", std::process::id()));
     fs::write(&file, "\u{feff}{ \"client_id\": \"abc\", \"client_secret\": \"def\" }").unwrap();
     assert_eq!(credentials(&file), Some(("abc".into(), "def".into())));
     fs::write(&file, r#"{ "client_id": "abc", "client_secret": "" }"#).unwrap();

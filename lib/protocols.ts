@@ -1,5 +1,5 @@
 // Moteur de protocoles : une séquence nommée d'étapes, déclenchée par la phrase exacte « Protocole <code> » sur Telegram.
-// Les étapes « PC » ne tournent pas ici : l'app Soza du PC les récupère (api/protocol.ts) et rend le statut de chacune.
+// Les étapes « PC » ne tournent pas ici : l'app Løra du PC les récupère (api/protocol.ts) et rend le statut de chacune.
 import { sendTelegram } from "./integrations/telegram";
 import { publishWorkerJob } from "./integrations/qstash";
 import { saveProtocolRun, getProtocolRun, clearProtocolRun, getAgentApps } from "./memory";
@@ -8,7 +8,7 @@ import type { ProtocolRun, StepResult } from "./types";
 // Les noms d'applications sont ceux de apps.json sur le PC (la liste blanche reste locale : le backend ne donne jamais de chemin).
 type Protocol = { steps: ProtocolRun["steps"] };
 
-// 2B et 6H9K sont reconnus mais sans étapes : leur contenu n'est pas encore défini (voir docs/ai/SozaV2.md, chantier 2).
+// 2B et 6H9K sont reconnus mais sans étapes : leur contenu n'est pas encore défini (voir docs/ai/LoraV2.md, chantier 2).
 export const PROTOCOLS: Record<string, Protocol> = {
   "7E3A": { steps: [{ kind: "open", app: "parsec" }, { kind: "open", app: "code" }] },
   "2B": { steps: [] },
@@ -112,7 +112,7 @@ export async function startProtocol(chatId: number, code: string, skip: string[]
 
   const changes = [add.length ? `avec ${add.join(", ")}` : "", skip.length ? `sans ${skip.join(", ")}` : ""].filter(Boolean);
   await sendTelegram(chatId, `Lancement du protocole ${code}${changes.length ? ` (${changes.join(", ")})` : ""}.`);
-  // Le PC se démarre à la main : s'il est éteint, le protocole attend que l'app Soza se lance avec Windows.
+  // Le PC se démarre à la main : s'il est éteint, le protocole attend que l'app Løra se lance avec Windows.
   const run: ProtocolRun = { id: crypto.randomUUID(), code, chatId, steps, claimed: false };
   await saveProtocolRun(run);
   // Sans réponse du PC dans le délai, le worker prévient au lieu de laisser le silence.

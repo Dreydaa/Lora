@@ -1,5 +1,5 @@
 // Crée (ou met à jour) les schedules QStash pour le briefing du matin et le bilan du soir,
-// à partir des horaires actuellement stockés dans Notion (Soza Réglages).
+// à partir des horaires actuellement stockés dans Notion (Løra Réglages).
 // À lancer une fois après déploiement, avec APP_URL pointant vers le domaine de prod stable :
 //   APP_URL=https://soza-blond.vercel.app npx tsx --env-file=.env scripts/setup-qstash-schedules.ts
 import { upsertSchedule } from "../lib/integrations/qstash";

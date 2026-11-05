@@ -1,4 +1,4 @@
-# Soza V2 — vision FRIDAY
+# Løra V2 — vision FRIDAY
 
 Ce fichier porte la vision, les décisions de conception et la liste des étapes de la V2. **L'avancement (ce qui est fait, mesuré, vérifié ou pas) est dans [`STATUS-V2.md`](STATUS-V2.md)** ; l'état de la V1 reste dans `STATUS.md`.
 
@@ -6,7 +6,7 @@ Ce fichier porte la vision, les décisions de conception et la liste des étapes
 
 ## Pourquoi cette direction (décidé 30/09/2026)
 
-L'utilisateur tient bien sa cadence de travail ces derniers temps (au moins une session/jour) et sent que le cadrage "coach discipline/fatigue" de Soza (deux personas + mode ACTIF/PAUSE) est moins nécessaire que prévu — la difficulté est plus de *tenir* la discipline que de la *construire*, et il la tient. Direction retenue : rapprocher Soza d'un assistant type **FRIDAY** (Tony Stark) — une seule personnalité, des fonctionnalités qui servent l'utilisateur directement plutôt qu'un rôle de coach.
+L'utilisateur tient bien sa cadence de travail ces derniers temps (au moins une session/jour) et sent que le cadrage "coach discipline/fatigue" de Løra (deux personas + mode ACTIF/PAUSE) est moins nécessaire que prévu — la difficulté est plus de *tenir* la discipline que de la *construire*, et il la tient. Direction retenue : rapprocher Løra d'un assistant type **FRIDAY** (Tony Stark) — une seule personnalité, des fonctionnalités qui servent l'utilisateur directement plutôt qu'un rôle de coach.
 
 ## Principe directeur : local plutôt que cloud (décidé 01/10/2026)
 
@@ -25,7 +25,7 @@ Un **troisième canal d'entrée local** s'ajoute à ces deux : les gestes de la 
 
 ## Hybride local/cloud pour le raisonnement (décidé 01/10/2026)
 
-Soza devient un système hybride, **pas une IA locale complète** : le mot d'activation et l'exécution des actions sur la machine sont locaux par nécessité (accès OS), mais le raisonnement (comprendre la demande, décider quoi faire) reste cloud via Groq comme en V1. Faire tourner un LLM complet en local est explicitement écarté pour l'instant — décision distincte et plus lourde, à reconsidérer séparément si jamais voulu.
+Løra devient un système hybride, **pas une IA locale complète** : le mot d'activation et l'exécution des actions sur la machine sont locaux par nécessité (accès OS), mais le raisonnement (comprendre la demande, décider quoi faire) reste cloud via Groq comme en V1. Faire tourner un LLM complet en local est explicitement écarté pour l'instant — décision distincte et plus lourde, à reconsidérer séparément si jamais voulu.
 
 - **Commandes simples → reconnues en local** (correspondance de mots-clés/petit classifieur, sans aller-retour réseau), pour la rapidité et pour que ça marche même hors connexion.
 - **Phrases ambiguës avec un défaut configuré → toujours local.** Ex. "mets de la musique" n'a pas besoin du cloud si un défaut (app par catégorie) est déjà configuré.
@@ -36,7 +36,7 @@ Soza devient un système hybride, **pas une IA locale complète** : le mot d'act
 
 Décision prise (30/09/2026), remplace l'ancienne cible "une seule personnalité en gardant les modes" — le système de mode est retiré, pas juste fusionné. **Fait le 07/10/2026** (en fin de V1, voir `STATUS.md`, section « Personnalité unique — Friday ») : il y avait deux personas selon le mode, Ikkaku (ACTIF, coach strict) et Jarvis (PAUSE, calme/protecteur) ; elles sont fusionnées dans `lib/ai/prompts/friday.ts`.
 
-- **Portée du retrait** (vérifiée par grep le 30/09/2026, à revérifier avant d'exécuter — le code peut avoir bougé d'ici la V2) : touche `lib/modes.ts`, `lib/briefing.ts`, `lib/ai/client.ts`, `lib/ai/tools.ts`, `lib/notion/progress.ts`, `lib/notion/agenda.ts`, `lib/types.ts`, `lib/ai/prompts/jarvis.ts` ; un champ Notion **Soza Réglages** (`shiftActive`/`shiftStartHour`/`shiftEndHour`) ; le tool IA `update_mode_schedule`.
+- **Portée du retrait** (vérifiée par grep le 30/09/2026, à revérifier avant d'exécuter — le code peut avoir bougé d'ici la V2) : touche `lib/modes.ts`, `lib/briefing.ts`, `lib/ai/client.ts`, `lib/ai/tools.ts`, `lib/notion/progress.ts`, `lib/notion/agenda.ts`, `lib/types.ts`, `lib/ai/prompts/jarvis.ts` ; un champ Notion **Løra Réglages** (`shiftActive`/`shiftStartHour`/`shiftEndHour`) ; le tool IA `update_mode_schedule`.
 - **Distinct à garder** : le champ Agenda `Type` (Shift/Perso), qui sert uniquement à exclure les blocs de travail du briefing du matin (`getUpcomingAgenda()`), n'a rien à voir avec la personnalité/le ton — probablement à conserver même sans mode ACTIF/PAUSE (à confirmer le moment venu).
 - Concerne aussi `lib/ai/prompts/` (un seul prompt au lieu de deux) et la voix (une seule voix à choisir, chantier 3). **Chantier 1 fait le 07/10/2026** : prompts fusionnés dans `lib/ai/prompts/friday.ts`, `lib/modes.ts` et tout le code ACTIF/PAUSE retirés ; le tool `update_mode_schedule` est supprimé (l'heure du briefing se règle déjà par conversation). Les colonnes `Mode` des bases Notion Agenda et Progression ont aussi été retirées (13/10/2026) : rien ne reste.
 - Pas de collision de nom à craindre avec le futur "mode travail" (protocole 7E3A, chantier 2) : une fois ACTIF/PAUSE retiré proprement du code et des prompts, il ne reste rien avec quoi il pourrait se confondre.
@@ -49,7 +49,7 @@ Un protocole est une **séquence nommée d'actions** (lancer une app, en fermer 
 - Détection **stricte** sur Telegram (phrase-clé exacte, ex. "Protocole 2B", pas une recherche de mot-clé dans une phrase libre) — même principe que l'ancienne commande `/mode actif|pause` (regex ancrée qui court-circuitait le LLM). **Cette commande a disparu avec `lib/modes.ts` le 07/10/2026** : le mécanisme est à réintroduire (le webhook passe aujourd'hui tout message texte au worker et au modèle), pas à « étendre ».
 - Rendu : une phrase de début ("Lancement du protocole 2B") puis une phrase de fin une fois toutes les étapes terminées — pas de message par étape intermédiaire. Phrase de fin : générique si tout a réussi, détail de ce qui a échoué (quelle étape, pourquoi) sinon — implique que chaque étape vérifie et remonte son propre statut, pas juste un enchaînement de commandes lancées à l'aveugle.
 
-**Protocole 2B** : lancement du PC (**décidé le 17/10/2026 : démarré à la main par l'application du plug, plus par Soza**), puis lancement de Sunshine + Playnite + si possible Parsec, pour jouer à distance depuis la Ayn Thor. Points ouverts :
+**Protocole 2B** : lancement du PC (**décidé le 17/10/2026 : démarré à la main par l'application du plug, plus par Løra**), puis lancement de Sunshine + Playnite + si possible Parsec, pour jouer à distance depuis la Ayn Thor. Points ouverts :
 - ~~Wake-on-LAN vs coupure secteur~~ : **sans objet (17/10/2026)**, le PC est démarré à la main avec l'application du plug.
 - Doit être déclenché via Telegram, pas en local : si le PC est éteint, son micro l'est aussi.
 
@@ -59,7 +59,7 @@ Un protocole est une **séquence nommée d'actions** (lancer une app, en fermer 
 
 ## Chantier 3 — Fonctionnalités vocales
 
-**Mot d'activation** : "Soza" → réponse courte ("oui"/surnom). Moteur choisi : **openWakeWord** (open source, local, gratuit, sans limite d'usage), plutôt que Picovoice Porcupine (commercial, setup en minutes via leur console mais dépendance à un service tiers même si l'inférence tourne en local).
+**Mot d'activation** : "Løra" → réponse courte ("oui"/surnom). Moteur choisi : **openWakeWord** (open source, local, gratuit, sans limite d'usage), plutôt que Picovoice Porcupine (commercial, setup en minutes via leur console mais dépendance à un service tiers même si l'inférence tourne en local).
 - Entraînement par génération **synthétique** (notebook Colab fourni par le projet : voix TTS variées + bruit/pitch/vitesse/réverbération simulés), pas par enregistrement répété de sa propre voix — possibilité d'ajouter de vrais enregistrements plus tard si la précision s'avère insuffisante.
 - Inférence prévue en Rust via le crate `ort` (ONNX Runtime) pour s'intégrer à l'agent local Tauri ; l'entraînement reste en Python/Colab.
 
@@ -68,12 +68,12 @@ Un protocole est une **séquence nommée d'actions** (lancer une app, en fermer 
 2. **Recherche rapide parlée** (ex. "cherche comment faire des pâtes carbonara") — réutilise le pattern tool-calling déjà en place (Groq), plus un outil de recherche web à ajouter ; réponse à dire à voix haute (dépend du TTS).
 3. **"Qu'est-ce que je suis en train de regarder ?"** — capture d'écran répétée (pour analyser une vidéo par ex.) + modèle avec vision. Le plus lourd techniquement et le plus sensible côté vie privée (peut capturer un mot de passe ou un document confidentiel à l'écran) — volontairement en dernier.
 
-**Entrée texte conservée (décidé 01/11/2026)** : quand les commandes vocales seront ajoutées, la zone de texte de la barre `Ctrl+K` reste dans Soza. Elle sert de secours si un problème matériel ou physique empêche l'utilisateur de parler ou si le micro ne marche plus ; la voix s'ajoute, elle ne remplace pas le texte.
+**Entrée texte conservée (décidé 01/11/2026)** : quand les commandes vocales seront ajoutées, la zone de texte de la barre `Ctrl+K` reste dans Løra. Elle sert de secours si un problème matériel ou physique empêche l'utilisateur de parler ou si le micro ne marche plus ; la voix s'ajoute, elle ne remplace pas le texte.
 
 **Élargir les commandes vocales (demandé le 04/11/2026, pas commencé)** : au-delà des commandes locales actuelles (applications, volume, musique, batterie de la souris), l'utilisateur veut pouvoir demander à la voix : (1) **le briefing du matin et celui du soir**, lus à voix haute ; (2) **Notion en entier** (idées, projets, jalons, agenda, bilans, réglages : lire et écrire) ; (3) **des recherches sur internet** (déjà prévu : fonction 2 ci-dessus, faite côté Telegram le 14/10) ; (4) **d'autres petites choses sur le PC et sur internet**, à lister avec lui (rien n'est décidé).
-- **Ce qui existe déjà** : côté Telegram, Soza a des outils pour écrire dans Notion (idées, jalons, agenda, bilan, projet terminé, pause, heure des briefings), la recherche web de Groq et les briefings (crons) ; l'app de bureau a déjà un canal vers le backend (`agent.json`, utilisé par les protocoles).
-- **Ce qui manque** : (a) la reconnaissance vocale et le mot d'activation (étape 9) ; (b) **des outils de lecture** : Soza ne sait toujours lire ni l'agenda, ni les idées, ni les bilans (seuls `list_milestones` et `get_settings` lisent) ; (c) un **point d'entrée du backend appelé par l'app** pour les demandes qui ne sont pas des commandes locales (les commandes locales gardent la priorité : sans réseau, sans modèle), la zone de texte de `Ctrl+K` restant en secours (décision du 01/11) ; (d) lire un briefing à la demande sans le regénérer : seul le texte court du dashboard est gardé (`getLastBriefing`), pas la version complète de Telegram ; à décider.
-- **Contraintes à garder en tête** : palier gratuit de Groq (8 000 jetons par minute), chaque demande vocale qui passe par le modèle en consomme ; une écriture ou une suppression dans Notion dite à la voix demande une confirmation (une phrase mal reconnue ne doit rien écrire ni effacer à tort) ; ce que Soza lit à voix haute (agenda, notes, bilans) peut être entendu par l'entourage.
+- **Ce qui existe déjà** : côté Telegram, Løra a des outils pour écrire dans Notion (idées, jalons, agenda, bilan, projet terminé, pause, heure des briefings), la recherche web de Groq et les briefings (crons) ; l'app de bureau a déjà un canal vers le backend (`agent.json`, utilisé par les protocoles).
+- **Ce qui manque** : (a) la reconnaissance vocale et le mot d'activation (étape 9) ; (b) **des outils de lecture** : Løra ne sait toujours lire ni l'agenda, ni les idées, ni les bilans (seuls `list_milestones` et `get_settings` lisent) ; (c) un **point d'entrée du backend appelé par l'app** pour les demandes qui ne sont pas des commandes locales (les commandes locales gardent la priorité : sans réseau, sans modèle), la zone de texte de `Ctrl+K` restant en secours (décision du 01/11) ; (d) lire un briefing à la demande sans le regénérer : seul le texte court du dashboard est gardé (`getLastBriefing`), pas la version complète de Telegram ; à décider.
+- **Contraintes à garder en tête** : palier gratuit de Groq (8 000 jetons par minute), chaque demande vocale qui passe par le modèle en consomme ; une écriture ou une suppression dans Notion dite à la voix demande une confirmation (une phrase mal reconnue ne doit rien écrire ni effacer à tort) ; ce que Løra lit à voix haute (agenda, notes, bilans) peut être entendu par l'entourage.
 - **À décider avec l'utilisateur avant de commencer** : la liste précise des « broutilles » sur le PC et sur internet, et ce qui doit demander une confirmation.
 
 **Non ordonné / à décider plus tard** :
@@ -82,7 +82,7 @@ Un protocole est une **séquence nommée d'actions** (lancer une app, en fermer 
 
 ## Chantier 4 — Comprendre les pauses de plusieurs jours
 
-Quand l'utilisateur dit qu'il prend une pause de X jours (ex. un week-end pour se ressourcer), Soza doit le comprendre et l'intégrer : ne pas relancer/mettre la pression pendant la période, ne pas compter ces jours comme un abandon, et reprendre proprement au retour. Motivation : l'utilisateur a eu l'impression de perdre le fil à un moment.
+Quand l'utilisateur dit qu'il prend une pause de X jours (ex. un week-end pour se ressourcer), Løra doit le comprendre et l'intégrer : ne pas relancer/mettre la pression pendant la période, ne pas compter ces jours comme un abandon, et reprendre proprement au retour. Motivation : l'utilisateur a eu l'impression de perdre le fil à un moment.
 
 Pistes : nouveau tool IA type `set_break` (dates début/fin) persisté dans Notion (base Réglages ou Agenda) ; briefings/bilans suspendus sur la période ; message de reprise avec récap de là où il en était. Simplifié par le retrait du streak (déjà fait en V1, 30/09/2026) : plus rien à "casser" numériquement pendant une pause, reste la question du silence des briefings/bilans sur la période.
 
@@ -90,9 +90,9 @@ Pistes : nouveau tool IA type `set_break` (dates début/fin) persisté dans Noti
 
 ## Chantier 5 — Widget en barre des tâches, activable à la voix, app fermée
 
-Prolonge l'étape 5 de l'"Ordre de réalisation" de l'avatar dans `STATUS.md` (widget de bureau en fenêtre Tauri secondaire). Ajout : Soza tourne en arrière-plan (icône zone de notification / tray Tauri) et s'active par commande vocale même quand la fenêtre principale est fermée. Dépend du chantier 3 (STT, écoute en arrière-plan testée et validée en mode "app ouverte" d'abord) et du chantier 6 (coût en ressources d'une écoute permanente).
+Prolonge l'étape 5 de l'"Ordre de réalisation" de l'avatar dans `STATUS.md` (widget de bureau en fenêtre Tauri secondaire). Ajout : Løra tourne en arrière-plan (icône zone de notification / tray Tauri) et s'active par commande vocale même quand la fenêtre principale est fermée. Dépend du chantier 3 (STT, écoute en arrière-plan testée et validée en mode "app ouverte" d'abord) et du chantier 6 (coût en ressources d'une écoute permanente).
 
-**Premiers éléments faits en V1 (08/10/2026)** : l'application de bureau a déjà un **thread Rust résident** (`src-tauri/src/main.rs`) qui mesure l'application au premier plan toutes les 5 s, une **icône de zone de notification** (clic gauche : afficher la fenêtre ; clic droit : « Afficher Soza » / « Quitter »), le **démarrage automatique avec Windows** (`--autostart` : fenêtre masquée) et un **installeur NSIS**. Ce sont les fondations de l'agent local de ce chantier et du chantier 3. **Reste** : l'écoute vocale en arrière-plan et le widget animé ; le suivi du temps d'écran, le menu de la zone de notification et le démarrage automatique ne sont pas encore vérifiés dans l'app installée.
+**Premiers éléments faits en V1 (08/10/2026)** : l'application de bureau a déjà un **thread Rust résident** (`src-tauri/src/main.rs`) qui mesure l'application au premier plan toutes les 5 s, une **icône de zone de notification** (clic gauche : afficher la fenêtre ; clic droit : « Afficher Løra » / « Quitter »), le **démarrage automatique avec Windows** (`--autostart` : fenêtre masquée) et un **installeur NSIS**. Ce sont les fondations de l'agent local de ce chantier et du chantier 3. **Reste** : l'écoute vocale en arrière-plan et le widget animé ; le suivi du temps d'écran, le menu de la zone de notification et le démarrage automatique ne sont pas encore vérifiés dans l'app installée.
 
 ## Chantier 6 — Optimisation du dossier et du code (performances)
 
@@ -106,7 +106,7 @@ Objectif : ne pas consommer trop de ressources, surtout avec un widget/écoute r
 
 Lève la limite actuelle : un seul projet "En cours" à la fois côté Notion (`Statut` des Idées). À redéfinir : plusieurs projets "En cours" simultanés, sur quoi porte le bilan du soir, comment le briefing les présente, et comment `record_progress` associe un bilan à un projet. Plus simple à traiter maintenant que le streak est retiré (30/09/2026) — `record_progress` n'a plus de logique de projet "en cours" à généraliser, `getCurrentProject()` a été supprimé de `lib/notion/idees.ts` avec le reste du gating et sera à réintroduire (probablement sous une autre forme, multi-projets) pour ce chantier.
 
-## Chantier 8 — Documentation "comment on crée Soza" pour le portfolio
+## Chantier 8 — Documentation "comment on crée Løra" pour le portfolio
 
 Seul chantier de ce fichier **déjà en cours**, pas bloqué par la fin de la V1. Docs de construction du projet (architecture, choix techniques et leurs raisons, bugs rencontrés, évolution du design Blender → particules → app) destinée à être réutilisée plus tard dans le portfolio.
 
@@ -151,7 +151,7 @@ Le but est de voir en direct si le suivi est fiable avant de construire les gest
 
 **Risques et points ouverts** :
 - **Déclenchements involontaires** : une caméra qui regarde en continu va voir des mains qui bougent sans intention (clavier, café...). Il faudra un **geste d'armement** explicite (équivalent du mot d'activation) et un désarmement automatique quand la main sort du cadre.
-- **Fenêtres lancées en administrateur** : Windows refuse l'injection d'entrées vers une application élevée si Soza ne l'est pas — à vérifier sur les applications visées.
+- **Fenêtres lancées en administrateur** : Windows refuse l'injection d'entrées vers une application élevée si Løra ne l'est pas — à vérifier sur les applications visées.
 - **Matériel** : position de la webcam par rapport à ses écrans (plusieurs écrans), éclairage, latence — à tester avec le matériel réel avant de promettre quoi que ce soit.
 - **Ressources** : caméra + modèle de suivi en continu coûtent du CPU/GPU, à mesurer (chantier 6) ; même logique que l'écoute locale : commencer en mode "app ouverte" avant tout fonctionnement en arrière-plan (chantier 5).
 - **Vie privée** : indicateur visible quand la caméra est active, et traitement 100 % local.
@@ -177,7 +177,7 @@ Du **plus simple au plus dur**, un seul chantier à la fois (voir Garde-fou). Ca
 - [ ] 12. Gestes de la main (chantier 9) : détecteur et rendu de contrôle, puis scroll → son → zoom → déplacement de fenêtre
 - [ ] 13. Élargir les commandes vocales (chantier 3) : briefings du matin et du soir à la demande, Notion en entier (outils de lecture à créer), recherches internet, autres petites choses sur le PC et internet à lister avec l'utilisateur — **ajouté le 04/11/2026**, dépend de l'étape 9 (reconnaissance vocale) ; **05/11/2026 : premier lot fait côté texte et voix de sortie** (phrase tapée dans `Ctrl+K` → `/api/ask` → réponse dite : briefing, agenda, idées, météo, bilan, recherche, calcul, avis, et « Claude Code a terminé » par un hook `Stop`) ; restent l'entrée vocale, la confirmation vocale des écritures et la liste des « broutilles » (voir `STATUS-V2.md`) ; voir « Élargir les commandes vocales » dans le chantier 3
 
-Chantier 8 (documentation portfolio) : en continu, hors liste. Chantier 1 : fait. **Extras** (confort, après l'étape 13, voir la section « Extra » plus bas) : 1) articles et actualités du briefing du matin, développés ; 2) Soza qui prend la parole d'elle-même selon les événements de l'ordinateur.
+Chantier 8 (documentation portfolio) : en continu, hors liste. Chantier 1 : fait. **Extras** (confort, après l'étape 13, voir la section « Extra » plus bas) : 1) articles et actualités du briefing du matin, développés ; 2) Løra qui prend la parole d'elle-même selon les événements de l'ordinateur.
 
 **Correctif hors liste (18/10/2026) : messages Telegram à plusieurs outils bloqués par la limite Groq (8 000 jetons par minute).** Chaque appel envoie au moins 3 748 jetons fixes (personnalité + 14 outils), un bilan avec outils en fait 2 à 3 : Groq répond 429, Vercel coupe à 25 s, QStash relançait et créait des doublons dans Notion. Fait : plus de relance automatique, réponse 200 avec message Telegram en cas d'échec, échec à 20 s (PR #27, à fusionner et à déployer). **Fait le 20/10/2026 : (1) choix des outils par mots-clés et descriptions plus courtes** (`lib/ai/tool-routing.ts`, voir `STATUS-V2.md`), à vérifier sur un vrai message Telegram. **À faire seulement si ça ne suffit pas** : (2) découper le message en actions traitées l'une après l'autre (idée de l'utilisateur). Le palier payant de Groq est écarté par l'utilisateur (pas de paiement au jeton). Détail, chiffres et limites dans `STATUS-V2.md` (« Pièges rencontrés »).
 
@@ -211,13 +211,13 @@ Ce qui suit n'est pas une étape de la V2 : c'est de l'amélioration et du confo
 
 **À vérifier au moment de commencer** : ce que contient vraiment le flux de chaque source (`<description>`, `<content:encoded>`), car c'est de là que dépend ce qu'on peut développer sans aller chercher les pages.
 
-### Extra 2 — Soza prend la parole d'elle-même selon ce qui se passe sur l'ordinateur
+### Extra 2 — Løra prend la parole d'elle-même selon ce qui se passe sur l'ordinateur
 
-**Demande (02/11/2026)** : que Soza se mette à parler en fonction des événements qui se passent sur l'ordinateur de l'utilisateur, sans qu'il ait à lui écrire ou à lui parler d'abord.
+**Demande (02/11/2026)** : que Løra se mette à parler en fonction des événements qui se passent sur l'ordinateur de l'utilisateur, sans qu'il ait à lui écrire ou à lui parler d'abord.
 
 **État actuel (lu dans le code le 02/11/2026)** :
-- Soza ne parle aujourd'hui qu'**en réponse** : la commande `speak` (`src-tauri/src/main.rs`) lit une phrase à voix haute avec la voix de Windows, mais seule l'interface l'appelle, après une commande tapée dans `Ctrl+K`. Rien dans le code natif ne la déclenche seul.
-- Ce que l'app native observe déjà, en continu et en local : l'application au premier plan toutes les `SAMPLE_SECS` secondes (suivi du temps d'écran, sans compter Soza elle-même ni l'inactivité) et l'inactivité de l'utilisateur (`user-idle`, seuil `IDLE_SECS`).
+- Løra ne parle aujourd'hui qu'**en réponse** : la commande `speak` (`src-tauri/src/main.rs`) lit une phrase à voix haute avec la voix de Windows, mais seule l'interface l'appelle, après une commande tapée dans `Ctrl+K`. Rien dans le code natif ne la déclenche seul.
+- Ce que l'app native observe déjà, en continu et en local : l'application au premier plan toutes les `SAMPLE_SECS` secondes (suivi du temps d'écran, sans compter Løra elle-même ni l'inactivité) et l'inactivité de l'utilisateur (`user-idle`, seuil `IDLE_SECS`).
 - Ce qu'elle sait lire seulement **à la demande** (`system.rs`) : le volume, la session Spotify, la batterie de la souris.
 - Une boucle d'arrière-plan interroge déjà le backend toutes les `POLL_SECS` secondes pour les protocoles lancés depuis Telegram (`protocol.rs`) : c'est le seul endroit où un événement venu de l'extérieur arrive dans l'app.
 - **Aucun détecteur d'événement système n'existe** : ni batterie de l'ordinateur, ni réseau, ni périphérique branché, ni mise à jour Windows, ni fin de téléchargement.

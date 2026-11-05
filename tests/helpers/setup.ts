@@ -15,7 +15,7 @@ Object.assign(process.env, {
   NOTION_PROGRESS_DATABASE_ID: "db-progress",
   NOTION_SETTINGS_DATABASE_ID: "db-settings",
   GROQ_API_KEY: "test-groq-key",
-  APP_URL: "https://soza.test",
+  APP_URL: "https://lora.test",
   QSTASH_TOKEN: "test-qstash-token",
   UPSTASH_REDIS_REST_URL: "https://redis.test",
   UPSTASH_REDIS_REST_TOKEN: "test-redis-token",

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { stubNetwork } from "../helpers/network";
 
-const { verify, askSoza, publishWorkerJob } = vi.hoisted(() => ({ verify: vi.fn(), askSoza: vi.fn(), publishWorkerJob: vi.fn() }));
+const { verify, askLora, publishWorkerJob } = vi.hoisted(() => ({ verify: vi.fn(), askLora: vi.fn(), publishWorkerJob: vi.fn() }));
 vi.mock("@upstash/qstash", () => ({ Receiver: class { verify = verify; } }));
 vi.mock("@upstash/redis", () => import("../helpers/redis-mock"));
-vi.mock("../../lib/ai/client", () => ({ askSoza }));
+vi.mock("../../lib/ai/client", () => ({ askLora }));
 vi.mock("../../lib/integrations/qstash", () => ({ publishWorkerJob }));
 
 import { store } from "../helpers/redis-mock";
@@ -17,15 +17,15 @@ process.env.QSTASH_CURRENT_SIGNING_KEY = "current";
 process.env.QSTASH_NEXT_SIGNING_KEY = "next";
 
 const job = (text: string, extra: object = {}) => ({ chatId: 42, text, messageId: 5, ...extra });
-const sendJob = (body: object) => worker(new Request("https://soza.test/api/qstash-worker", { method: "POST", headers: { "upstash-signature": "sig" }, body: JSON.stringify(body) }));
+const sendJob = (body: object) => worker(new Request("https://lora.test/api/qstash-worker", { method: "POST", headers: { "upstash-signature": "sig" }, body: JSON.stringify(body) }));
 const agent = (method: string, body?: unknown, key: string | null = "dashboard-key") =>
-  protocol(new Request("https://soza.test/api/protocol", { method, headers: key ? { "x-dashboard-key": key } : {}, body: body === undefined ? undefined : JSON.stringify(body) }));
+  protocol(new Request("https://lora.test/api/protocol", { method, headers: key ? { "x-dashboard-key": key } : {}, body: body === undefined ? undefined : JSON.stringify(body) }));
 const texts = (net: ReturnType<typeof stubNetwork>) => net.telegram().map((c) => c.body.text as string);
 
 beforeEach(() => {
   store.clear();
   verify.mockReset().mockResolvedValue(true);
-  askSoza.mockReset().mockResolvedValue({ text: "réponse du modèle", toolCalls: [] });
+  askLora.mockReset().mockResolvedValue({ text: "réponse du modèle", toolCalls: [] });
   publishWorkerJob.mockReset();
 });
 
@@ -57,7 +57,7 @@ describe("worker : lancement d'un protocole", () => {
   it("n'interroge pas le modèle et met le protocole en attente pour le PC", async () => {
     const net = stubNetwork();
     expect((await sendJob(job("Protocole 7E3A"))).status).toBe(200);
-    expect(askSoza).not.toHaveBeenCalled();
+    expect(askLora).not.toHaveBeenCalled();
     expect(texts(net)).toEqual(["Lancement du protocole 7E3A."]);
     expect(net.calls).toHaveLength(1); // rien d'autre que Telegram : pas d'allumage du PC
     const run = (await getProtocolRun())!;
@@ -119,11 +119,11 @@ describe("worker : lancement d'un protocole", () => {
   it("une phrase libre qui contient « protocole » reste pour le modèle", async () => {
     stubNetwork();
     await sendJob(job("c'est quoi le protocole 7E3A ?"));
-    expect(askSoza).toHaveBeenCalledOnce();
+    expect(askLora).toHaveBeenCalledOnce();
   });
 });
 
-describe("api/protocol : l'app Soza du PC", () => {
+describe("api/protocol : l'app Løra du PC", () => {
   it("refuse sans clé ou avec une mauvaise clé", async () => {
     expect((await agent("GET", undefined, null)).status).toBe(401);
     expect((await agent("GET", undefined, "mauvaise")).status).toBe(401);
@@ -178,7 +178,7 @@ describe("délai dépassé", () => {
     await sendJob(job("Protocole 7E3A", { protocolTimeout: run.id }));
     expect(texts(net).at(-1)).toBe("Protocole 7E3A : le PC n'a pas répondu, ses étapes n'ont pas été lancées (10 minutes).");
     expect(await getProtocolRun()).toBeNull();
-    expect(askSoza).not.toHaveBeenCalled();
+    expect(askLora).not.toHaveBeenCalled();
   });
 
   it("protocole déjà terminé : le job différé ne dit rien", async () => {
@@ -229,7 +229,7 @@ describe("ouverture directe d'une application", () => {
     const net = stubNetwork();
     await saveAgentApps(["blender", "spotify"]);
     await sendJob(job("Ouvre Spotify et Blender"));
-    expect(askSoza).not.toHaveBeenCalled();
+    expect(askLora).not.toHaveBeenCalled();
     expect(texts(net)).toEqual(["Lancement de spotify, blender."]);
     expect(await getProtocolRun()).toMatchObject({ code: "spotify, blender", direct: true, steps: [{ kind: "open", app: "spotify" }, { kind: "open", app: "blender" }] });
     const { run } = await (await agent("GET")).json();
@@ -250,7 +250,7 @@ describe("ouverture directe d'une application", () => {
     const net = stubNetwork();
     await saveAgentApps(["blender"]);
     expect((await sendJob(job("Ouvre Blender"))).status).toBe(200);
-    expect(askSoza).not.toHaveBeenCalled();
+    expect(askLora).not.toHaveBeenCalled();
     expect(texts(net)).toEqual(["Lancement de blender."]);
     const run = (await getProtocolRun())!;
     expect(run).toMatchObject({ code: "blender", chatId: 42, claimed: false, direct: true, steps: [{ kind: "open", app: "blender" }] });
@@ -262,7 +262,7 @@ describe("ouverture directe d'une application", () => {
     await saveAgentApps(["blender"]);
     await sendJob(job("ouvre photoshop"));
     await sendJob(job("ouvre un jalon pour demain"));
-    expect(askSoza).toHaveBeenCalledTimes(2);
+    expect(askLora).toHaveBeenCalledTimes(2);
     expect(await getProtocolRun()).toBeNull();
   });
 
@@ -295,7 +295,7 @@ describe("ouverture directe d'une application", () => {
     const run = (await getProtocolRun())!;
     await sendJob(job("Ouvre blender", { protocolTimeout: run.id }));
     expect(texts(net).at(-1)).toBe("blender : le PC n'a pas répondu, rien n'a été lancé (10 minutes).");
-    expect(askSoza).not.toHaveBeenCalled();
+    expect(askLora).not.toHaveBeenCalled();
   });
 });
 

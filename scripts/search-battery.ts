@@ -1,9 +1,9 @@
-// Batterie de test de la recherche web de Soza : cherche les limites (quand elle cherche, ce qu'elle invente,
+// Batterie de test de la recherche web de Løra : cherche les limites (quand elle cherche, ce qu'elle invente,
 // le format de réponse, la latence, le quota). Vrais appels Groq ; aucune écriture : les outils Notion sont remplacés par des bouchons.
 // Lancer : npm run test:search (une trentaine d'appels, coûteux en jetons Groq).
 import { generateText, isStepCount, type ModelMessage } from "ai";
 import { askConfig, cleanAnswer, resolveModel } from "../lib/ai/client";
-import { sozaTools } from "../lib/ai/tools";
+import { loraTools } from "../lib/ai/tools";
 import { todayInParis } from "../lib/date";
 
 type Level = "FAIL" | "WARN" | "INFO";
@@ -24,11 +24,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Mêmes outils qu'en production, mais qui n'écrivent rien : on note seulement l'appel.
 function stubbedTools(calls: Answer["calls"]) {
   return Object.fromEntries(
-    Object.entries(sozaTools).map(([name, t]) => [
+    Object.entries(loraTools).map(([name, t]) => [
       name,
       { ...t, execute: async (input: unknown) => (calls.push({ name, input }), { success: true, stubbed: true }) },
     ]),
-  ) as unknown as typeof sozaTools;
+  ) as unknown as typeof loraTools;
 }
 
 async function ask(messages: ModelMessage[]): Promise<Answer> {

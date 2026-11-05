@@ -1,21 +1,23 @@
-# Soza
+# Løra
 
-Assistant personnel piloté par Telegram, pour un unique utilisateur, doublé d'une application de bureau Windows. Soza aide à garder une discipline de travail sur son projet en cours, avec une seule personnalité (« Friday »).
+Assistant personnel piloté par Telegram, pour un unique utilisateur, doublé d'une application de bureau Windows. Løra aide à garder une discipline de travail sur son projet en cours, avec une seule personnalité (« Friday »).
 
-Notion est la source de vérité pour toutes les données (idées, agenda, jalons, progression, réglages). Soza ne fait qu'y lire et écrire.
+> Løra s'appelait Soza jusqu'au 05/11/2026. Quelques identifiants techniques gardent l'ancien nom (dossier de données `com.soza.assistant`, URL Vercel, planifications QStash, dépôt) : voir « Renommage » dans `docs/ai/STATUS-V2.md`.
+
+Notion est la source de vérité pour toutes les données (idées, agenda, jalons, progression, réglages). Løra ne fait qu'y lire et écrire.
 
 ## Comment ça marche
 
 1. **Telegram** reçoit un message → `api/telegram-webhook.ts` valide le `chat_id` autorisé et publie immédiatement le job dans **QStash** (aucune tâche longue n'est exécutée dans le webhook lui-même).
-2. **QStash** livre le job à `api/qstash-worker.ts`, qui appelle le modèle (Groq, via le Vercel AI SDK) avec un jeu de tools (`lib/ai/tools.ts`) capables de lire/écrire dans Notion : créer une idée, ajouter un rendez-vous ou un shift à l'agenda, changer le statut d'un projet, enregistrer le bilan du jour, mettre Soza en pause quelques jours, changer l'heure du briefing, etc.
-3. Deux **crons QStash** déclenchent le briefing du matin (`api/cron-morning.ts`) et le bilan du soir (`api/cron-evening.ts`) aux horaires configurés dans la base Notion **Soza Réglages**. Chaque texte est rédigé par le modèle avec la personnalité de Soza (le soir : la journée, le prochain jalon, l'agenda, puis la question du bilan) ; une version courte est gardée dans Redis pour le dashboard.
+2. **QStash** livre le job à `api/qstash-worker.ts`, qui appelle le modèle (Groq, via le Vercel AI SDK) avec un jeu de tools (`lib/ai/tools.ts`) capables de lire/écrire dans Notion : créer une idée, ajouter un rendez-vous ou un shift à l'agenda, changer le statut d'un projet, enregistrer le bilan du jour, mettre Løra en pause quelques jours, changer l'heure du briefing, etc.
+3. Deux **crons QStash** déclenchent le briefing du matin (`api/cron-morning.ts`) et le bilan du soir (`api/cron-evening.ts`) aux horaires configurés dans la base Notion **Løra Réglages**. Chaque texte est rédigé par le modèle avec la personnalité de Løra (le soir : la journée, le prochain jalon, l'agenda, puis la question du bilan) ; une version courte est gardée dans Redis pour le dashboard.
 4. Une **mémoire courte durée** (Redis, ~10 messages / 6h) permet de garder le contexte d'une conversation Telegram sans tout réinjecter depuis Notion à chaque message.
 5. Un **dashboard Tauri** (app de bureau) joue une intro en particules (un ruban de Möbius se forme), puis affiche ces mêmes données en lecture dans un tableau de bord en verre liquide (`api/dashboard.ts` agrège Notion). Il n'écrit pas dans Notion : tout se pilote par la conversation Telegram. Côté Rust, l'app mesure le temps passé par application (les données restent sur la machine), démarre avec Windows et se réduit dans la zone de notification ; `npm run tauri build` produit un installeur Windows (NSIS).
 6. Une **pause de plusieurs jours** (« je prends mon week-end ») suspend le briefing et le bilan, et le briefing de reprise n'en fait pas un reproche.
 7. **Plusieurs projets en parallèle** : le bilan du soir enregistre sur lesquels l'utilisateur a avancé, le briefing du soir donne le prochain jalon de chaque projet en cours.
 8. **Recherche web** (Telegram) : pour une question extérieure ou récente, le modèle utilise la recherche intégrée de Groq et répond en deux ou trois phrases ; si la recherche échoue, il réessaie sans elle.
 9. **Protocoles** : le message exact « Protocole 7E3A » est reconnu par le worker (jamais par le modèle) ; le PC récupère le protocole via `api/protocol.ts`, exécute ses étapes (ouvrir des applications) et le résultat revient sur Telegram.
-10. **Barre de commande `Ctrl+K`** (app de bureau seulement, sans réseau) : ouvrir ou fermer une application d'une liste blanche, régler le volume, piloter la musique (Spotify : « mets <titre> »), lire la batterie de la souris. Chaque réponse est dite à voix haute avec la voix de Soza (Piper, en local ; repli sur la voix de Windows).
+10. **Barre de commande `Ctrl+K`** (app de bureau seulement, sans réseau) : ouvrir ou fermer une application d'une liste blanche, régler le volume, piloter la musique (Spotify : « mets <titre> »), lire la batterie de la souris. Chaque réponse est dite à voix haute avec la voix de Løra (Piper, en local ; repli sur la voix de Windows).
 
 ## Stack
 
@@ -89,7 +91,7 @@ npm run test:projects              # batterie des briefings multi-projets contre
 
 npm run notion:check               # vérifie la connexion Notion
 npm run notion:create              # crée les bases Notion (Agenda, Idées, Jalons, Progression)
-npm run notion:create-settings     # crée la base Soza Réglages
+npm run notion:create-settings     # crée la base Løra Réglages
 npm run notion:migrate-agenda-type # migration du champ Type sur Agenda
 
 npm run qstash:setup-schedules     # configure les schedules QStash (briefing/bilan)
@@ -99,7 +101,7 @@ Les tests (`npm test`, `test:acceptance`, `test:rust`) n'utilisent jamais le `.e
 
 ## État du projet
 
-**La V1 est terminée (09/10/2026).** Voir [`docs/ai/STATUS.md`](docs/ai/STATUS.md) (section « Clôture de la V1 ») pour ce qui est livré, ce qui a été vérifié et ce qui ne l'a pas été. **La V2 est en cours** (démarrée le 12/10/2026, une pull request par étape, PR #12 à #23) : les étapes 0 à 7 sont faites (finition de la V1, lancer et fermer des applications, recherche web, volume / musique / batterie de la souris, plusieurs projets en parallèle) et l'étape 8 (moteur de protocoles) est livrée côté code avec le protocole 7E3A, essai réel à faire. Les étapes 9 à 12 (voix, agent résident et widget, « qu'est-ce que je regarde ? », gestes de la main) ne sont pas commencées. L'avancement, ce qui est vérifié et ce qui ne l'est pas : [`docs/ai/STATUS-V2.md`](docs/ai/STATUS-V2.md) ; la vision et la liste des étapes : [`docs/ai/SozaV2.md`](docs/ai/SozaV2.md).
+**La V1 est terminée (09/10/2026).** Voir [`docs/ai/STATUS.md`](docs/ai/STATUS.md) (section « Clôture de la V1 ») pour ce qui est livré, ce qui a été vérifié et ce qui ne l'a pas été. **La V2 est en cours** (démarrée le 12/10/2026, une pull request par étape, PR #12 à #23) : les étapes 0 à 7 sont faites (finition de la V1, lancer et fermer des applications, recherche web, volume / musique / batterie de la souris, plusieurs projets en parallèle) et l'étape 8 (moteur de protocoles) est livrée côté code avec le protocole 7E3A, essai réel à faire. Les étapes 9 à 12 (voix, agent résident et widget, « qu'est-ce que je regarde ? », gestes de la main) ne sont pas commencées. L'avancement, ce qui est vérifié et ce qui ne l'est pas : [`docs/ai/STATUS-V2.md`](docs/ai/STATUS-V2.md) ; la vision et la liste des étapes : [`docs/ai/LoraV2.md`](docs/ai/LoraV2.md).
 
 ## Journal de construction
 

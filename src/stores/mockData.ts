@@ -42,7 +42,7 @@ export const mockData: DashboardData = {
     { id: "m4", title: "Animation idle", dueDate: day(12), status: "À faire", ideaId: "i6" },
   ],
   ideas: [
-    { id: "i1", title: "Soza", size: "Grand", status: "En cours", notes: "Assistant perso sur Telegram avec dashboard en verre et briefings quotidiens.", since: day(-40), updated: day(-1) },
+    { id: "i1", title: "Løra", size: "Grand", status: "En cours", notes: "Assistant perso sur Telegram avec dashboard en verre et briefings quotidiens.", since: day(-40), updated: day(-1) },
     { id: "i2", title: "Court-métrage low poly", size: "Moyen", status: "Brute", since: day(-20) },
     { id: "i3", title: "Pack de props", size: "Petit", status: "Brute", since: day(-12) },
     { id: "i4", title: "Portfolio web", size: "Moyen", status: "En cours", notes: "Vitrine des rendus Blender et des projets code, avec études de cas.", since: day(-18), updated: day(-6) },

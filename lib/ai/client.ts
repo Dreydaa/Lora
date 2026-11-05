@@ -1,7 +1,7 @@
 import { generateText, isStepCount, type ModelMessage } from "ai";
 import { browserSearch, createGroq } from "@ai-sdk/groq";
 import { fridayPrompt } from "./prompts/friday";
-import { sozaTools } from "./tools";
+import { loraTools } from "./tools";
 import { pickTools } from "./tool-routing";
 import { getHistory, appendToHistory } from "../memory";
 import { todayInParis } from "../date";
@@ -11,7 +11,7 @@ Quand l'utilisateur mentionne quelque chose qui pourrait être une idée de proj
 
 // Un modèle comble les trous par du plausible : l'aveu d'ignorance est demandé explicitement, partout.
 const HONESTY_INSTRUCTION = `
-Ne devine et n'invente jamais une information, un résultat ou une réponse. Sur Soza et sur l'utilisateur (réglages, heures, pause, agenda, projets, jalons, applications, état du PC), ne dis que ce qu'un outil a rendu dans cet échange ou ce qui a été dit dans la conversation. Si tu ne sais pas, ou si un outil a échoué ou répond « indisponible », dis-le explicitement en une phrase (« je ne sais pas », « je n'ai pas pu lire ça ») et propose comment l'obtenir. N'annonce jamais une action comme faite sans la confirmation de l'outil.`;
+Ne devine et n'invente jamais une information, un résultat ou une réponse. Sur Løra et sur l'utilisateur (réglages, heures, pause, agenda, projets, jalons, applications, état du PC), ne dis que ce qu'un outil a rendu dans cet échange ou ce qui a été dit dans la conversation. Si tu ne sais pas, ou si un outil a échoué ou répond « indisponible », dis-le explicitement en une phrase (« je ne sais pas », « je n'ai pas pu lire ça ») et propose comment l'obtenir. N'annonce jamais une action comme faite sans la confirmation de l'outil.`;
 
 // La réponse sera lue à voix haute plus tard (TTS) : courte, sans liste, sans adresse web.
 const SEARCH_INSTRUCTION = `
@@ -19,7 +19,7 @@ Tu disposes d'une recherche web (web_search). Ne l'utilise que pour une question
 
 // Demandes venues de l'app (Ctrl+K) : la réponse est dite à voix haute, pas lue sur un écran.
 const SPOKEN_INSTRUCTION = `
-Cette réponse sera dite à voix haute par la voix de Soza : deux à quatre phrases au ton parlé, sans liste, sans markdown, sans symbole ni adresse web ; écris les nombres et les heures comme on les prononce. Briefing demandé : appelle get_briefing (matin ou soir) et redis-le. Calcul : fais-le avec soin et donne seulement le résultat et, si utile, une phrase d'explication. Avis ou commentaire sur un projet ou une tâche : appuie-toi sur ce que les outils ont rendu (idées, jalons, agenda, bilan), donne un avis franc en une ou deux phrases, sans rien inventer, et tu ne réserves, ne bloques et ne programmes rien toi-même : tu peux seulement le proposer. Les confirmations « C'est fait » ou « En cours » ne servent qu'après une action : jamais à la fin d'une réponse d'information. Météo : dis le temps en mots (« couvert », « pluvieux ») et la température, jamais le code.`;
+Cette réponse sera dite à voix haute par la voix de Løra : deux à quatre phrases au ton parlé, sans liste, sans markdown, sans symbole ni adresse web ; écris les nombres et les heures comme on les prononce. Briefing demandé : appelle get_briefing (matin ou soir) et redis-le. Calcul : fais-le avec soin et donne seulement le résultat et, si utile, une phrase d'explication. Avis ou commentaire sur un projet ou une tâche : appuie-toi sur ce que les outils ont rendu (idées, jalons, agenda, bilan), donne un avis franc en une ou deux phrases, sans rien inventer, et tu ne réserves, ne bloques et ne programmes rien toi-même : tu peux seulement le proposer. Les confirmations « C'est fait » ou « En cours » ne servent qu'après une action : jamais à la fin d'une réponse d'information. Météo : dis le temps en mots (« couvert », « pluvieux ») et la température, jamais le code.`;
 
 // Sans la date du jour, le modèle ne peut pas convertir « demain » ou « ce week-end » en dates réelles pour les outils.
 function dateInstruction() {
@@ -52,7 +52,7 @@ La recherche web est indisponible pour cette réponse. Si la question demande un
 
 // Consigne et outils d'un échange, partagés avec la batterie de test de la recherche (scripts/search-battery.ts).
 // `input` restreint les outils à ceux que le message évoque (voir tool-routing.ts) ; sans lui, tous sont envoyés.
-export function askConfig(tools: typeof sozaTools = sozaTools, search = true, input?: string, spoken = false) {
+export function askConfig(tools: typeof loraTools = loraTools, search = true, input?: string, spoken = false) {
   const picked = input === undefined ? tools : pickTools(tools, input);
   return {
     system: fridayPrompt + DOUBT_INSTRUCTION + HONESTY_INSTRUCTION + (search ? SEARCH_INSTRUCTION : NO_SEARCH_INSTRUCTION) + (spoken ? SPOKEN_INSTRUCTION : "") + dateInstruction(),
@@ -65,12 +65,12 @@ export function cleanAnswer(text: string) {
   return text.replace(/【[^】]*】/g, "");
 }
 
-export async function askSoza(chatId: number, input: string, spoken = false) {
+export async function askLora(chatId: number, input: string, spoken = false) {
   if (typeof chatId !== "number" || !Number.isFinite(chatId)) {
-    throw new Error(`askSoza: chatId must be a number, got ${typeof chatId}`);
+    throw new Error(`askLora: chatId must be a number, got ${typeof chatId}`);
   }
   if (typeof input !== "string" || input.trim().length === 0) {
-    throw new Error(`askSoza: input must be a non-empty string, got ${typeof input}`);
+    throw new Error(`askLora: input must be a non-empty string, got ${typeof input}`);
   }
 
   const models = [...new Set([process.env.GROQ_MODEL ?? DEFAULT_MODEL, FALLBACK_MODEL])].map((id) => resolveModel(id));
@@ -87,7 +87,7 @@ export async function askSoza(chatId: number, input: string, spoken = false) {
   const run = (model: (typeof models)[number], search: boolean) =>
     generateText({
       model,
-      ...askConfig(sozaTools, search, input, spoken),
+      ...askConfig(loraTools, search, input, spoken),
       messages,
       abortSignal,
       maxRetries: 0,
@@ -107,7 +107,7 @@ export async function askSoza(chatId: number, input: string, spoken = false) {
       } catch (error) {
         if (localToolRan || !isRateLimited(error)) throw error;
         failure = error;
-        console.warn(`[askSoza] limite Groq atteinte sur ${model.modelId}, modèle suivant`);
+        console.warn(`[askLora] limite Groq atteinte sur ${model.modelId}, modèle suivant`);
       }
     }
     throw failure;
@@ -119,7 +119,7 @@ export async function askSoza(chatId: number, input: string, spoken = false) {
   } catch (error) {
     if (localToolRan) throw error;
     // Recherche rejetée par Groq (outil inconnu, quota, panne) : mieux vaut une réponse sans recherche que le silence.
-    console.warn("[askSoza] échec avec la recherche web, nouvel essai sans :", error);
+    console.warn("[askLora] échec avec la recherche web, nouvel essai sans :", error);
     result = await attempt(false);
   }
   const { text, steps } = result;
