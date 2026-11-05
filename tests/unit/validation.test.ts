@@ -3,9 +3,9 @@ import { assertDashboardKey, isAllowedChat } from "../../lib/auth";
 import { z } from "zod";
 import { readTelegramMessage, readWorkerJob } from "../../lib/validation";
 
-const request = (headers: Record<string, string> = {}) => new Request("https://soza.test/api/dashboard", { headers });
+const request = (headers: Record<string, string> = {}) => new Request("https://lora.test/api/dashboard", { headers });
 
-describe("isAllowedChat (seul le chat autorisé peut parler à Soza)", () => {
+describe("isAllowedChat (seul le chat autorisé peut parler à Løra)", () => {
   it("accepte uniquement l'identifiant configuré", () => {
     expect(isAllowedChat(42)).toBe(true);
     expect(isAllowedChat(43)).toBe(false);

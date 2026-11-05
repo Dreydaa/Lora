@@ -1,17 +1,19 @@
 // lib/ai/tools.ts
 import { tool } from "ai";
 import { z } from "zod";
-import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose, getProjectsInProgress, resolveProjectNames } from "../notion/idees";
+import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose, getProjectsInProgress, getAllIdeas, resolveProjectNames } from "../notion/idees";
 import { CATEGORIES } from "../types";
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
-import { addAgendaItem, addShiftSchedule } from "../notion/agenda";
-import { saveProgress } from "../notion/progress";
+import { addAgendaItem, addShiftSchedule, getUpcomingAgenda } from "../notion/agenda";
+import { getLatestProgress, saveProgress } from "../notion/progress";
 import { getSettings, saveBriefingTime } from "../notion/settings";
 import { upsertSchedule } from "../integrations/qstash";
-import { clearBreak, getAgentApps, getBreak, setBreak } from "../memory";
+import { getWeather } from "../integrations/weather";
+import { clearBreak, getAgentApps, getBreak, getLastBriefing, setBreak } from "../memory";
 import { todayInParis } from "../date";
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_IDEAS_READ = 25; // chaque idée lue coûte des jetons, et Groq n'en laisse que 8 000 par minute
 
 // Choisit le logo affiché dans le dashboard ; null accepté parce que Groq envoie parfois null au lieu d'omettre.
 const category = z
@@ -30,7 +32,7 @@ async function finishProject(projectTitle: string) {
   return { success: true, projectTitle, ideaCompleted: true, milestonesValidated: milestones };
 }
 
-export const sozaTools = {
+export const loraTools = {
   create_idea: tool({
     description:
       "Enregistre une idée dans Notion. Estime toi-même la taille selon l'ampleur réelle, sans jamais la demander (sauf si l'utilisateur l'a précisée : respecte son choix). Rédige dans `notes` une synthèse complète, pas un résumé de quelques lignes : le fond (objectif, portée, enjeux, éléments clés) et la forme (structure, étapes, composants évoqués), assez riche pour comprendre l'idée plus tard sans la conversation. N'invente aucun fait : organise et clarifie seulement.",
@@ -210,7 +212,7 @@ export const sozaTools = {
 
   set_break: tool({
     description:
-      "Met Soza en pause sur des jours sans travail (week-end, vacances) : plus de briefing du matin ni de bilan du soir, absence de bilan non reprochée, le briefing accueille la reprise. À utiliser quand l'utilisateur annonce qu'il ne bossera pas ces jours-là. Remplace toute pause précédente. Convertis toi-même « ce week-end », « jusqu'à dimanche » en dates à partir de la date du jour.",
+      "Met Løra en pause sur des jours sans travail (week-end, vacances) : plus de briefing du matin ni de bilan du soir, absence de bilan non reprochée, le briefing accueille la reprise. À utiliser quand l'utilisateur annonce qu'il ne bossera pas ces jours-là. Remplace toute pause précédente. Convertis toi-même « ce week-end », « jusqu'à dimanche » en dates à partir de la date du jour.",
     inputSchema: z.object({
       startDate: z.string().regex(ISO_DAY).describe("Premier jour, YYYY-MM-DD (aujourd'hui si la pause commence maintenant)."),
       endDate: z.string().regex(ISO_DAY).describe("Dernier jour, inclus, YYYY-MM-DD."),
@@ -235,7 +237,7 @@ export const sozaTools = {
 
   get_settings: tool({
     description:
-      "Lit les réglages actuels de Soza : heures du briefing du matin et du bilan du soir, pause en cours ou à venir, applications qu'elle peut ouvrir sur le PC. À appeler dès qu'on te demande tes réglages ; ne les donne jamais de mémoire.",
+      "Lit les réglages actuels de Løra : heures du briefing du matin et du bilan du soir, pause en cours ou à venir, applications qu'elle peut ouvrir sur le PC. À appeler dès qu'on te demande tes réglages ; ne les donne jamais de mémoire.",
     inputSchema: z.object({}),
     execute: async () => {
       console.log("[tool] get_settings");
@@ -249,8 +251,66 @@ export const sozaTools = {
       return {
         briefing: read(settings, (s) => ({ matin: s.morningTime || "non renseignée", soir: s.eveningTime || "non renseignée" })),
         pause: read(brk, (b) => (b && b.end >= todayInParis() ? { debut: b.start, fin: b.end } : "aucune pause en cours ni à venir")),
-        applications: read(apps, (a) => (a.length ? a : "inconnues : l'app Soza du PC n'a pas encore envoyé sa liste")),
+        applications: read(apps, (a) => (a.length ? a : "inconnues : l'app Løra du PC n'a pas encore envoyé sa liste")),
       };
+    },
+  }),
+
+  // Lectures : Løra sait enfin dire ce qu'il y a dans Notion (avant, seuls list_milestones et get_settings lisaient).
+  get_agenda: tool({
+    description: "Lit les prochains rendez-vous et tâches de l'agenda Notion (hors shifts), avec leur date. À appeler dès qu'on te demande l'agenda ou ce qui est prévu ; ne le donne jamais de mémoire.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] get_agenda");
+      const items = await getUpcomingAgenda();
+      // Le jour de la semaine est donné : le modèle le calculait mal à partir de la date seule (« mardi 15 novembre » pour un dimanche).
+      const weekday = (day: string) => new Intl.DateTimeFormat("fr-FR", { weekday: "long", timeZone: "UTC" }).format(new Date(`${day.slice(0, 10)}T12:00:00Z`));
+      return { today: todayInParis(), items: items.map(({ title, date, end, status }) => ({ title, jour: date ? weekday(date) : null, date, end, status })) };
+    },
+  }),
+
+  list_ideas: tool({
+    description:
+      "Lit les idées et projets de Notion (titre, taille, statut). Les projets sont les idées « En cours ». Avec `search`, ajoute un extrait des notes des idées qui correspondent. À appeler pour parler des idées, des projets en cours ou en donner un avis.",
+    inputSchema: z.object({
+      statut: z.enum(["Brute", "En cours", "Archivée", "Terminé"]).nullish().describe("Seulement ce statut ; vide = tous."),
+      search: z.string().nullish().describe("Mot du titre à chercher."),
+    }),
+    execute: async ({ statut, search }) => {
+      console.log("[tool] list_ideas →", { statut, search });
+      const wanted = search?.trim().toLowerCase();
+      const ideas = (await getAllIdeas())
+        .filter((i) => (!statut || i.status === statut) && (!wanted || i.title.toLowerCase().includes(wanted)))
+        .slice(0, MAX_IDEAS_READ)
+        .map(({ title, size, status, notes }) => ({ title, size, status, ...(wanted ? { notes: notes.slice(0, 200) } : {}) }));
+      return { ideas };
+    },
+  }),
+
+  get_weather: tool({
+    description: "Lit la météo actuelle (température et code météo WMO de Open-Meteo : 0 dégagé, 1-3 nuageux à couvert, 45-48 brouillard, 51-67 pluie, 71-77 neige, 80-82 averses, 95-99 orage). Traduis le code en mots, ne le lis jamais. Ne l'invente jamais.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] get_weather");
+      return { weather: await getWeather() };
+    },
+  }),
+
+  get_last_progress: tool({
+    description: "Lit le dernier bilan enregistré dans Notion (texte et date).",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] get_last_progress");
+      return getLatestProgress();
+    },
+  }),
+
+  get_briefing: tool({
+    description: "Lit le dernier briefing déjà généré (matin ou soir), prêt à être dit : redis-le presque tel quel, sans rien y ajouter.",
+    inputSchema: z.object({ type: z.enum(["morning", "evening"]).describe("morning = matin, evening = soir") }),
+    execute: async ({ type }) => {
+      console.log("[tool] get_briefing →", { type });
+      return { briefing: (await getLastBriefing(type)) ?? "Aucun briefing disponible pour l'instant (pause, ou pas encore envoyé)." };
     },
   }),
 
@@ -262,7 +322,7 @@ export const sozaTools = {
         .array(z.string())
         .nullish()
         .describe(
-          "Seuls les projets TRAVAILLÉS aujourd'hui, nommés ou confirmés par l'utilisateur, tels qu'il les a dits. Un projet non touché, laissé de côté ou seulement évoqué n'y figure PAS ; n'en déduis aucun. « Soza avancé, personnage 3D pas touché » donne [\"Soza\"]. Omets le champ si aucun projet n'est nommé.",
+          "Seuls les projets TRAVAILLÉS aujourd'hui, nommés ou confirmés par l'utilisateur, tels qu'il les a dits. Un projet non touché, laissé de côté ou seulement évoqué n'y figure PAS ; n'en déduis aucun. « Løra avancé, personnage 3D pas touché » donne [\"Løra\"]. Omets le champ si aucun projet n'est nommé.",
         ),
       finishedProjects: z
         .array(z.string())

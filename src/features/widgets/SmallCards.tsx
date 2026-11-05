@@ -88,7 +88,7 @@ export function AppUsageCard({ usage, open, onToggle }: { usage: Usage | null; o
       <div className="gw-bar" role="img" aria-label={apps.map((a) => `${a.name} ${duration(a.seconds)}`).join(", ")}>
         {apps.slice(0, BAR_APPS).map((a) => <i key={a.exe} title={`${a.name} · ${duration(a.seconds)}`} style={{ flex: a.seconds, background: a.icon.color }} />)}
       </div>
-      <span className="gw-sub">{apps[0] ? `${apps[0].name} · ${duration(apps[0].seconds)}` : usage ? "Rien de mesuré" : "Dans l'app Soza"}</span>
+      <span className="gw-sub">{apps[0] ? `${apps[0].name} · ${duration(apps[0].seconds)}` : usage ? "Rien de mesuré" : "Dans l'app Løra"}</span>
     </button>
   );
 }

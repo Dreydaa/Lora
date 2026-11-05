@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { pickTools, selectToolNames } from "../../lib/ai/tool-routing";
-import { sozaTools } from "../../lib/ai/tools";
+import { loraTools } from "../../lib/ai/tools";
 
-const names = (input: string) => [...(selectToolNames(input) ?? Object.keys(sozaTools))];
+const names = (input: string) => [...(selectToolNames(input) ?? Object.keys(loraTools))];
 
 describe("selectToolNames", () => {
   it("envoie tous les outils quand aucun mot-clé n'est reconnu", () => {
@@ -31,7 +31,7 @@ describe("selectToolNames", () => {
   });
 
   it("réunit les outils d'un message à plusieurs intentions", () => {
-    const picked = names("mon bilan : Soza avancé. Et mets un rdv demain à 10h");
+    const picked = names("mon bilan : Løra avancé. Et mets un rdv demain à 10h");
     expect(picked).toEqual(expect.arrayContaining(["record_progress", "add_agenda_item"]));
   });
 
@@ -42,25 +42,39 @@ describe("selectToolNames", () => {
   });
 
   it("garde le bilan et les jalons", () => {
-    expect(names("c'est mon bilan du jour, j'ai avancé sur Soza")).toContain("record_progress");
+    expect(names("c'est mon bilan du jour, j'ai avancé sur Løra")).toContain("record_progress");
     expect(names("liste mes jalons")).toContain("list_milestones");
-    expect(names("j'ai terminé le projet Soza")).toContain("complete_project");
+    expect(names("j'ai terminé le projet Løra")).toContain("complete_project");
+  });
+});
+
+describe("lectures vocales", () => {
+  it("route chaque demande de lecture vers son outil", () => {
+    expect(names("donne-moi mon briefing du matin")).toContain("get_briefing");
+    expect(names("quelle est la météo ?")).toContain("get_weather");
+    expect(names("quels sont mes projets en cours ?")).toEqual(expect.arrayContaining(["list_ideas", "list_milestones"]));
+    expect(names("qu'est-ce que j'ai de prévu demain ?")).toContain("get_agenda");
+    expect(names("qu'est-ce que j'ai fait hier ?")).toContain("get_last_progress");
+  });
+
+  it("n'envoie pas la météo pour un changement d'heure de briefing", () => {
+    expect(names("décale le briefing à 8h")).not.toContain("get_weather");
   });
 });
 
 describe("pickTools", () => {
   it("renvoie un sous-ensemble des vrais outils", () => {
-    const picked = pickTools(sozaTools, "liste mes jalons");
-    expect(Object.keys(picked).length).toBeLessThan(Object.keys(sozaTools).length);
-    expect(picked.list_milestones).toBe(sozaTools.list_milestones);
+    const picked = pickTools(loraTools, "liste mes jalons");
+    expect(Object.keys(picked).length).toBeLessThan(Object.keys(loraTools).length);
+    expect(picked.list_milestones).toBe(loraTools.list_milestones);
   });
 
   it("renvoie tous les outils sans mot-clé", () => {
-    expect(pickTools(sozaTools, "ok")).toBe(sozaTools);
+    expect(pickTools(loraTools, "ok")).toBe(loraTools);
   });
 
   it("ne référence que des outils qui existent", () => {
-    const all = new Set(Object.keys(sozaTools));
+    const all = new Set(Object.keys(loraTools));
     for (const input of ["idée", "jalon", "rdv", "shift", "briefing", "pause", "bilan", "terminé"]) {
       for (const name of names(input)) expect(all.has(name)).toBe(true);
     }

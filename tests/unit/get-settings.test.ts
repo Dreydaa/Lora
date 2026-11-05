@@ -1,13 +1,13 @@
-// get_settings : Soza lit ses réglages au lieu de les inventer. Une source en échec est dite « indisponible », jamais devinée.
+// get_settings : Løra lit ses réglages au lieu de les inventer. Une source en échec est dite « indisponible », jamais devinée.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ getSettings: vi.fn(), getBreak: vi.fn(), getAgentApps: vi.fn() }));
 vi.mock("../../lib/notion/settings", () => ({ getSettings: mocks.getSettings, saveBriefingTime: vi.fn() }));
 vi.mock("../../lib/memory", () => ({ getBreak: mocks.getBreak, getAgentApps: mocks.getAgentApps, setBreak: vi.fn(), clearBreak: vi.fn() }));
 
-import { sozaTools } from "../../lib/ai/tools";
+import { loraTools } from "../../lib/ai/tools";
 
-const run = () => (sozaTools.get_settings as any).execute({}, {}) as Promise<Record<string, unknown>>;
+const run = () => (loraTools.get_settings as any).execute({}, {}) as Promise<Record<string, unknown>>;
 
 beforeEach(() => {
   vi.spyOn(console, "log").mockImplementation(() => {});

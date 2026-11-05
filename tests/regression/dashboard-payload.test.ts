@@ -16,7 +16,7 @@ beforeEach(() => {
   stubNetwork();
 });
 
-const payload = async () => (await handler(new Request("https://soza.test/api/dashboard", { headers: { "x-dashboard-key": "dashboard-key" } }))).json();
+const payload = async () => (await handler(new Request("https://lora.test/api/dashboard", { headers: { "x-dashboard-key": "dashboard-key" } }))).json();
 
 describe("champs retirés du payload", () => {
   it.each([

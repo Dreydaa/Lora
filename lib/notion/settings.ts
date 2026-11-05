@@ -6,7 +6,7 @@ const database = () => {
   return id;
 };
 
-export type SozaSettings = {
+export type LoraSettings = {
   pageId: string;
   morningTime: string;
   eveningTime: string;
@@ -18,7 +18,7 @@ function richText(page: any, prop: string): string {
   return page.properties[prop]?.rich_text?.[0]?.plain_text ?? "";
 }
 
-function parseSettings(page: any): SozaSettings {
+function parseSettings(page: any): LoraSettings {
   return {
     pageId: page.id,
     morningTime: richText(page, "Heure briefing matin") || "06:00",
@@ -29,10 +29,10 @@ function parseSettings(page: any): SozaSettings {
 }
 
 // La config tient sur une seule ligne ("Config") dans la base Réglages.
-export async function getSettings(): Promise<SozaSettings> {
+export async function getSettings(): Promise<LoraSettings> {
   const data = await notion().databases.query({ database_id: database(), page_size: 1 });
   const page = data.results[0];
-  if (!page) throw new Error("Aucune ligne de config trouvée dans Soza Réglages");
+  if (!page) throw new Error("Aucune ligne de config trouvée dans Løra Réglages");
   return parseSettings(page);
 }
 

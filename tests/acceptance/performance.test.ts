@@ -89,7 +89,7 @@ describe("acceptance : coût du rendu des particules", () => {
   }, 180_000); // ~14 s simulées à ~62 images/s de rendu logiciel : dépasse les 60 s par défaut
 });
 
-// Faux noyau Tauri : l'état de départ de la fenêtre vient de window_visible, puis Rust émet « soza://visibility ».
+// Faux noyau Tauri : l'état de départ de la fenêtre vient de window_visible, puis Rust émet « lora://visibility ».
 const hostWindow = () => {
   (window as any).__draws = 0;
   const proto = WebGL2RenderingContext.prototype;
@@ -119,7 +119,7 @@ const hostWindow = () => {
     },
   };
 };
-const emit = (page: Page, visible: boolean) => page.evaluate((v) => (window as any).__emit("soza://visibility", v), visible);
+const emit = (page: Page, visible: boolean) => page.evaluate((v) => (window as any).__emit("lora://visibility", v), visible);
 
 describe("acceptance : fenêtre masquée dans la zone de notification (noyau Tauri simulé)", () => {
   it("démarrée masquée (démarrage automatique) : pas de rendu, puis il reprend quand Rust annonce l'affichage", async ({ skip }) => {

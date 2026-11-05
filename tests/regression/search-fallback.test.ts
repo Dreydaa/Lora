@@ -1,12 +1,12 @@
 // Limite trouvée par la batterie de recherche (14/10/2026) : Groq rejette parfois l'appel quand la recherche web est demandée
-// (« tool call validation failed »), askSoza levait, le worker répondait 500 et Telegram restait muet.
+// (« tool call validation failed »), askLora levait, le worker répondait 500 et Telegram restait muet.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const generateText = vi.hoisted(() => vi.fn());
 vi.mock("ai", async (original) => ({ ...(await original<typeof import("ai")>()), generateText }));
 vi.mock("../../lib/memory", () => ({ getHistory: vi.fn().mockResolvedValue([]), appendToHistory: vi.fn() }));
 
-import { askSoza } from "../../lib/ai/client";
+import { askLora } from "../../lib/ai/client";
 
 const answer = (text: string) => ({ text, steps: [{ toolCalls: [] }] });
 const searchRejected = new Error("tool call validation failed: attempted to call tool 'search' which was not in request.tools");
@@ -20,7 +20,7 @@ beforeEach(() => {
 describe("repli quand la recherche web échoue", () => {
   it("réussit du premier coup : un seul appel, avec la recherche, citations retirées", async () => {
     generateText.mockResolvedValueOnce(answer("Verstappen a gagné【3†L12-L19】."));
-    const { text } = await askSoza(1, "Cherche le dernier GP");
+    const { text } = await askLora(1, "Cherche le dernier GP");
     expect(text).toBe("Verstappen a gagné.");
     expect(generateText).toHaveBeenCalledTimes(1);
     expect(Object.keys(generateText.mock.calls[0][0].tools)).toContain("web_search");
@@ -28,7 +28,7 @@ describe("repli quand la recherche web échoue", () => {
 
   it("réessaie sans la recherche et prévient le modèle qu'elle est indisponible", async () => {
     generateText.mockRejectedValueOnce(searchRejected).mockResolvedValueOnce(answer("Je ne peux pas chercher pour l'instant."));
-    const { text } = await askSoza(1, "Cherche le cours du Bitcoin");
+    const { text } = await askLora(1, "Cherche le cours du Bitcoin");
     expect(text).toBe("Je ne peux pas chercher pour l'instant.");
     expect(generateText).toHaveBeenCalledTimes(2);
     const retry = generateText.mock.calls[1][0];
@@ -38,7 +38,7 @@ describe("repli quand la recherche web échoue", () => {
 
   it("lève l'erreur si le second essai échoue aussi", async () => {
     generateText.mockRejectedValue(searchRejected);
-    await expect(askSoza(1, "Cherche le cours du Bitcoin")).rejects.toThrow(/search/);
+    await expect(askLora(1, "Cherche le cours du Bitcoin")).rejects.toThrow(/search/);
     expect(generateText).toHaveBeenCalledTimes(2);
   });
 
@@ -47,7 +47,7 @@ describe("repli quand la recherche web échoue", () => {
       options.onStepFinish({ toolCalls: [{ toolName: "create_idea" }] });
       throw searchRejected;
     });
-    await expect(askSoza(1, "Cherche un jeu Three.js et ajoute l'idée")).rejects.toThrow(/search/);
+    await expect(askLora(1, "Cherche un jeu Three.js et ajoute l'idée")).rejects.toThrow(/search/);
     expect(generateText).toHaveBeenCalledTimes(1);
   });
 });

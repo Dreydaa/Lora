@@ -9,7 +9,7 @@ export type AgendaItem = { id: string; title: string; date: string | null; end?:
 export type Milestone = { id: string; title: string; dueDate: string | null; status: string; proofUrl?: string; ideaId?: string; category?: Category };
 export type Article = { tag: string; title: string; url: string | null };
 export type WorkerJob = { chatId: number; text: string; messageId: number; protocolTimeout?: string };
-// Étape d'un protocole exécutée sur le PC, et son statut rendu par l'app Soza.
+// Étape d'un protocole exécutée sur le PC, et son statut rendu par l'app Løra.
 export type ProtocolStep = { kind: "open"; app: string };
 export type StepResult = { label: string; ok: boolean; detail?: string };
 // Protocole en cours : `claimed` passe à vrai quand le PC l'a pris. `direct` : ouverture d'une ou plusieurs applications

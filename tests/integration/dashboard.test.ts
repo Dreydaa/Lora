@@ -9,7 +9,7 @@ vi.mock("@notionhq/client", () => import("../helpers/notion-mock"));
 import handler from "../../api/dashboard";
 
 const get = (headers: Record<string, string> = { "x-dashboard-key": "dashboard-key" }, method = "GET") =>
-  handler(new Request("https://soza.test/api/dashboard", { method, headers }));
+  handler(new Request("https://lora.test/api/dashboard", { method, headers }));
 
 const ideaPage = (id: string, name: string, status: string, notes = "") => ({
   id,
@@ -23,7 +23,7 @@ beforeEach(() => {
   notionData["db-settings"] = [settingsPage("06:00", "20:30")];
   notionData["db-agenda"] = [agendaPage("a1", "Dentiste", "2026-10-09T14:30:00")];
   notionData["db-milestones"] = [milestonePage("m1", "Rig de base", "2026-10-12", "En cours")];
-  notionData["db-ideas"] = [ideaPage("i1", "Soza", "En cours", "x".repeat(600))];
+  notionData["db-ideas"] = [ideaPage("i1", "Løra", "En cours", "x".repeat(600))];
 });
 
 describe("/api/dashboard : accès", () => {
@@ -54,7 +54,7 @@ describe("/api/dashboard : contenu", () => {
     expect(Object.keys(data).sort()).toEqual(["agenda", "articles", "briefing", "eveningBriefing", "ideas", "milestones", "pause", "settings"]);
     expect(data.agenda[0]).toMatchObject({ title: "Dentiste", date: "2026-10-09T14:30:00", type: "Perso" });
     expect(data.milestones[0]).toMatchObject({ title: "Rig de base", status: "En cours" });
-    expect(data.ideas[0]).toMatchObject({ title: "Soza", status: "En cours", size: "Moyen" });
+    expect(data.ideas[0]).toMatchObject({ title: "Løra", status: "En cours", size: "Moyen" });
     expect(data.briefing).toBe("Texte du matin");
     expect(data.eveningBriefing).toBe("Texte du soir");
     expect(data.articles.map((a: { title: string }) => a.title)).toContain("Puce quantique annoncée");

@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, fs, path::Path, process::Command};
 
-// Applications que Soza a le droit d'ouvrir et de fermer : nom (minuscules) -> chemin de l'exécutable, dans apps.json
+// Applications que Løra a le droit d'ouvrir et de fermer : nom (minuscules) -> chemin de l'exécutable, dans apps.json
 // (dossier de données de l'app, modifiable à la main, relu à chaque commande). Rien d'autre ne peut être lancé ni fermé.
 pub type Apps = BTreeMap<String, String>;
 
@@ -30,7 +30,7 @@ pub fn load(file: &Path) -> Apps {
   apps.into_iter().map(|(name, path)| (name.to_lowercase(), path)).collect()
 }
 
-// Pas de fenêtre de console qui clignote : Soza n'a pas de console, taskkill en ouvrirait une.
+// Pas de fenêtre de console qui clignote : Løra n'a pas de console, taskkill en ouvrirait une.
 fn hidden(cmd: &mut Command) -> &mut Command {
   #[cfg(windows)]
   { use std::os::windows::process::CommandExt; cmd.creation_flags(0x0800_0000); } // CREATE_NO_WINDOW
@@ -80,7 +80,7 @@ mod tests {
   use super::*;
 
   fn temp_file(name: &str) -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("soza-test-{}-{name}.json", std::process::id()))
+    std::env::temp_dir().join(format!("lora-test-{}-{name}.json", std::process::id()))
   }
 
   fn config_with(name: &str, apps: &str) -> std::path::PathBuf {
@@ -129,11 +129,11 @@ mod tests {
   #[cfg(windows)]
   #[test]
   fn open_and_close_use_the_configured_path() {
-    let missing = r"C:\soza-test-absent\soza-test-absent.exe";
+    let missing = r"C:\lora-test-absent\lora-test-absent.exe";
     let file = config_with("real", &format!(r#"{{ "fantôme": {missing:?}, "qui": "C:\\Windows\\System32\\whoami.exe" }}"#));
     assert_eq!(run("ouvre qui", &file), "Lancement de qui.");
     assert!(run("ouvre fantôme", &file).contains("Impossible de lancer"));
-    // Aucun processus ne porte ce nom : taskkill rend 128, Soza le dit sans rien fermer d'autre.
+    // Aucun processus ne porte ce nom : taskkill rend 128, Løra le dit sans rien fermer d'autre.
     assert_eq!(run("ferme fantôme", &file), "Rien à fermer : fantôme n'est pas ouverte.");
     let _ = fs::remove_file(file);
   }

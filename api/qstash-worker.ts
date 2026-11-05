@@ -1,5 +1,5 @@
 import { Receiver } from "@upstash/qstash";
-import { askSoza } from "../lib/ai/client";
+import { askLora } from "../lib/ai/client";
 import { sendTelegram } from "../lib/integrations/telegram";
 import { expireProtocol, readOpenCommand, readProtocolCommand, startAppLaunch, startProtocol } from "../lib/protocols";
 import { readWorkerJob } from "../lib/validation";
@@ -47,7 +47,7 @@ export default async function handler(request: Request) {
         return Response.json({ ok: true });
       }
 
-      const result = await askSoza(job.chatId, job.text);
+      const result = await askLora(job.chatId, job.text);
       await sendTelegram(job.chatId, result.text);
 
       return Response.json({ ok: true });
