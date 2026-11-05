@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { useNow } from "../../hooks/useNow";
+import { useVoiceState } from "../../hooks/useVoiceState";
 import { fetchDashboardData } from "../../lib/api";
 import { dashboardStore } from "../../stores/dashboardStore";
 import { GlassCalendar } from "../calendar/GlassCalendar";
@@ -46,6 +47,7 @@ export function GlassPage() {
   const data = useDashboardData();
   const now = useNow();
   const usage = useAppUsage();
+  const voice = useVoiceState();
 
   const openTimeline = (next: Panel) => {
     clearTimeout(closeTimer.current);
@@ -84,7 +86,7 @@ export function GlassPage() {
     <div className="glass-root">
       <CommandBar />
       <div className="glass-bg">
-        <ParticleIntro skip={skip} onDone={() => setReady(true)} />
+        <ParticleIntro skip={skip} voice={voice} onDone={() => setReady(true)} />
       </div>
       <div ref={stageRef} className="glass-stage" data-ready={ready} data-focus={timeline === "open" ? panel : undefined}>
         <div className="glass-col glass-col-a">

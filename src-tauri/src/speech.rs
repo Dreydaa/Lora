@@ -4,9 +4,12 @@ use std::{
   os::windows::process::CommandExt,
   path::{Path, PathBuf},
   process::{Child, ChildStdin, Command, Stdio},
-  sync::{mpsc, Mutex},
+  sync::{
+    atomic::{AtomicU64, AtomicUsize, Ordering},
+    mpsc, Mutex,
+  },
   thread,
-  time::{Duration, Instant},
+  time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use windows::{
   core::HSTRING,
@@ -184,8 +187,35 @@ fn piper(text: &str, dir: &Path) -> Result<(), String> {
   played.map_err(|e| e.to_string())
 }
 
+// Le micro (listen.rs) ne doit pas entendre Løra, dont la voix contient son propre nom : il jette ce qu'il capte pendant qu'elle parle
+// et un instant après (écho de la pièce). Plusieurs phrases peuvent se chevaucher : on compte celles en cours.
+static SPEAKING: AtomicUsize = AtomicUsize::new(0);
+static QUIET_AT_MS: AtomicU64 = AtomicU64::new(0);
+const ECHO_TAIL_MS: u64 = 1000;
+
+fn now_ms() -> u64 {
+  SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+}
+
+// Coupe le micro un instant sans qu'elle parle (le bip de listen.rs).
+pub fn mute_for(ms: u64) {
+  QUIET_AT_MS.fetch_max(now_ms() + ms, Ordering::Relaxed);
+}
+
+pub fn busy() -> bool {
+  SPEAKING.load(Ordering::Relaxed) > 0 || now_ms() < QUIET_AT_MS.load(Ordering::Relaxed)
+}
+
 // `dir` : le dossier de données de l'app (celui de apps.json).
 pub fn speak(text: &str, dir: &Path) -> windows::core::Result<()> {
+  if SPEAKING.fetch_add(1, Ordering::Relaxed) == 0 { crate::listen::emit_state("speaking"); } // le ruban s'agite
+  let result = speak_now(text, dir);
+  QUIET_AT_MS.store(now_ms() + ECHO_TAIL_MS, Ordering::Relaxed);
+  if SPEAKING.fetch_sub(1, Ordering::Relaxed) == 1 { crate::listen::emit_state("idle"); }
+  result
+}
+
+fn speak_now(text: &str, dir: &Path) -> windows::core::Result<()> {
   let text = clean(text);
   match piper(&text, dir) {
     Ok(()) => return Ok(()),
@@ -236,6 +266,22 @@ mod tests {
     assert_eq!(clean("L’app est là : prête ?"), "L'app est là: prête?");
     assert_eq!(clean("  Rien   à   dire \n"), "Rien à dire");
     assert_eq!(clean("Bonjour, je suis Løra."), "Bonjour, je suis Lora.");
+  }
+
+  #[test]
+  fn busy_while_speaking_and_for_a_moment_after() {
+    // Les deux compteurs sont globaux : un seul test les touche.
+    assert!(!busy());
+    SPEAKING.fetch_add(1, Ordering::Relaxed);
+    assert!(busy());
+    SPEAKING.fetch_sub(1, Ordering::Relaxed);
+    QUIET_AT_MS.store(now_ms() + 60_000, Ordering::Relaxed);
+    assert!(busy());
+    QUIET_AT_MS.store(0, Ordering::Relaxed);
+    assert!(!busy());
+    mute_for(60_000);
+    assert!(busy());
+    QUIET_AT_MS.store(0, Ordering::Relaxed);
   }
 
   #[test]

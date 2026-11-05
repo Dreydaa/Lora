@@ -1,12 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod apps;
+mod listen;
 mod protocol;
 mod speech;
 mod spotify;
 mod system;
 use std::{collections::BTreeMap, fs, path::PathBuf, sync::Mutex, thread, time::Duration};
 use tauri::{
-  menu::{Menu, MenuItem},
+  menu::{CheckMenuItem, Menu, MenuItem},
   tray::{MouseButton, MouseButtonState, TrayIconEvent},
   AppHandle, Emitter, Manager, State, WebviewWindow, WindowEvent,
 };
@@ -124,8 +125,13 @@ fn main() {
 
       // Zone de notification : clic gauche = afficher la fenêtre, clic droit = menu (Afficher / Quitter).
       // Fermer la fenêtre ne fait que la masquer ; « Quitter » est le seul moyen d'arrêter vraiment Løra (et le suivi).
+      // « Écoute du micro » : coupe le micro lui-même (voir listen.rs) ; l'état de départ vient de listen.json.
+      let data_dir = app.path().app_data_dir()?;
+      fs::create_dir_all(&data_dir)?;
+      let listen_item = CheckMenuItem::with_id(app, "listen", "Écoute du micro (« Løra, … »)", true, listen::enabled_in_config(&data_dir), None::<&str>)?;
       let menu = Menu::with_items(app, &[
         &MenuItem::with_id(app, "show", "Afficher Løra", true, None::<&str>)?,
+        &listen_item,
         &MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?,
       ])?;
       let _tray = tauri::tray::TrayIconBuilder::with_id("lora")
@@ -134,16 +140,17 @@ fn main() {
         .tooltip("Løra est actif")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id.as_ref() {
+        .on_menu_event(move |app, event| match event.id.as_ref() {
           "show" => show_main(app),
-          "quit" => { app.state::<UsageState>().save(); app.exit(0); } // sans attendre la prochaine sauvegarde périodique
+          // La case se coche toute seule au clic : on relit son état pour que le micro suive.
+          "listen" => listen::set_enabled(listen_item.is_checked().unwrap_or(true)),
+          "quit" => { listen::stop(); app.state::<UsageState>().save(); app.exit(0); } // sans attendre la prochaine sauvegarde périodique
           _ => {}
         })
         .on_tray_icon_event(|tray, event| if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event { show_main(tray.app_handle()); })
         .build(app)?;
 
-      let dir = app.path().app_data_dir()?;
-      fs::create_dir_all(&dir)?;
+      let dir = data_dir;
       let file = dir.join("usage.json");
       app.manage(UsageState { data: Mutex::new(load(&file)), file });
       // Créé vide au premier lancement pour qu'on le trouve : l'utilisateur y écrit { "blender": "C:\\...\\blender.exe" }.
@@ -169,6 +176,9 @@ fn main() {
         }
         thread::sleep(Duration::from_secs(SAY_POLL_SECS));
       });
+
+      // Écoute du mot d'activation « Løra » (voir listen.rs) : sans Whisper installé dans voice/whisper, elle ne démarre pas.
+      listen::start(app.handle().clone(), dir.clone());
 
       // Protocoles lancés depuis Telegram (voir protocol.rs) : adresse et clé du backend, créés vides, relus à chaque tour.
       let agent_file = dir.join("agent.json");
