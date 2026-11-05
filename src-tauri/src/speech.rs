@@ -197,6 +197,11 @@ fn now_ms() -> u64 {
   SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
 }
 
+// Coupe le micro un instant sans qu'elle parle (le bip de listen.rs).
+pub fn mute_for(ms: u64) {
+  QUIET_AT_MS.fetch_max(now_ms() + ms, Ordering::Relaxed);
+}
+
 pub fn busy() -> bool {
   SPEAKING.load(Ordering::Relaxed) > 0 || now_ms() < QUIET_AT_MS.load(Ordering::Relaxed)
 }
@@ -274,6 +279,9 @@ mod tests {
     assert!(busy());
     QUIET_AT_MS.store(0, Ordering::Relaxed);
     assert!(!busy());
+    mute_for(60_000);
+    assert!(busy());
+    QUIET_AT_MS.store(0, Ordering::Relaxed);
   }
 
   #[test]
