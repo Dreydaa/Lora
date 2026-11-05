@@ -1,6 +1,6 @@
 import { generateText, isStepCount, type ModelMessage } from "ai";
 import { browserSearch, createGroq } from "@ai-sdk/groq";
-import { fridayPrompt } from "./prompts/friday";
+import { fridayPrompt, nicknameInstruction } from "./prompts/friday";
 import { loraTools } from "./tools";
 import { pickTools } from "./tool-routing";
 import { getHistory, appendToHistory } from "../memory";
@@ -19,7 +19,7 @@ Tu disposes d'une recherche web (web_search). Ne l'utilise que pour une question
 
 // Demandes venues de l'app (Ctrl+K) : la réponse est dite à voix haute, pas lue sur un écran.
 const SPOKEN_INSTRUCTION = `
-Cette réponse sera dite à voix haute par la voix de Løra : deux à quatre phrases au ton parlé, sans liste, sans markdown, sans symbole ni adresse web ; écris les nombres et les heures comme on les prononce. Briefing demandé : appelle get_briefing (matin ou soir) et redis-le. Calcul : fais-le avec soin et donne seulement le résultat et, si utile, une phrase d'explication. Avis ou commentaire sur un projet ou une tâche : appuie-toi sur ce que les outils ont rendu (idées, jalons, agenda, bilan), donne un avis franc en une ou deux phrases, sans rien inventer, et tu ne réserves, ne bloques et ne programmes rien toi-même : tu peux seulement le proposer. Les confirmations « C'est fait » ou « En cours » ne servent qu'après une action : jamais à la fin d'une réponse d'information. Météo : dis le temps en mots (« couvert », « pluvieux ») et la température, jamais le code.`;
+Cette réponse sera dite à voix haute par la voix de Løra : tutoiement toujours (jamais « vous »). Le surnom indiqué en fin de consigne est facultatif : une réponse sur deux environ, plutôt en début de phrase, jamais dans une confirmation d'action ni dans une erreur. Deux à quatre phrases au ton parlé, sans liste, sans markdown, sans symbole ni adresse web ; écris les nombres et les heures comme on les prononce. Briefing demandé : appelle get_briefing (matin ou soir) et redis-le. Calcul : fais-le avec soin et donne seulement le résultat et, si utile, une phrase d'explication. Avis ou commentaire sur un projet ou une tâche : appuie-toi sur ce que les outils ont rendu (idées, jalons, agenda, bilan), donne un avis franc en une ou deux phrases, sans rien inventer, et tu ne réserves, ne bloques et ne programmes rien toi-même : tu peux seulement le proposer. Les confirmations « C'est fait » ou « En cours » ne servent qu'après une action : jamais à la fin d'une réponse d'information. Météo : dis le temps en mots (« couvert », « pluvieux ») et la température, jamais le code.`;
 
 // Phrase venue du micro : la reconnaissance vocale se trompe (« Blender » devient « Blondet »), une mauvaise écriture dans Notion se paie.
 const VOICE_INSTRUCTION = `
@@ -59,7 +59,7 @@ La recherche web est indisponible pour cette réponse. Si la question demande un
 export function askConfig(tools: typeof loraTools = loraTools, search = true, input?: string, spoken = false, voice = false) {
   const picked = input === undefined ? tools : pickTools(tools, input);
   return {
-    system: fridayPrompt + DOUBT_INSTRUCTION + HONESTY_INSTRUCTION + (search ? SEARCH_INSTRUCTION : NO_SEARCH_INSTRUCTION) + (spoken ? SPOKEN_INSTRUCTION : "") + (voice ? VOICE_INSTRUCTION : "") + dateInstruction(),
+    system: fridayPrompt + DOUBT_INSTRUCTION + HONESTY_INSTRUCTION + (search ? SEARCH_INSTRUCTION : NO_SEARCH_INSTRUCTION) + (spoken ? SPOKEN_INSTRUCTION + nicknameInstruction("cette réponse dite à voix haute") : "") + (voice ? VOICE_INSTRUCTION : "") + dateInstruction(),
     tools: search ? { ...picked, web_search: browserSearch({}) } : picked,
   };
 }
