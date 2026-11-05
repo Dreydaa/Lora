@@ -19,7 +19,7 @@ base64 = "0.22" # jeton de l'API Spotify (en-tête Basic)
 ureq = { version = "3", features = ["json"] } # recherche d'un morceau sur l'API web de Spotify
 cpal = "0.18" # micro (WASAPI) pour l'écoute du mot d'activation
 hidapi = "2" # batterie de la souris : protocole HID++ de Logitech (récepteur LIGHTSPEED)
-windows = { version = "0.62", features = ["Foundation", "Media_Control", "Media_Core", "Media_Playback", "Media_SpeechSynthesis", "Storage_Streams", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com"] }
+windows = { version = "0.62", features = ["Foundation", "Media_Control", "Media_Core", "Media_Playback", "Media_SpeechSynthesis", "Storage_Streams", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Diagnostics_Debug", "Win32_UI_WindowsAndMessaging"] }
 
 # Exécutable plus petit (la vitesse du Rust n'est pas le goulot : un thread qui dort 5 s). panic reste en "unwind" :
 # avec "abort", une panique du thread de suivi arrêterait toute l'app.

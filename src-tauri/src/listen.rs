@@ -17,6 +17,7 @@ use std::{
   time::{Duration, Instant},
 };
 use tauri::{AppHandle, Emitter};
+use windows::Win32::{System::Diagnostics::Debug::MessageBeep, UI::WindowsAndMessaging::MB_OK};
 
 // Écoute du mot d'activation : micro -> découpage en phrases (silence) -> Whisper local -> « Løra, <demande> » -> événement vers l'interface,
 // qui traite la demande comme une phrase tapée dans Ctrl+K (commande locale, sinon backend, réponse dite).
@@ -27,6 +28,7 @@ const MODEL: &str = "ggml-large-v3-turbo-q5_0.bin";
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 pub const HEARD_EVENT: &str = "lora://heard";
 const WHISPER_RATE: u32 = 16_000;
+const BEEP_MUTE_MS: u64 = 400; // le bip ne doit pas être pris pour de la parole
 
 static ENABLED: AtomicBool = AtomicBool::new(true);
 static SERVER: Mutex<Option<Child>> = Mutex::new(None);
@@ -75,7 +77,8 @@ fn speech_only(text: &str) -> String {
 // `Some(demande)` ; la demande est vide quand on n'a dit que « Løra ».
 fn wake(text: &str, words: &[String]) -> Option<String> {
   let tokens: Vec<&str> = text.split_whitespace().collect();
-  let at = tokens.iter().take(3).position(|t| words.contains(&fold(t)))?;
+  // « l'aura », « qu'aura » : du français (un article ou une conjonction collés à « aura »), pas le prénom. L'apostrophe disparaît dans fold().
+  let at = tokens.iter().take(3).position(|t| !t.contains(['\'', '’']) && words.contains(&fold(t)))?;
   Some(tokens[at + 1..].join(" "))
 }
 
@@ -84,7 +87,7 @@ fn wake(text: &str, words: &[String]) -> Option<String> {
 const FRAME_MS: usize = 30;
 const PREROLL_FRAMES: usize = 10; // 300 ms gardées avant le début : on ne coupe pas la première syllabe
 const START_FRAMES: usize = 2; // 60 ms de voix de suite pour commencer
-const END_FRAMES: usize = 24; // 720 ms de silence pour finir
+const END_FRAMES: usize = 40; // 1,2 s de silence pour finir (à 720 ms, une hésitation coupait la phrase)
 const MIN_LOUD_FRAMES: usize = 8; // moins de 240 ms de voix : un claquement, pas une phrase
 const MAX_FRAMES: usize = 500; // 15 s : au-delà (musique, télévision), on coupe
 
@@ -339,10 +342,13 @@ fn run(app: &AppHandle, dir: &Path) -> Result<(), String> {
       if !heard.chars().any(char::is_alphanumeric) { continue; }
       let command = match wake(&heard, &cfg.wake) {
         Some(command) if !command.is_empty() => { armed_until = None; command }
-        Some(_) => { // « Løra » seul : elle répond « Oui ? », puis la phrase suivante est la demande
+        Some(_) => { // « Løra » seul : un bip, puis la phrase suivante est la demande
           log(dir, cfg.log, &format!("« {heard} » : mot d'activation seul (niveau {peak:.3})"));
-          let _ = crate::speech::speak("Oui ?", dir);
-          while rx.try_recv().is_ok() {} // ce que le micro a entendu de « Oui ? » ne compte pas
+          // Un bip et non « Oui ? » dit par Piper : sa synthèse (2,5 s à froid) et son écho coupaient le micro, et la demande
+          // enchaînée juste après « Løra » était jetée.
+          let _ = unsafe { MessageBeep(MB_OK) };
+          crate::speech::mute_for(BEEP_MUTE_MS);
+          while rx.try_recv().is_ok() {} // ce que le micro a entendu du bip ne compte pas
           segmenter.reset();
           armed_until = Some(Instant::now() + Duration::from_secs(cfg.command_secs));
           continue;
@@ -386,6 +392,15 @@ mod tests {
   }
 
   #[test]
+  fn the_french_words_laura_with_an_apostrophe_are_not_the_name() {
+    // « l'aura » : Whisper l'écrit avec l'apostrophe, que fold() retirait (« laura » = le mot d'activation).
+    assert_eq!(wake("L'aura de cette ville est magique", &words()), None);
+    assert_eq!(wake("l’aura", &words()), None);
+    assert_eq!(wake("Qu'aura-t-il demain ?", &words()), None);
+    assert_eq!(wake("Laura, l'aura de la ville", &words()).as_deref(), Some("l'aura de la ville")); // le prénom, lui, déclenche
+  }
+
+  #[test]
   fn speech_only_drops_whisper_noise_markers() {
     assert_eq!(speech_only("[Musique]"), "");
     assert_eq!(speech_only("(silence) Laura, ouvre *toux* Blender"), "Laura, ouvre Blender");
@@ -414,7 +429,13 @@ mod tests {
     let got = run_through(&[silence(1.0), voice(1.0), silence(1.5)]);
     assert_eq!(got.len(), 1);
     let secs = got[0].len() as f32 / RATE as f32;
-    assert!((1.2..2.2).contains(&secs), "durée {secs}"); // voix + 300 ms avant + 720 ms de silence
+    assert!((2.0..3.0).contains(&secs), "durée {secs}"); // voix + 300 ms avant + 1,2 s de silence
+  }
+
+  #[test]
+  fn a_hesitation_inside_a_sentence_does_not_cut_it() {
+    // Avant, 720 ms de silence coupaient « Løra, ... ouvre Blender » en deux.
+    assert_eq!(run_through(&[voice(0.8), silence(0.9), voice(1.0), silence(1.5)]).len(), 1);
   }
 
   #[test]
@@ -438,7 +459,7 @@ mod tests {
 
   #[test]
   fn two_sentences_separated_by_a_pause_give_two_utterances() {
-    assert_eq!(run_through(&[silence(1.0), voice(1.0), silence(1.2), voice(1.0), silence(1.2)]).len(), 2);
+    assert_eq!(run_through(&[silence(1.0), voice(1.0), silence(1.5), voice(1.0), silence(1.5)]).len(), 2);
   }
 
   #[test]
