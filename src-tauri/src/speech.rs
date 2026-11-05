@@ -208,10 +208,10 @@ pub fn busy() -> bool {
 
 // `dir` : le dossier de données de l'app (celui de apps.json).
 pub fn speak(text: &str, dir: &Path) -> windows::core::Result<()> {
-  SPEAKING.fetch_add(1, Ordering::Relaxed);
+  if SPEAKING.fetch_add(1, Ordering::Relaxed) == 0 { crate::listen::emit_state("speaking"); } // le ruban s'agite
   let result = speak_now(text, dir);
   QUIET_AT_MS.store(now_ms() + ECHO_TAIL_MS, Ordering::Relaxed);
-  SPEAKING.fetch_sub(1, Ordering::Relaxed);
+  if SPEAKING.fetch_sub(1, Ordering::Relaxed) == 1 { crate::listen::emit_state("idle"); }
   result
 }
 
