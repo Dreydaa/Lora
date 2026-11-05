@@ -5,7 +5,7 @@ import { getMilestones } from "./notion/milestones";
 import { getLatestProgress } from "./notion/progress";
 import { getWeather } from "./integrations/weather";
 import { getNews } from "./integrations/news";
-import { addDays, daysBetween, todayInParis } from "./date";
+import { addDays, dayLabel, daysBetween, todayInParis } from "./date";
 import { getProjectsInProgress, type Project } from "./notion/idees";
 import type { AgendaItem, Milestone } from "./types";
 import { getBreak, inBreak, type Break } from "./memory";
@@ -77,14 +77,6 @@ export function bilanLine(progress: { review: string; date: string | null }, tod
   return progress.date
     ? `Bilan d'hier: AUCUN. Le dernier bilan date du ${progress.date} (il y a ${daysBetween(progress.date, today)} jours), ce n'est pas celui d'hier.`
     : `Bilan d'hier: AUCUN (aucun bilan n'a encore jamais été enregistré).`;
-}
-
-function dayLabel(iso: string, today: string): string {
-  const n = daysBetween(today, iso);
-  if (n === 0) return "aujourd'hui";
-  if (n === 1) return "demain";
-  const weekday = new Intl.DateTimeFormat("fr-FR", { weekday: "long", timeZone: "UTC" }).format(new Date(`${iso}T12:00:00Z`));
-  return `dans ${n} jours, ${weekday} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 }
 
 // Seuls les rendez-vous des 7 prochains jours sont rappelés, chacun avec son échéance explicite.

@@ -10,7 +10,7 @@ import { getSettings, saveBriefingTime } from "../notion/settings";
 import { upsertSchedule } from "../integrations/qstash";
 import { getWeather } from "../integrations/weather";
 import { clearBreak, getAgentApps, getBreak, getLastBriefing, setBreak } from "../memory";
-import { todayInParis } from "../date";
+import { dayLabel, todayInParis } from "../date";
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_IDEAS_READ = 25; // chaque idée lue coûte des jetons, et Groq n'en laisse que 8 000 par minute
@@ -258,14 +258,15 @@ export const loraTools = {
 
   // Lectures : Løra sait enfin dire ce qu'il y a dans Notion (avant, seuls list_milestones et get_settings lisaient).
   get_agenda: tool({
-    description: "Lit les prochains rendez-vous et tâches de l'agenda Notion (hors shifts), avec leur date. À appeler dès qu'on te demande l'agenda ou ce qui est prévu ; ne le donne jamais de mémoire.",
+    description: "Lit les prochains rendez-vous et tâches de l'agenda Notion (hors shifts), avec leur date et `quand` (aujourd'hui, demain, dans N jours). Reprends `quand` tel quel : ne dis jamais « aujourd'hui » pour un autre jour. À appeler dès qu'on te demande l'agenda ou ce qui est prévu ; ne le donne jamais de mémoire.",
     inputSchema: z.object({}),
     execute: async () => {
       console.log("[tool] get_agenda");
       const items = await getUpcomingAgenda();
-      // Le jour de la semaine est donné : le modèle le calculait mal à partir de la date seule (« mardi 15 novembre » pour un dimanche).
-      const weekday = (day: string) => new Intl.DateTimeFormat("fr-FR", { weekday: "long", timeZone: "UTC" }).format(new Date(`${day.slice(0, 10)}T12:00:00Z`));
-      return { today: todayInParis(), items: items.map(({ title, date, end, status }) => ({ title, jour: date ? weekday(date) : null, date, end, status })) };
+      // `quand` (« aujourd'hui », « demain », « dans 10 jours, dimanche 15/11 ») est calculé ici : à partir d'une date brute, le modèle
+      // calculait mal le jour de la semaine et disait « aujourd'hui » pour un événement du 15 novembre.
+      const today = todayInParis();
+      return { today, items: items.map(({ title, date, end, status }) => ({ title, quand: date ? dayLabel(date.slice(0, 10), today) : null, date, end, status })) };
     },
   }),
 
