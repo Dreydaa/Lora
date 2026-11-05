@@ -1,12 +1,12 @@
 // Bug du 28/09/2026 : Groq renvoie parfois explicitement null pour un paramètre optionnel d'un appel d'outil au lieu de l'omettre.
 // Avec z.optional(), toute la validation Zod échouait et l'action entière était perdue en silence.
 import { describe, expect, it } from "vitest";
-import { sozaTools } from "../../lib/ai/tools";
+import { loraTools } from "../../lib/ai/tools";
 
 type Field = { safeParse: (value: unknown) => { success: boolean } };
-const objectSchemas = Object.entries(sozaTools).map(([name, definition]) => [name, (definition as unknown as { inputSchema: { shape: Record<string, Field> } }).inputSchema] as const);
+const objectSchemas = Object.entries(loraTools).map(([name, definition]) => [name, (definition as unknown as { inputSchema: { shape: Record<string, Field> } }).inputSchema] as const);
 
-describe("paramètres optionnels des outils de Soza", () => {
+describe("paramètres optionnels des outils de Løra", () => {
   it("il y a bien des outils à vérifier", () => expect(objectSchemas.length).toBeGreaterThan(8));
 
   for (const [name, schema] of objectSchemas) {

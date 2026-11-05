@@ -20,7 +20,7 @@ struct AppsFile(PathBuf);
 const AUTOSTART_ARG: &str = "--autostart";
 // Le front (src/lib/visibility.ts) met son rendu en pause quand la fenêtre est masquée dans la zone de notification :
 // la page ne le sait pas toute seule (document.visibilityState reste "visible").
-const VISIBILITY_EVENT: &str = "soza://visibility";
+const VISIBILITY_EVENT: &str = "lora://visibility";
 const SAMPLE_SECS: u64 = 5; // pas d'échantillonnage : la précision du suivi
 const IDLE_SECS: u64 = 300; // sans clavier ni souris depuis 5 min, l'écran ne compte plus
 const SAVE_EVERY: u64 = 6; // sauvegarde toutes les 6 mesures (30 s)
@@ -47,7 +47,7 @@ fn app_usage(state: State<UsageState>) -> Usage {
   state.data.lock().unwrap().clone()
 }
 
-// Applique une mesure : l'application au premier plan gagne SAMPLE_SECS (Soza elle-même et l'inactivité ne comptent pas).
+// Applique une mesure : l'application au premier plan gagne SAMPLE_SECS (Løra elle-même et l'inactivité ne comptent pas).
 fn track(usage: &Mutex<Usage>, own_pid: u64) -> bool {
   if user_idle::UserIdle::get_time().map_or(false, |t| t.as_seconds() >= IDLE_SECS) { return false; }
   let Ok(win) = active_win_pos_rs::get_active_window() else { return false };
@@ -79,7 +79,7 @@ fn run_command(text: String, apps: State<AppsFile>) -> Option<String> {
 }
 
 // say.txt (dossier de données) : un autre programme y ajoute une phrase par ligne (hook Stop de Claude Code : « Claude Code a terminé »),
-// Soza la dit puis vide le fichier. Renommé avant lecture : ce qui est ajouté pendant ce temps part dans un nouveau fichier.
+// Løra la dit puis vide le fichier. Renommé avant lecture : ce qui est ajouté pendant ce temps part dans un nouveau fichier.
 // Fichier encore ouvert par l'écrivain (Windows refuse le renommage) : on réessaie au tour suivant.
 const SAY_POLL_SECS: u64 = 1;
 fn take_say(file: &std::path::Path) -> Option<String> {
@@ -91,7 +91,7 @@ fn take_say(file: &std::path::Path) -> Option<String> {
   if lines.is_empty() { None } else { Some(lines.join(" ")) }
 }
 
-// Dit la phrase à voix haute avec la voix de Soza (Piper, sinon celle de Windows : voir speech.rs). Rend la main tout de suite :
+// Dit la phrase à voix haute avec la voix de Løra (Piper, sinon celle de Windows : voir speech.rs). Rend la main tout de suite :
 // la lecture tourne sur son propre thread.
 #[tauri::command]
 fn speak(text: String, apps: State<AppsFile>) {
@@ -123,15 +123,15 @@ fn main() {
       if std::env::args().any(|a| a == AUTOSTART_ARG) { if let Some(window) = app.get_webview_window("main") { let _ = window.hide(); } }
 
       // Zone de notification : clic gauche = afficher la fenêtre, clic droit = menu (Afficher / Quitter).
-      // Fermer la fenêtre ne fait que la masquer ; « Quitter » est le seul moyen d'arrêter vraiment Soza (et le suivi).
+      // Fermer la fenêtre ne fait que la masquer ; « Quitter » est le seul moyen d'arrêter vraiment Løra (et le suivi).
       let menu = Menu::with_items(app, &[
-        &MenuItem::with_id(app, "show", "Afficher Soza", true, None::<&str>)?,
+        &MenuItem::with_id(app, "show", "Afficher Løra", true, None::<&str>)?,
         &MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?,
       ])?;
-      let _tray = tauri::tray::TrayIconBuilder::with_id("soza")
+      let _tray = tauri::tray::TrayIconBuilder::with_id("lora")
         // Sans image, Windows crée une entrée vide (invisible) : on réutilise l'icône de l'app (icons/icon.ico).
         .icon(app.default_window_icon().expect("icône de l'app absente").clone())
-        .tooltip("Soza est actif")
+        .tooltip("Løra est actif")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -154,12 +154,12 @@ fn main() {
       let spotify_file = dir.join("spotify.json");
       if !spotify_file.exists() { let _ = fs::write(&spotify_file, "{ \"client_id\": \"\", \"client_secret\": \"\" }\n"); }
 
-      // Voix de Soza, relue à chaque phrase (voir speech.rs) : "volume" de 0 à 1 à régler à l'oreille, "english" les mots dits avec
+      // Voix de Løra, relue à chaque phrase (voir speech.rs) : "volume" de 0 à 1 à régler à l'oreille, "english" les mots dits avec
       // l'accent anglais (noms d'applications : ["blender", "discord"]). Piper et son modèle vont dans voice/.
       let voice_file = dir.join("voice.json");
       if !voice_file.exists() { let _ = fs::write(&voice_file, format!("{{ \"volume\": {}, \"english\": [] }}\n", speech::DEFAULT_VOLUME)); }
 
-      // Ce qui a été écrit pendant que Soza était éteinte est périmé : on repart d'un fichier vide.
+      // Ce qui a été écrit pendant que Løra était éteinte est périmé : on repart d'un fichier vide.
       let say_file = dir.join("say.txt");
       let _ = fs::remove_file(&say_file);
       let say_dir = dir.clone();
@@ -185,7 +185,7 @@ fn main() {
         }
       });
 
-      // Le suivi tourne tant que Soza tourne, même fenêtre masquée dans la zone de notification.
+      // Le suivi tourne tant que Løra tourne, même fenêtre masquée dans la zone de notification.
       let handle = app.handle().clone();
       let own_pid = std::process::id() as u64;
       thread::spawn(move || {
@@ -200,7 +200,7 @@ fn main() {
     })
     .on_window_event(|window, event| if let WindowEvent::CloseRequested { api, .. } = event { api.prevent_close(); let _ = window.hide(); let _ = window.emit(VISIBILITY_EVENT, false); })
     .run(tauri::generate_context!())
-    .expect("error while running Soza");
+    .expect("error while running Løra");
 }
 
 #[cfg(test)]
@@ -208,7 +208,7 @@ mod tests {
   use super::*;
 
   fn temp_file(name: &str) -> PathBuf {
-    std::env::temp_dir().join(format!("soza-test-{}-{name}.json", std::process::id()))
+    std::env::temp_dir().join(format!("lora-test-{}-{name}.json", std::process::id()))
   }
 
   #[test]
@@ -226,8 +226,8 @@ mod tests {
   fn take_say_joins_the_lines_once_then_empties_the_file() {
     let file = temp_file("say");
     assert_eq!(take_say(&file), None); // fichier absent
-    fs::write(&file, "\u{feff}Claude Code a terminé sur Soza.\r\n\r\nClaude Code a besoin de toi.\n").unwrap();
-    assert_eq!(take_say(&file).as_deref(), Some("Claude Code a terminé sur Soza. Claude Code a besoin de toi."));
+    fs::write(&file, "\u{feff}Claude Code a terminé sur Løra.\r\n\r\nClaude Code a besoin de toi.\n").unwrap();
+    assert_eq!(take_say(&file).as_deref(), Some("Claude Code a terminé sur Løra. Claude Code a besoin de toi."));
     assert!(!file.exists());
     assert_eq!(take_say(&file), None); // rien n'est redit
   }

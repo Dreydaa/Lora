@@ -1,11 +1,11 @@
-// Batterie de test complète des mécaniques Soza — utilise les vraies APIs (Notion, Redis, Groq).
+// Batterie de test complète des mécaniques Løra — utilise les vraies APIs (Notion, Redis, Groq).
 // Toutes les données créées sont préfixées "[TEST]" pour pouvoir être nettoyées ensuite.
 import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose } from "../lib/notion/idees";
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../lib/notion/milestones";
 import { addAgendaItem, addShiftSchedule, getUpcomingAgenda } from "../lib/notion/agenda";
 import { getLatestProgress, saveProgress } from "../lib/notion/progress";
 import { getHistory, appendToHistory, setBreak, getBreak, clearBreak, inBreak } from "../lib/memory";
-import { askSoza, resolveModel } from "../lib/ai/client";
+import { askLora, resolveModel } from "../lib/ai/client";
 import { agendaLine, bilanLine, buildMorningBriefings, dayLine, milestoneLine } from "../lib/briefing";
 import { notion } from "../lib/notion/client";
 
@@ -127,20 +127,20 @@ async function main() {
   const histCapped = await getHistory(TEST_CHAT_ID);
   record("Historique plafonné à 10 messages", histCapped.length <= 10, `${histCapped.length} message(s)`);
 
-  console.log("\n=== 6. askSoza (bout en bout avec le LLM réel) ===");
+  console.log("\n=== 6. askLora (bout en bout avec le LLM réel) ===");
   try {
-    const r1 = await askSoza(TEST_CHAT_ID, `Ajoute une idée : [TEST] refaire le rig ${Date.now()}, taille moyenne`);
-    record("askSoza crée une idée via tool call", r1.toolCalls.some((tc) => tc.name === "create_idea"), r1.text.slice(0, 120));
-    record("askSoza réponse n'est pas le fallback générique", r1.text.trim() !== "✅ Action enregistrée.", r1.text.slice(0, 120));
+    const r1 = await askLora(TEST_CHAT_ID, `Ajoute une idée : [TEST] refaire le rig ${Date.now()}, taille moyenne`);
+    record("askLora crée une idée via tool call", r1.toolCalls.some((tc) => tc.name === "create_idea"), r1.text.slice(0, 120));
+    record("askLora réponse n'est pas le fallback générique", r1.text.trim() !== "✅ Action enregistrée.", r1.text.slice(0, 120));
   } catch (e) {
-    record("askSoza create_idea", false, String(e));
+    record("askLora create_idea", false, String(e));
   }
 
   try {
-    const r2 = await askSoza(TEST_CHAT_ID + 1, "je devrais reprendre un truc un de ces jours, je sais pas trop");
-    record("askSoza phrase ambiguë ne déclenche pas create_idea", !r2.toolCalls.some((tc) => tc.name === "create_idea"), r2.text.slice(0, 150));
+    const r2 = await askLora(TEST_CHAT_ID + 1, "je devrais reprendre un truc un de ces jours, je sais pas trop");
+    record("askLora phrase ambiguë ne déclenche pas create_idea", !r2.toolCalls.some((tc) => tc.name === "create_idea"), r2.text.slice(0, 150));
   } catch (e) {
-    record("askSoza doute", false, String(e));
+    record("askLora doute", false, String(e));
   }
 
   console.log("\n=== 7. Briefing (fallback + LLM) ===");

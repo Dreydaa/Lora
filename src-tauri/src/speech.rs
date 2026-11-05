@@ -14,10 +14,10 @@ use windows::{
   Media::{Core::MediaSource, Playback::MediaPlayer, SpeechSynthesis::SpeechSynthesizer},
 };
 
-// Voix de Soza : Piper (modèle affiné sur la voix d'un proche, avec son accord), en local, sans réseau ni clé.
+// Voix de Løra : Piper (modèle affiné sur la voix d'un proche, avec son accord), en local, sans réseau ni clé.
 // Fichiers dans <dossier de l'app>/voice/ : piper/piper.exe (Piper 1.8.0 compilé avec PyInstaller, son dossier _internal à côté, voir
 // work/piper_entry.py) et fr_FR-soza-medium.onnx (+ .onnx.json). L'ancien piper.exe C++ ne convient pas : il ne lit pas les symboles
-// de ce modèle. Absents, ou Piper en échec : voix de Windows (WinRT, Hortense en français), Soza ne reste jamais muette.
+// de ce modèle. Absents, ou Piper en échec : voix de Windows (WinRT, Hortense en français), Løra ne reste jamais muette.
 // Chaque fonction bloque jusqu'à la fin de la lecture, car le lecteur s'arrête dès qu'il est libéré.
 const MAX_SPEECH_SECS: u64 = 60;
 const MAX_SYNTH_SECS: u64 = 30; // une phrase n'en demande qu'une : au-delà, Piper est considéré bloqué
@@ -53,7 +53,8 @@ fn file_uri(path: &Path) -> String {
 
 // Le texte tel qu'il doit être dit : sans guillemets ni signes de mise en forme, sans espace avant la ponctuation, ’ redevenu '.
 fn clean(text: &str) -> String {
-  let kept: String = text.chars().filter(|c| !SILENT.contains(*c)).map(|c| if c == '’' { '\'' } else { c }).collect();
+  // « ø » (Løra) : le phonémiseur français de Piper ne sait pas le lire, on lui donne « o ».
+  let kept: String = text.chars().filter(|c| !SILENT.contains(*c)).map(|c| match c { '’' => '\'', 'ø' => 'o', 'Ø' => 'O', c => c }).collect();
   let mut spoken = kept.split_whitespace().collect::<Vec<_>>().join(" ");
   for p in [',', '.', ';', ':', '!', '?'] { spoken = spoken.replace(&format!(" {p}"), &p.to_string()); }
   spoken
@@ -79,7 +80,7 @@ fn mark_english(text: &str, names: &[String]) -> String {
   out
 }
 
-// voice.log : ce que Soza dit, les phonèmes que Piper en a tirés et le WAV gardé (ligne « Wrote »), pour décrire un défaut de prononciation.
+// voice.log : ce que Løra dit, les phonèmes que Piper en a tirés et le WAV gardé (ligne « Wrote »), pour décrire un défaut de prononciation.
 fn log(dir: &Path, what: &str, line: &str) {
   let _ = fs::OpenOptions::new().create(true).append(true).open(dir.join("voice.log"))
     .and_then(|mut f| writeln!(f, "{} | {what:<8} : {line}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")));
@@ -96,7 +97,7 @@ fn keep(wav: &Path, history: &Path) -> Option<PathBuf> {
 }
 
 // Piper reste chargé entre deux phrases : charger le modèle prend ~2 s, la synthèse elle-même 0,03 à 0,2 s. Lancé à la première phrase
-// (pas au démarrage de Soza, qui reste ouverte toute la journée), il reçoit une phrase par ligne sur son entrée et écrit un WAV par
+// (pas au démarrage de Løra, qui reste ouverte toute la journée), il reçoit une phrase par ligne sur son entrée et écrit un WAV par
 // ligne dans le dossier temporaire. Sur sa sortie d'erreur : « Phonemes <phonèmes> » puis « Wrote <chemin> » à chaque phrase.
 struct Piper { child: Child, stdin: ChildStdin, wavs: mpsc::Receiver<PathBuf>, last_used: Instant }
 static PIPER: Mutex<Option<Piper>> = Mutex::new(None);
@@ -109,9 +110,9 @@ fn wrote(line: &str) -> Option<PathBuf> {
   line.strip_prefix("Wrote ").map(|path| PathBuf::from(path.trim()))
 }
 
-// Lancé depuis son dossier (son _internal est à côté), sans fenêtre. Si Soza s'arrête, son entrée se ferme et Piper s'arrête avec elle.
+// Lancé depuis son dossier (son _internal est à côté), sans fenêtre. Si Løra s'arrête, son entrée se ferme et Piper s'arrête avec elle.
 fn start(exe: &Path, model: &Path, dir: &Path) -> std::io::Result<Piper> {
-  let out_dir = std::env::temp_dir().join("soza-voix");
+  let out_dir = std::env::temp_dir().join("lora-voix");
   let _ = fs::remove_dir_all(&out_dir); // restes d'un arrêt brutal
   let mut child = Command::new(exe)
     .arg("--model").arg(model).arg("--output-dir").arg(&out_dir)
@@ -200,7 +201,7 @@ mod tests {
   use super::*;
 
   fn temp_dir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("soza-voix-test-{name}-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("lora-voix-test-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
     dir
@@ -234,6 +235,7 @@ mod tests {
     assert_eq!(clean("\"Salut\" *gras* `code` [x] {y} <z> a|b c_d #1 ~2 ^3 “q” „r”"), "Salut gras code x y z ab cd 1 2 3 q r");
     assert_eq!(clean("L’app est là : prête ?"), "L'app est là: prête?");
     assert_eq!(clean("  Rien   à   dire \n"), "Rien à dire");
+    assert_eq!(clean("Bonjour, je suis Løra."), "Bonjour, je suis Lora.");
   }
 
   #[test]
@@ -272,13 +274,13 @@ mod tests {
 
   #[test]
   fn file_uri_uses_slashes_and_encodes_spaces() {
-    assert_eq!(file_uri(Path::new(r"C:\Users\A B\soza.wav")), "file:///C:/Users/A%20B/soza.wav");
+    assert_eq!(file_uri(Path::new(r"C:\Users\A B\lora.wav")), "file:///C:/Users/A%20B/lora.wav");
   }
 
   // Les lignes telles que piper_entry.py les écrit sur sa sortie d'erreur ; les autres lignes ne sont pas des fichiers.
   #[test]
   fn wrote_reads_the_path_from_piper_log_lines() {
-    assert_eq!(wrote(r"Wrote C:\Users\A B\Temp\soza-voix\4672078000000.wav"), Some(PathBuf::from(r"C:\Users\A B\Temp\soza-voix\4672078000000.wav")));
+    assert_eq!(wrote(r"Wrote C:\Users\A B\Temp\lora-voix\4672078000000.wav"), Some(PathBuf::from(r"C:\Users\A B\Temp\lora-voix\4672078000000.wav")));
     assert_eq!(wrote("Phonemes bɔ̃ʒˈuʁ"), None);
     assert_eq!(wrote("Warning: Wrote nothing"), None);
     assert_eq!(wrote(""), None);
@@ -305,7 +307,7 @@ mod tests {
     let (exe, model) = (voice.join("piper").join("piper.exe"), voice.join(MODEL));
     let english = vec!["spotify".to_string()];
     let mut times = vec![];
-    for text in ["Bonjour, je suis Soza.", "Je suis prêt, à demain.", "Lancement de spotify."] {
+    for text in ["Bonjour, je suis Løra.", "Je suis prêt, à demain.", "Lancement de spotify."] {
       let started = Instant::now();
       let wav = synthesize(&exe, &model, &dir, &mark_english(text, &english)).unwrap();
       times.push(started.elapsed());

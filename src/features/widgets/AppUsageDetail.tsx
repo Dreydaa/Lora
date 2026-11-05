@@ -44,7 +44,7 @@ export function AppUsageDetail({ usage, leaving, onClose }: Props) {
             </li>
           ))}
         </ul>
-      ) : <p className="gw-empty">{usage ? "Aucune application mesurée pour l'instant." : "Le temps d'écran est mesuré par l'app Soza."}</p>}
+      ) : <p className="gw-empty">{usage ? "Aucune application mesurée pour l'instant." : "Le temps d'écran est mesuré par l'app Løra."}</p>}
     </div>
   );
 }

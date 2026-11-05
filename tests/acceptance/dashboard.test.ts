@@ -6,7 +6,7 @@ import { EVENING, MORNING, dashboard, hasBrowser, run, open, ready, startApp, st
 beforeAll(startApp);
 afterAll(stopApp);
 
-describe("acceptance : le dashboard Soza", () => {
+describe("acceptance : le dashboard Løra", () => {
   const skipWithoutBrowser = (skip: () => void) => {
     if (!hasBrowser()) skip();
   };
@@ -30,7 +30,7 @@ describe("acceptance : le dashboard Soza", () => {
     });
   });
 
-  it("le soir, le bloc briefing affiche le briefing du soir généré par Soza", async ({ skip }) => {
+  it("le soir, le bloc briefing affiche le briefing du soir généré par Løra", async ({ skip }) => {
     skipWithoutBrowser(skip);
     await run({ now: EVENING }, async ({ page }) => {
       await page.waitForFunction(() => document.body.innerText.includes("Et ton bilan du jour ?"));
@@ -105,9 +105,9 @@ describe("acceptance : le dashboard Soza", () => {
     await run({ tauri: false }, async ({ page }) => {
       const block = page.getByRole("button", { name: "Ouvrir le détail du temps d'écran" });
       expect(await block.innerText()).toContain("—");
-      expect(await block.innerText()).toContain("Dans l'app Soza");
+      expect(await block.innerText()).toContain("Dans l'app Løra");
       await block.click();
-      await page.getByText("Le temps d'écran est mesuré par l'app Soza.").waitFor();
+      await page.getByText("Le temps d'écran est mesuré par l'app Løra.").waitFor();
     });
   });
 

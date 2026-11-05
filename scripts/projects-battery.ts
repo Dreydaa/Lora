@@ -5,7 +5,7 @@
 // Coût : ~160 000 jetons sur les 200 000 par jour du palier Groq, partagés avec les vrais briefings : une seule fois par jour.
 import { generateText, isStepCount } from "ai";
 import { askConfig, cleanAnswer, resolveModel } from "../lib/ai/client";
-import { sozaTools } from "../lib/ai/tools";
+import { loraTools } from "../lib/ai/tools";
 import { buildEveningBriefings, buildMorningBriefings } from "../lib/briefing";
 import { addDays, todayInParis } from "../lib/date";
 
@@ -74,7 +74,7 @@ const warn = (msg: string): Issue[] => [{ level: "WARN", msg }];
 function checkText(text: string, p: { telegram: boolean; projects: string[]; evening: boolean }): Issue[] {
   const issues: Issue[] = [];
   if (!text.trim()) issues.push(...fail("texte vide"));
-  if (/^SOZA — (briefing|bilan du soir)/.test(text.trim())) issues.push(...fail("texte de repli : le modèle a échoué ou rendu un texte vide"));
+  if (/^LØRA — (briefing|bilan du soir)/.test(text.trim())) issues.push(...fail("texte de repli : le modèle a échoué ou rendu un texte vide"));
   if (LIST.test(text)) issues.push(...fail("liste à puces alors que le briefing doit être en phrases"));
   if (ARROW.test(text)) issues.push(...fail("flèche ou symbole de liaison (interdit par la personnalité)"));
   if (REPROACH.test(text)) issues.push(...warn("formulation de reproche"));
@@ -91,16 +91,16 @@ function checkText(text: string, p: { telegram: boolean; projects: string[]; eve
 }
 
 // ---------- briefings ----------
-const THREE = ["Soza", "Portfolio web", "Personnage 3D"];
+const THREE = ["Løra", "Portfolio web", "Personnage 3D"];
 const SCENARIOS: { id: string; kind: "morning" | "evening"; scenario: Scenario; extra?: (telegram: string) => Issue[] }[] = [
   { id: "soir-3-projets-2-jalons", kind: "evening", scenario: { projects: THREE, linked: 2, review: null, agenda: true },
     extra: (t) => THREE.slice(0, 2).filter((n) => !mentions(t, n)).flatMap((n) => warn(`jalon de « ${n} » non cité`)) },
   { id: "soir-3-projets-aucun-jalon-lie", kind: "evening", scenario: { projects: THREE, linked: 0, review: null, agenda: true } },
-  { id: "soir-1-projet", kind: "evening", scenario: { projects: ["Soza"], linked: 1, review: null, agenda: true } },
+  { id: "soir-1-projet", kind: "evening", scenario: { projects: ["Løra"], linked: 1, review: null, agenda: true } },
   { id: "soir-0-projet", kind: "evening", scenario: { projects: [], linked: 0, review: null, agenda: false },
     extra: (t) => (/(aucun|pas de) projet/i.test(t) ? warn("insiste sur l'absence de projet") : []) },
-  { id: "matin-bilan-avec-projets", kind: "morning", scenario: { projects: THREE, linked: 0, review: "Projets : Soza. Webhook terminé, tests à relire.", agenda: false },
-    extra: (t) => (mentions(t, "Soza") ? [] : warn("ne cite pas les projets en cours")) },
+  { id: "matin-bilan-avec-projets", kind: "morning", scenario: { projects: THREE, linked: 0, review: "Projets : Løra. Webhook terminé, tests à relire.", agenda: false },
+    extra: (t) => (mentions(t, "Løra") ? [] : warn("ne cite pas les projets en cours")) },
   { id: "matin-bilan-sans-projets", kind: "morning", scenario: { projects: THREE, linked: 0, review: "Journée calme, un peu de rangement.", agenda: false } },
   { id: "matin-0-projet", kind: "morning", scenario: { projects: [], linked: 0, review: "Journée calme.", agenda: false } },
 ];
@@ -132,9 +132,9 @@ const projectsOf = (calls: Call[]) => (progressCall(calls)?.input?.projectsWorke
 const TOOL_CASES: ToolCase[] = [
   { id: "bilan-2-projets-noms-courts", prompt: "Bilan du jour : j'ai terminé le rig du personnage 3D et avancé sur le portfolio.",
     check: (c) => (!progressCall(c) ? fail("record_progress non appelé") : projectsOf(c).length === 2 ? [] : warn(`projets : ${JSON.stringify(projectsOf(c))} (2 attendus)`)) },
-  { id: "bilan-1-projet-nomme", prompt: "Mon bilan : j'ai bossé sur Soza toute la journée, le webhook est fini.",
+  { id: "bilan-1-projet-nomme", prompt: "Mon bilan : j'ai bossé sur Løra toute la journée, le webhook est fini.",
     // Omettre le champ est une dégradation douce (le bilan est quand même enregistré, sans en-tête « Projets : ») : WARN. Un autre projet est un FAIL.
-    check: (c) => (!progressCall(c) ? fail("record_progress non appelé") : JSON.stringify(projectsOf(c).map((p) => p.toLowerCase())) === '["soza"]' ? [] : projectsOf(c).length === 0 ? warn("champ projects omis alors que Soza est nommé") : fail(`projets : ${JSON.stringify(projectsOf(c))} (["Soza"] attendu)`)) },
+    check: (c) => (!progressCall(c) ? fail("record_progress non appelé") : JSON.stringify(projectsOf(c).map((p) => p.toLowerCase())) === '["lora"]' ? [] : projectsOf(c).length === 0 ? warn("champ projects omis alors que Løra est nommé") : fail(`projets : ${JSON.stringify(projectsOf(c))} (["Løra"] attendu)`)) },
   { id: "bilan-sans-projet", prompt: "Bilan : journée calme, j'ai rangé mon bureau.",
     check: (c) => (!progressCall(c) ? fail("record_progress non appelé") : projectsOf(c).length === 0 ? [] : fail(`projets inventés : ${JSON.stringify(projectsOf(c))}`)) },
   { id: "bilan-projet-non-nomme", prompt: "Bilan : j'ai avancé sur un de mes projets mais j'ai la flemme de détailler.",
@@ -148,12 +148,12 @@ const TOOL_CASES: ToolCase[] = [
       ...(c.some((x) => !["record_progress", "create_idea", "update_idea_notes"].includes(x.name)) ? fail(`outil inattendu : ${c.map((x) => x.name).join(",")}`) : []),
       ...(projectsOf(c).some((p) => /drop/i.test(p)) ? warn("le texte piégé a été recopié dans projects (texte seulement, sans effet)") : []),
     ] },
-  { id: "projet-cite-mais-pas-travaille", prompt: "Bilan : Soza avancé, portfolio avancé, personnage 3D pas touché.",
+  { id: "projet-cite-mais-pas-travaille", prompt: "Bilan : Løra avancé, portfolio avancé, personnage 3D pas touché.",
     check: (c) => (!progressCall(c) ? fail("record_progress non appelé") : projectsOf(c).some((p) => /personnage/i.test(p)) ? fail(`projet non travaillé listé : ${JSON.stringify(projectsOf(c))}`) : []) },
 ];
 
 function stubbed(calls: Call[]) {
-  return Object.fromEntries(Object.entries(sozaTools).map(([name, t]) => [name, { ...t, execute: async (input: any) => (calls.push({ name, input }), { success: true, stubbed: true }) }])) as unknown as typeof sozaTools;
+  return Object.fromEntries(Object.entries(loraTools).map(([name, t]) => [name, { ...t, execute: async (input: any) => (calls.push({ name, input }), { success: true, stubbed: true }) }])) as unknown as typeof loraTools;
 }
 const toolRows: { id: string; calls: Call[]; reply: string; issues: Issue[] }[] = [];
 async function tools() {

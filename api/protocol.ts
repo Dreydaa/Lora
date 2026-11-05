@@ -13,7 +13,7 @@ const MAX_APP_NAME = 60;
 const isResult = (r: unknown): r is StepResult =>
   typeof r === "object" && r !== null && typeof (r as StepResult).label === "string" && typeof (r as StepResult).ok === "boolean";
 
-// Appelé par l'app Soza du PC (même clé que le dashboard) :
+// Appelé par l'app Løra du PC (même clé que le dashboard) :
 // GET = « y a-t-il un protocole à exécuter ? » ; POST = statut de chaque étape exécutée, ou la liste des applications du PC.
 export default async function handler(request: Request) {
   try {
@@ -32,7 +32,7 @@ export default async function handler(request: Request) {
 
   if (request.method === "POST") {
     const body = await request.json().catch(() => null);
-    // Liste des applications du PC (noms seulement), envoyée au démarrage de Soza et à chaque modification de apps.json.
+    // Liste des applications du PC (noms seulement), envoyée au démarrage de Løra et à chaque modification de apps.json.
     if (body && Array.isArray(body.apps)) {
       if (body.apps.length > MAX_APPS || !body.apps.every((a: unknown) => typeof a === "string" && a.length > 0 && a.length <= MAX_APP_NAME)) return new Response("Invalid body", { status: 400 });
       await saveAgentApps(body.apps);

@@ -59,7 +59,7 @@ export function inBreak(brk: Break | null, day: string): boolean {
   return !!brk && day >= brk.start && day <= brk.end;
 }
 
-// Protocole en cours (un seul à la fois), interrogé par l'app Soza du PC toutes les ~30 s.
+// Protocole en cours (un seul à la fois), interrogé par l'app Løra du PC toutes les ~30 s.
 const RUN_KEY = "protocol:run";
 const RUN_TTL_SECONDS = 15 * 60;
 
@@ -75,7 +75,7 @@ export async function clearProtocolRun() {
   await redis.del(RUN_KEY);
 }
 
-// Noms (jamais les chemins) des applications de apps.json sur le PC, envoyés par l'app Soza quand la liste change :
+// Noms (jamais les chemins) des applications de apps.json sur le PC, envoyés par l'app Løra quand la liste change :
 // c'est ce qui permet de reconnaître « ouvre blender » sans prendre pour une commande toute phrase qui commence par « ouvre ».
 const AGENT_APPS_KEY = "agent:apps";
 

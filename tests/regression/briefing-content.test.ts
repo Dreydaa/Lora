@@ -1,4 +1,4 @@
-// Corrections du 07/10/2026 sur les briefings : le bilan périmé, les rappels d'agenda et le ton de Soza.
+// Corrections du 07/10/2026 sur les briefings : le bilan périmé, les rappels d'agenda et le ton de Løra.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { stubNetwork } from "../helpers/network";
 import { agendaPage, notionData, progressPage, resetNotion } from "../helpers/notion-mock";
@@ -14,7 +14,7 @@ import morning from "../../api/cron-morning";
 import { fridayPrompt } from "../../lib/ai/prompts/friday";
 
 const run = (handler: (r: Request) => Promise<Response>) =>
-  handler(new Request("https://soza.test/api/cron", { method: "POST", headers: { authorization: "Bearer cron-secret" }, body: "" }));
+  handler(new Request("https://lora.test/api/cron", { method: "POST", headers: { authorization: "Bearer cron-secret" }, body: "" }));
 const calls = () => generateText.mock.calls.map((c) => c[0] as { system: string; prompt: string });
 const ARROWS = /→|->|➜|⇒|➡/;
 // La ligne « Interdits » cite les flèches pour les interdire : on la met de côté, il ne doit pas y en avoir ailleurs.
@@ -28,7 +28,7 @@ beforeEach(() => {
   store.clear();
 });
 
-describe("ton de Soza : pas de flèches dans les messages", () => {
+describe("ton de Løra : pas de flèches dans les messages", () => {
   // Le 08/10/2026, le prompt imposait « [fait] -> [implication] -> [action] » et le modèle recopiait les flèches.
   it("la personnalité Friday ne contient aucune flèche et demande des phrases fluides", () => {
     expect(withoutBanLine(fridayPrompt)).not.toMatch(ARROWS);
@@ -46,8 +46,8 @@ describe("ton de Soza : pas de flèches dans les messages", () => {
   });
 });
 
-// Demandé le 04/11/2026 : la voix lit les textes de Soza, qui ne doit jamais prononcer le prénom de l'utilisateur.
-describe("ton de Soza : jamais le prénom de l'utilisateur", () => {
+// Demandé le 04/11/2026 : la voix lit les textes de Løra, qui ne doit jamais prononcer le prénom de l'utilisateur.
+describe("ton de Løra : jamais le prénom de l'utilisateur", () => {
   it("la personnalité l'interdit et n'en cite aucun", () => {
     expect(fridayPrompt).toMatch(/jamais le prénom/);
     expect(fridayPrompt).not.toMatch(/\bAlan\b/);

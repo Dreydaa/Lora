@@ -12,7 +12,7 @@ const [parsecPath, codeStandIn = "C:\\Windows\\System32\\notepad.exe"] = process
 if (!parsecPath) throw new Error("usage : npm run test:protocol -- <parsecd.exe> [<application remplaçant code>]");
 
 Object.assign(process.env, {
-  TELEGRAM_BOT_TOKEN: "t", TELEGRAM_ALLOWED_CHAT_ID: "42", DASHBOARD_API_KEY: "e2e-key", APP_URL: "https://soza.e2e",
+  TELEGRAM_BOT_TOKEN: "t", TELEGRAM_ALLOWED_CHAT_ID: "42", DASHBOARD_API_KEY: "e2e-key", APP_URL: "https://lora.e2e",
   QSTASH_TOKEN: "q", QSTASH_CURRENT_SIGNING_KEY: "e2e-current", QSTASH_NEXT_SIGNING_KEY: "e2e-next", UPSTASH_REDIS_REST_URL: "https://redis.e2e", UPSTASH_REDIS_REST_TOKEN: "r",
 });
 
@@ -64,7 +64,7 @@ await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
 const url = `http://127.0.0.1:${(server.address() as any).port}`;
 
 // --- aides ---
-const dir = mkdtempSync(join(tmpdir(), "soza-e2e-"));
+const dir = mkdtempSync(join(tmpdir(), "lora-e2e-"));
 const appsFile = (apps: object) => { const f = join(dir, "apps.json"); writeFileSync(f, JSON.stringify(apps)); return f; };
 const exeName = (p: string) => p.split("\\").pop()!.replace(/\.exe$/i, "");
 const pids = (name: string) => spawnSync("powershell", ["-NoProfile", "-Command", `(Get-Process '${name}' -ErrorAction SilentlyContinue).Id -join ','`], { encoding: "utf8" }).stdout.trim().split(",").filter(Boolean);
@@ -73,17 +73,17 @@ const kill = (list: string[]) => list.length && spawnSync("powershell", ["-NoPro
 const b64 = (v: string | Buffer) => Buffer.from(v).toString("base64url");
 function sign(body: string) {
   const now = Math.floor(Date.now() / 1000);
-  const head = `${b64(JSON.stringify({ alg: "HS256", typ: "JWT" }))}.${b64(JSON.stringify({ iss: "Upstash", sub: "https://soza.e2e/api/qstash-worker", exp: now + 300, nbf: now - 5, iat: now, jti: String(now), body: createHash("sha256").update(body).digest("base64url") }))}`;
+  const head = `${b64(JSON.stringify({ alg: "HS256", typ: "JWT" }))}.${b64(JSON.stringify({ iss: "Upstash", sub: "https://lora.e2e/api/qstash-worker", exp: now + 300, nbf: now - 5, iat: now, jti: String(now), body: createHash("sha256").update(body).digest("base64url") }))}`;
   return `${head}.${createHmac("sha256", "e2e-current").update(head).digest("base64url")}`;
 }
 const sendJob = (text: string, extra: object = {}) => {
   const body = JSON.stringify({ chatId: 42, text, messageId: 1, ...extra });
-  return worker(new Request("https://soza.e2e/api/qstash-worker", { method: "POST", headers: { "upstash-signature": sign(body) }, body }));
+  return worker(new Request("https://lora.e2e/api/qstash-worker", { method: "POST", headers: { "upstash-signature": sign(body) }, body }));
 };
 // Asynchrone : spawnSync bloquerait la boucle d'événements, donc le faux backend que la boucle Rust interroge.
 const poll = (apps: string, key = "e2e-key", base = url) => new Promise<{ ok: boolean; out: string }>((done) => {
   const child = spawn("cargo", ["test", "--manifest-path", "src-tauri/Cargo.toml", "real_poll_against_a_local_backend", "--", "--ignored", "--nocapture"],
-    { env: { ...process.env, SOZA_TEST_URL: base, SOZA_TEST_KEY: key, SOZA_TEST_APPS: apps } });
+    { env: { ...process.env, LORA_TEST_URL: base, LORA_TEST_KEY: key, LORA_TEST_APPS: apps } });
   let out = "";
   child.stdout.on("data", (d) => (out += d));
   child.stderr.on("data", (d) => (out += d));
@@ -134,7 +134,7 @@ const cleanup: string[][] = [];
 // 3. Chemin cassé
 {
   reset();
-  const apps = appsFile({ parsec: parsecPath, code: "C:\\soza-e2e-absent\\absent.exe" });
+  const apps = appsFile({ parsec: parsecPath, code: "C:\\lora-e2e-absent\\absent.exe" });
   const before = pids(parsecName);
   await sendJob("Protocole 7E3A");
   await poll(apps);

@@ -8,7 +8,7 @@ import handler from "../../api/telegram-webhook";
 const update = (message: unknown) => ({ update_id: 1, message });
 const post = (body: unknown, secret: string | null = "webhook-secret", method = "POST") =>
   handler(
-    new Request("https://soza.test/api/telegram-webhook", {
+    new Request("https://lora.test/api/telegram-webhook", {
       method,
       headers: secret === null ? {} : { "x-telegram-bot-api-secret-token": secret },
       body: method === "POST" ? JSON.stringify(body) : undefined,

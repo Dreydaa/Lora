@@ -1,6 +1,6 @@
 // Migration unique des bases Notion :
 //  1. ajoute un select « Catégorie » aux bases Agenda, Jalons et Idées (pour remplacer plus tard les logos devinés par mots-clés) ;
-//  2. supprime les colonnes qui ne servent plus : « Mode » (Agenda, Progression) et les réglages de shift de « Soza Réglages ».
+//  2. supprime les colonnes qui ne servent plus : « Mode » (Agenda, Progression) et les réglages de shift de « Løra Réglages ».
 // Simulation par défaut : n'écrit rien. `npm run notion:categories-cleanup -- --apply` applique. Idempotent.
 // ATTENTION : supprimer une colonne efface ses valeurs, sans retour possible (Notion garde un historique de page, pas de colonne).
 import { Client } from "@notionhq/client";
