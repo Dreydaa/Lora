@@ -29,7 +29,7 @@ export default async function handler(request: Request) {
   if (!text || text.length > MAX_TEXT || !Number.isFinite(chatId)) return new Response("Invalid request", { status: 400, headers: CORS_HEADERS });
 
   try {
-    const { text: answer } = await askLora(chatId, text, true);
+    const { text: answer } = await askLora(chatId, text, true, body.voice === true);
     return Response.json({ text: answer }, { headers: CORS_HEADERS });
   } catch (error) {
     console.error("[ask] échec :", error);
