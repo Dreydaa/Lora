@@ -14,7 +14,7 @@ import morning from "../../api/cron-morning";
 // 8 octobre 2026, 12 h à Paris (jeudi).
 const NOW = new Date("2026-10-08T10:00:00Z");
 const run = (handler: (r: Request) => Promise<Response>, headers: Record<string, string> = { authorization: "Bearer cron-secret" }) =>
-  handler(new Request("https://soza.test/api/cron", { method: "POST", headers, body: "" }));
+  handler(new Request("https://lora.test/api/cron", { method: "POST", headers, body: "" }));
 
 const isDashboardPrompt = (system: string) => system.includes("affiché sur le dashboard");
 const answerByKind = (full: string, dashboard: string) =>
@@ -53,23 +53,23 @@ describe("cron du matin", () => {
     expect(prompt).toContain("Météo: 14°C");
     expect(prompt).toContain("Dentiste (demain à 14:30)");
     expect(prompt).toContain("[Tech] Puce quantique annoncée");
-    expect(system).toContain("FRIDAY"); // la personnalité de Soza est bien envoyée
+    expect(system).toContain("FRIDAY"); // la personnalité de Løra est bien envoyée
   });
 
   it("plusieurs projets en cours : le briefing complet les reçoit, la version dashboard non", async () => {
-    notionData["db-ideas"] = [projectPage("i1", "Soza"), projectPage("i2", "Portfolio"), projectPage("i3", "Personnage 3D")];
+    notionData["db-ideas"] = [projectPage("i1", "Løra"), projectPage("i2", "Portfolio"), projectPage("i3", "Personnage 3D")];
     stubNetwork();
     await run(morning);
-    expect(callFor(false).prompt).toContain("Projets en cours: Soza · Portfolio · Personnage 3D.");
+    expect(callFor(false).prompt).toContain("Projets en cours: Løra · Portfolio · Personnage 3D.");
     expect(callFor(false).system).toContain("Projets : cite en une phrase");
     expect(callFor(true).prompt).not.toContain("Projets en cours");
   });
 
   it("le bilan d'hier qui nomme des projets arrive tel quel au modèle", async () => {
-    notionData["db-progress"] = [progressPage("2026-10-07", "Projets : Soza. Briefing fini")];
+    notionData["db-progress"] = [progressPage("2026-10-07", "Projets : Løra. Briefing fini")];
     stubNetwork();
     await run(morning);
-    expect(callFor(false).prompt).toContain("Bilan d'hier: Projets : Soza. Briefing fini.");
+    expect(callFor(false).prompt).toContain("Bilan d'hier: Projets : Løra. Briefing fini.");
   });
 
   it("la lecture des projets échoue : le briefing part quand même, sans eux", async () => {
@@ -93,7 +93,7 @@ describe("cron du matin", () => {
     generateText.mockRejectedValue(new Error("quota"));
     const net = stubNetwork();
     expect((await run(morning)).status).toBe(200);
-    expect(net.telegram()[0].body.text).toContain("SOZA — briefing");
+    expect(net.telegram()[0].body.text).toContain("LØRA — briefing");
     expect(net.telegram()[0].body.text).toContain("Bilan d'hier");
   });
 
@@ -151,7 +151,7 @@ describe("cron du soir", () => {
   });
 
   it("plusieurs projets en cours : le prochain jalon de chacun, et la liste des projets seulement dans la version Telegram", async () => {
-    notionData["db-ideas"] = [projectPage("i1", "Soza"), projectPage("i2", "Portfolio")];
+    notionData["db-ideas"] = [projectPage("i1", "Løra"), projectPage("i2", "Portfolio")];
     notionData["db-milestones"] = [
       milestonePage("m1", "Rig de base", "2026-10-12", "En cours", "i1"),
       milestonePage("m2", "Maquette", "2026-10-09", "À faire", "i2"),
@@ -159,9 +159,9 @@ describe("cron du soir", () => {
     ];
     stubNetwork();
     await run(evening);
-    const expected = "Prochain jalon par projet: Portfolio : Maquette (demain) · Soza : Rig de base (dans 4 jours, lundi 12/10).";
+    const expected = "Prochain jalon par projet: Portfolio : Maquette (demain) · Løra : Rig de base (dans 4 jours, lundi 12/10).";
     expect(callFor(false).prompt).toContain(expected);
-    expect(callFor(false).prompt).toContain("Projets en cours: Soza · Portfolio.");
+    expect(callFor(false).prompt).toContain("Projets en cours: Løra · Portfolio.");
     expect(callFor(false).system).toContain("sur lesquels il a avancé");
     expect(callFor(true).prompt).toContain(expected);
     expect(callFor(true).prompt).not.toContain("Projets en cours");

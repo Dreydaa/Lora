@@ -18,8 +18,8 @@ afterEach(() => {
 describe("clé du dashboard : fermée par défaut", () => {
   it("sans DASHBOARD_API_KEY configurée, rien ne passe (undefined n'est pas égal à undefined)", () => {
     delete process.env.DASHBOARD_API_KEY;
-    expect(() => assertDashboardKey(new Request("https://soza.test"))).toThrow("Unauthorized");
-    expect(() => assertDashboardKey(new Request("https://soza.test", { headers: { "x-dashboard-key": "" } }))).toThrow("Unauthorized");
+    expect(() => assertDashboardKey(new Request("https://lora.test"))).toThrow("Unauthorized");
+    expect(() => assertDashboardKey(new Request("https://lora.test", { headers: { "x-dashboard-key": "" } }))).toThrow("Unauthorized");
   });
 });
 
@@ -37,7 +37,7 @@ describe("chat Telegram autorisé : fermé par défaut", () => {
 });
 
 describe("crons : signature QStash ou secret obligatoire", () => {
-  const cron = (headers: Record<string, string> = {}) => new Request("https://soza.test/api/cron", { method: "POST", headers });
+  const cron = (headers: Record<string, string> = {}) => new Request("https://lora.test/api/cron", { method: "POST", headers });
   it("le bon secret passe", async () => {
     await expect(assertCronOrQStash(cron({ authorization: "Bearer cron-secret" }), "")).resolves.toBeUndefined();
   });
@@ -57,15 +57,15 @@ describe("QStash livre vers l'URL stable de production", () => {
   // Bug du 29/09/2026 : les travaux partaient vers VERCEL_URL (URL par déploiement, protégée par Vercel Deployment Protection -> 401 silencieux).
   const job = { chatId: 42, text: "x", messageId: 1 };
   it("APP_URL prime sur VERCEL_URL", async () => {
-    process.env.VERCEL_URL = "soza-abc123-team.vercel.app";
+    process.env.VERCEL_URL = "lora-abc123-team.vercel.app";
     await publishWorkerJob(job);
-    expect(publishJSON).toHaveBeenCalledWith({ url: "https://soza.test/api/qstash-worker", body: job, retries: 0 }); // jamais rejoué par QStash
+    expect(publishJSON).toHaveBeenCalledWith({ url: "https://lora.test/api/qstash-worker", body: job, retries: 0 }); // jamais rejoué par QStash
   });
   it("VERCEL_URL ne sert que de repli quand APP_URL est absent", async () => {
     delete process.env.APP_URL;
-    process.env.VERCEL_URL = "soza-abc123-team.vercel.app";
+    process.env.VERCEL_URL = "lora-abc123-team.vercel.app";
     await publishWorkerJob(job);
-    expect(publishJSON).toHaveBeenCalledWith({ url: "https://soza-abc123-team.vercel.app/api/qstash-worker", body: job, retries: 0 });
+    expect(publishJSON).toHaveBeenCalledWith({ url: "https://lora-abc123-team.vercel.app/api/qstash-worker", body: job, retries: 0 });
   });
   it("sans aucune URL ni jeton : erreur claire plutôt qu'une livraison perdue", async () => {
     delete process.env.APP_URL;

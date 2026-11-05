@@ -2,8 +2,8 @@
 
 ## Connexion locale
 
-1. Crée une connexion interne `Soza` dans le portail développeur Notion.
-2. Crée ou choisis une page parent `Soza`, puis partage-la avec la connexion via `...` → `Add connections`.
+1. Crée une connexion interne `Løra` dans le portail développeur Notion.
+2. Crée ou choisis une page parent `Løra`, puis partage-la avec la connexion via `...` → `Add connections`.
 3. Mets le token dans `NOTION_TOKEN` et l'identifiant de la page dans `NOTION_PARENT_PAGE_ID` de `.env`.
 4. Vérifie l'accès avec `npm run notion:check`, puis crée les bases avec `npm run notion:create`.
 5. Recopie les quatre identifiants affichés par le script dans les variables `NOTION_*_DATABASE_ID` de `.env`.

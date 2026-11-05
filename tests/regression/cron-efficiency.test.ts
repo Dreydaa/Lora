@@ -14,7 +14,7 @@ import evening from "../../api/cron-evening";
 import morning from "../../api/cron-morning";
 
 const run = (handler: (r: Request) => Promise<Response>) =>
-  handler(new Request("https://soza.test/api/cron", { method: "POST", headers: { authorization: "Bearer cron-secret" }, body: "" }));
+  handler(new Request("https://lora.test/api/cron", { method: "POST", headers: { authorization: "Bearer cron-secret" }, body: "" }));
 const queries = (database: string) => notionCalls.filter((c) => c.database_id === database).length;
 
 beforeEach(() => {

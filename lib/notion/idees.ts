@@ -84,7 +84,8 @@ export async function getProjectsInProgress(): Promise<Project[]> {
 
 // Les petits mots (« d' », « le », « pour »…) sont ignorés : ils empêchaient « le site d'Andy » de désigner « Site pour Andy ».
 const STOP_WORDS = new Set(["le", "la", "les", "un", "une", "de", "du", "des", "pour", "et", "au", "aux"]);
-const tokens = (text: string) => new Set(text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1 && !STOP_WORDS.has(t)));
+// « ø » ne se décompose pas en NFD comme « é » : sans ce remplacement, « Løra » devient « l » + « ra » et « lora » ne la retrouve plus.
+const tokens = (text: string) => new Set(text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/ø/g, "o").split(/[^a-z0-9]+/).filter((t) => t.length > 1 && !STOP_WORDS.has(t)));
 const covers = (big: Set<string>, small: Set<string>) => small.size > 0 && [...small].every((t) => big.has(t));
 
 // Le modèle ne connaît pas les titres exacts : il écrit « le portfolio » ou « rig personnage 3D ». Chaque nom est remplacé par le titre

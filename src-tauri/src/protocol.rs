@@ -1,7 +1,7 @@
 use serde_json::{json, Value};
 use std::{fs, path::Path, thread, time::Duration};
 
-// Étapes « PC » des protocoles lancés depuis Telegram. Le PC n'est joignable de nulle part : Soza interroge le backend
+// Étapes « PC » des protocoles lancés depuis Telegram. Le PC n'est joignable de nulle part : Løra interroge le backend
 // (GET /api/protocol), exécute les étapes reçues, puis POSTe le statut de chacune.
 // agent.json (dossier de données de l'app) porte l'adresse et la clé : mêmes valeurs que VITE_API_URL et VITE_DASHBOARD_API_KEY.
 pub const POLL_SECS: u64 = 30;
@@ -25,7 +25,7 @@ fn run_steps(steps: &Value, apps_file: &Path) -> Vec<Value> {
           Err(why) => json!({ "label": label, "ok": false, "detail": why }),
         }
       }
-      _ => json!({ "label": "Étape inconnue", "ok": false, "detail": "type d'étape non pris en charge par cette version de Soza" }),
+      _ => json!({ "label": "Étape inconnue", "ok": false, "detail": "type d'étape non pris en charge par cette version de Løra" }),
     }
   }).collect()
 }
@@ -81,16 +81,16 @@ mod tests {
   use super::*;
 
   fn temp_file(name: &str, content: &str) -> std::path::PathBuf {
-    let file = std::env::temp_dir().join(format!("soza-test-{}-{name}.json", std::process::id()));
+    let file = std::env::temp_dir().join(format!("lora-test-{}-{name}.json", std::process::id()));
     fs::write(&file, content).unwrap();
     file
   }
 
   #[test]
   fn config_needs_both_fields_and_trims_the_trailing_slash() {
-    let file = temp_file("agent", "\u{feff}{ \"api_url\": \"https://soza.test/\", \"api_key\": \"k\" }");
-    assert_eq!(config(&file), Some(("https://soza.test".into(), "k".into())));
-    fs::write(&file, r#"{ "api_url": "https://soza.test", "api_key": "" }"#).unwrap();
+    let file = temp_file("agent", "\u{feff}{ \"api_url\": \"https://lora.test/\", \"api_key\": \"k\" }");
+    assert_eq!(config(&file), Some(("https://lora.test".into(), "k".into())));
+    fs::write(&file, r#"{ "api_url": "https://lora.test", "api_key": "" }"#).unwrap();
     assert_eq!(config(&file), None);
     fs::write(&file, "{ pas du json").unwrap();
     assert_eq!(config(&file), None);
@@ -151,13 +151,13 @@ mod tests {
   #[ignore = "demande un backend local et lance de vrais processus"]
   fn real_poll_against_a_local_backend() {
     let var = |name: &str| std::env::var(name).unwrap_or_else(|_| panic!("{name} manquant"));
-    poll_once(&var("SOZA_TEST_URL"), &var("SOZA_TEST_KEY"), Path::new(&var("SOZA_TEST_APPS"))).unwrap();
+    poll_once(&var("LORA_TEST_URL"), &var("LORA_TEST_KEY"), Path::new(&var("LORA_TEST_APPS"))).unwrap();
   }
 
   #[cfg(windows)]
   #[test]
   fn a_listed_app_is_opened_and_a_broken_path_is_reported() {
-    let apps = temp_file("apps-real", r#"{ "qui": "C:\\Windows\\System32\\whoami.exe", "fantôme": "C:\\soza-test-absent\\absent.exe" }"#);
+    let apps = temp_file("apps-real", r#"{ "qui": "C:\\Windows\\System32\\whoami.exe", "fantôme": "C:\\lora-test-absent\\absent.exe" }"#);
     let results = run_steps(&json!([{ "kind": "open", "app": "qui" }, { "kind": "open", "app": "fantôme" }]), &apps);
     let _ = fs::remove_file(apps);
     assert_eq!(results[0]["ok"], true);

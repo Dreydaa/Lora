@@ -1,4 +1,4 @@
-# Interface Soza
+# Interface Løra
 
 L'app Tauri s'ouvre sur une intro en particules, puis sur un dashboard « liquid glass » : neuf cartes de verre posées sur un fond bleu uni où le ruban de Möbius en particules continue de tourner. Tout se pilote par la conversation Telegram ; le dashboard ne fait que lire (Notion, météo, flux RSS) et mesurer le temps d'écran.
 
@@ -15,7 +15,7 @@ Colonne gauche, de haut en bas :
 - **Veille** : deux colonnes Tech et Fashion, chaque titre est un lien vers l'article (ouvert dans le navigateur par défaut).
 
 Colonne droite :
-- **Briefing** du matin ou du soir selon l'heure (les heures viennent des réglages Notion) : texte court généré par Soza. Pendant une pause de plusieurs jours, la carte annonce la pause en cours à la place du briefing (les crons sont suspendus) et rappelle une pause à venir.
+- **Briefing** du matin ou du soir selon l'heure (les heures viennent des réglages Notion) : texte court généré par Løra. Pendant une pause de plusieurs jours, la carte annonce la pause en cours à la place du briefing (les crons sont suspendus) et rappelle une pause à venir.
 - **Calendrier** : vue Mois par défaut, bascule Semaine, navigation, clic sur un jour pour son détail (Échap pour fermer). Pastilles-logo par tâche, points colorés par type (Perso, Shift, Jalon, retard).
 
 ## Interactions
@@ -31,10 +31,10 @@ Disponible seulement dans l'app Tauri, sans réseau. `Ctrl+K` l'ouvre, `Échap` 
 - `batterie de la souris`.
 Un nom inconnu ou une phrase non reconnue est refusé, rien n'est exécuté. Le détail et les limites : `docs/ai/STATUS-V2.md`, étapes 4 et 6.
 
-**Voix (04/11/2026).** Chaque réponse est dite à voix haute avec la voix de Soza : Piper, en local, modèle affiné sur la voix d'un proche avec son accord, lancé à la première phrase et gardé en mémoire 10 minutes ; la voix de Windows prend le relais si les fichiers de Piper manquent. Les guillemets et signes de mise en forme ne sont pas lus. Réglages dans `voice.json` (dossier de données de l'app) : `volume` (0 à 1) et `english` (les noms d'applications dits avec l'accent anglais). `voice.log` garde ce qui a été dit et les phonèmes, les 30 derniers WAV sont dans `voice/history/`. Détail, limites et installation : `docs/ai/STATUS-V2.md`, étape 9.
+**Voix (04/11/2026).** Chaque réponse est dite à voix haute avec la voix de Løra : Piper, en local, modèle affiné sur la voix d'un proche avec son accord, lancé à la première phrase et gardé en mémoire 10 minutes ; la voix de Windows prend le relais si les fichiers de Piper manquent. Les guillemets et signes de mise en forme ne sont pas lus. Réglages dans `voice.json` (dossier de données de l'app) : `volume` (0 à 1) et `english` (les noms d'applications dits avec l'accent anglais). `voice.log` garde ce qui a été dit et les phonèmes, les 30 derniers WAV sont dans `voice/history/`. Détail, limites et installation : `docs/ai/STATUS-V2.md`, étape 9.
 
 ## Zone de notification
-Fermer la fenêtre la masque. Clic gauche sur l'icône : afficher. Clic droit : Afficher Soza / Quitter. Au démarrage de Windows (app installée), Soza se lance fenêtre masquée.
+Fermer la fenêtre la masque. Clic gauche sur l'icône : afficher. Clic droit : Afficher Løra / Quitter. Au démarrage de Windows (app installée), Løra se lance fenêtre masquée.
 
 ## Sources de données
 | Bloc | Source |
@@ -44,9 +44,9 @@ Fermer la fenêtre la masque. Clic gauche sur l'icône : afficher. Clic droit : 
 | Veille | Flux RSS (TechCrunch, Vogue) |
 | Météo | Open-Meteo, appelée directement par l'app |
 | Écran | Suivi local dans l'app Tauri (`usage.json`), rien n'est envoyé en ligne |
-| Barre `Ctrl+K` | Fichiers locaux de l'app (`apps.json`, `spotify.json`), commandes Windows ; rien n'est envoyé à Soza |
+| Barre `Ctrl+K` | Fichiers locaux de l'app (`apps.json`, `spotify.json`), commandes Windows ; rien n'est envoyé à Løra |
 
 Si le backend est injoignable, le dashboard garde des données d'exemple (`mockData.ts`). Hors de l'app Tauri (navigateur), le bloc Écran affiche « — ».
 
 ## Hors périmètre
-Pas de quiz, d'onglets, de mode ACTIF/PAUSE ni de dégradation visuelle après un jalon manqué (abandonnée le 08/10/2026). L'avatar vocal du ruban est prévu en V2 (`docs/ai/SozaV2.md`).
+Pas de quiz, d'onglets, de mode ACTIF/PAUSE ni de dégradation visuelle après un jalon manqué (abandonnée le 08/10/2026). L'avatar vocal du ruban est prévu en V2 (`docs/ai/LoraV2.md`).

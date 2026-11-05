@@ -21,7 +21,11 @@ const GROUPS: ToolGroup[] = [
       /agenda|rdv|rendez|reunion|rappel|calendrier|planifi|programm|ajoute|mets?\b|demain|apres-demain|ce soir|cette semaine|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|\d\s?h\b|\d{1,2}[/-]\d{1,2}|\b\d{1,2}\s(janv|fevr|mars|avr|mai|juin|juil|aout|sept|oct|nov|dec)/,
   },
   { tools: ["add_shift_schedule"], pattern: /shift|travaille|boulot|horaire|planning|tous les jours|du (lundi|mardi|mercredi|jeudi|vendredi)|contrat|\d\s?h\b/ },
-  { tools: ["update_briefing_schedule"], pattern: /briefing|bilan|decale|heure d.envoi|matin|soir|reveil/ },
+  { tools: ["update_briefing_schedule", "get_briefing"], pattern: /briefing|bilan|decale|heure d.envoi|matin|soir|reveil/ },
+  // Lectures (voix et Telegram) : un avis sur un projet a besoin des idées, des jalons et de l'agenda ensemble.
+  { tools: ["list_ideas", "list_milestones", "get_agenda"], pattern: /\bidees?\b|projets?|en cours|avis|pense|conseil|tache|prevu|programme|a faire|planning|agenda|rdv|rendez|calendrier/ },
+  { tools: ["get_weather"], pattern: /meteo|temps (fait|il)|pluie|pleu|temperature|degres|soleil|parapluie|chaud|froid/ },
+  { tools: ["get_last_progress"], pattern: /bilan|hier|derniere? (fois|seance|session)|avance/ },
   { tools: ["set_break", "cancel_break"], pattern: /pause|vacance|week-?end|repos|conge|ne (vais|travaille|bosse)|pas (bosser|travailler)|jusqu.a|reprend|annule/ },
   {
     tools: ["get_settings"],

@@ -181,13 +181,13 @@ export async function buildMorningBriefings(): Promise<Briefings> {
   const short = [bilanLine(progress, today, brk), `Météo: ${weather}.`].join("\n");
   const full = [short, projectsLine(projects), agendaLine(agenda, today), `À suivre: ${news.join(" · ")}`].join("\n");
   const [telegram, dashboard] = await Promise.all([
-    generateBriefing(BRIEFING_INSTRUCTION, full, `SOZA — briefing\n${full}`),
+    generateBriefing(BRIEFING_INSTRUCTION, full, `LØRA — briefing\n${full}`),
     generateBriefing(DASHBOARD_BRIEFING_INSTRUCTION, short, short),
   ]);
   return { telegram, dashboard };
 }
 
-const EVENING_FALLBACK = "SOZA — bilan du soir\nDis-moi ce que tu as accompli aujourd'hui, même en une phrase — je m'en servirai demain matin pour te relancer sur la suite.";
+const EVENING_FALLBACK = "LØRA — bilan du soir\nDis-moi ce que tu as accompli aujourd'hui, même en une phrase — je m'en servirai demain matin pour te relancer sur la suite.";
 
 // Soir, sans météo ni actualités. Telegram : journée, prochain jalon, agenda des 7 jours, puis demande du bilan.
 // Dashboard : journée et prochain jalon seulement.
