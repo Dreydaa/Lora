@@ -54,6 +54,16 @@ pub fn open_by_name(name: &str, file: &Path) -> Result<String, String> {
   open(&name, &path)
 }
 
+// Ouvre une application de apps.json avec des arguments : les modes (modes.rs) y passent des adresses web à ouvrir dans le navigateur.
+pub fn open_with_args(name: &str, args: &[String], file: &Path) -> Result<(), String> {
+  let name = name.to_lowercase();
+  let path = load(file).get(&name).cloned().ok_or_else(|| format!("« {name} » n'est pas dans apps.json"))?;
+  let mut cmd = Command::new(&path);
+  cmd.args(args);
+  if let Some(dir) = Path::new(&path).parent() { cmd.current_dir(dir); }
+  cmd.spawn().map(|_| ()).map_err(|e| format!("Impossible de lancer {name} ({path}) : {e}"))
+}
+
 // Fermeture douce (comme la croix de la fenêtre : l'application peut proposer d'enregistrer), jamais forcée.
 // taskkill rend 128 quand aucun processus ne porte ce nom.
 fn close(name: &str, path: &str) -> String {

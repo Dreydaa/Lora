@@ -16,6 +16,7 @@ use std::{
   thread,
   time::{Duration, Instant},
 };
+use crate::control::{self, Control};
 use tauri::{AppHandle, Emitter};
 use windows::Win32::{System::Diagnostics::Debug::MessageBeep, UI::WindowsAndMessaging::MB_OK};
 
@@ -82,6 +83,19 @@ fn wake(text: &str, words: &[String]) -> Option<String> {
   Some(tokens[at + 1..].join(" "))
 }
 
+// Pendant qu'elle parle, le micro entend aussi sa voix : la phrase captée contient son discours et, quelque part, « Løra, stop ».
+// On cherche donc le mot d'activation PARTOUT, suivi d'une des trois commandes de control.rs (de 1 à 3 mots : « stop », « repose-toi »,
+// « fin de mission »). `tail` garde la fin du morceau précédent : « Løra » en fin de morceau et « stop » au début du suivant se rejoignent.
+// Tout le reste est ignoré : aucune autre demande n'est comprise pendant qu'elle parle.
+fn barge_command(heard: &str, wake_words: &[String], tail: &mut Vec<String>) -> Option<Control> {
+  let mut tokens = std::mem::take(tail);
+  tokens.extend(heard.split_whitespace().map(String::from));
+  *tail = tokens[tokens.len().saturating_sub(3)..].to_vec();
+  (0..tokens.len())
+    .filter(|&i| !tokens[i].contains(['\'', '’']) && wake_words.contains(&fold(&tokens[i])))
+    .find_map(|i| (1..=3).find_map(|len| tokens.get(i + 1..i + 1 + len).and_then(|words| control::parse(&words.join(" ")))))
+}
+
 // --- découpage en phrases ---------------------------------------------------------------------------------------------------------
 
 const FRAME_MS: usize = 30;
@@ -90,6 +104,10 @@ const START_FRAMES: usize = 2; // 60 ms de voix de suite pour commencer
 const END_FRAMES: usize = 40; // 1,2 s de silence pour finir (à 720 ms, une hésitation coupait la phrase)
 const MIN_LOUD_FRAMES: usize = 8; // moins de 240 ms de voix : un claquement, pas une phrase
 const MAX_FRAMES: usize = 500; // 15 s : au-delà (musique, télévision), on coupe
+// Pendant qu'elle parle on n'écoute que « Løra, stop » & co : sa voix (renvoyée par les haut-parleurs) ne laisse presque aucune pause,
+// donc les morceaux sont courts (2 s au plus) pour que l'ordre soit entendu vite.
+const BARGE_END_FRAMES: usize = 15; // 0,45 s de silence
+const BARGE_MAX_FRAMES: usize = 70; // 2,1 s
 
 fn rms(frame: &[f32]) -> f32 {
   (frame.iter().map(|s| s * s).sum::<f32>() / frame.len().max(1) as f32).sqrt()
@@ -114,11 +132,19 @@ struct Segmenter {
   active: Option<Vec<f32>>,
   quiet: usize,
   loud_frames: usize,
+  end_frames: usize,
+  max_frames: usize,
+  adapt: bool, // le bruit ambiant se met à jour (faux pendant qu'elle parle : sa voix ne doit pas devenir le « bruit »)
 }
 
 impl Segmenter {
   fn new(rate: u32, threshold: f32) -> Self {
-    Self { frame: rate as usize * FRAME_MS / 1000, threshold, floor: None, seen: 0, leftover: vec![], preroll: VecDeque::new(), loud_run: 0, active: None, quiet: 0, loud_frames: 0 }
+    Self { frame: rate as usize * FRAME_MS / 1000, threshold, floor: None, seen: 0, leftover: vec![], preroll: VecDeque::new(), loud_run: 0, active: None, quiet: 0, loud_frames: 0, end_frames: END_FRAMES, max_frames: MAX_FRAMES, adapt: true }
+  }
+
+  // Écoute pendant qu'elle parle : morceaux courts, et le bruit ambiant d'avant sa parole (`floor`) reste la référence.
+  fn barge(rate: u32, threshold: f32, floor: Option<f32>) -> Self {
+    Self { end_frames: BARGE_END_FRAMES, max_frames: BARGE_MAX_FRAMES, adapt: false, floor, seen: WARMUP_FRAMES, ..Self::new(rate, threshold) }
   }
 
   // Une phrase est en cours de capture (de la voix a été entendue, la fin n'est pas arrivée).
@@ -147,7 +173,7 @@ impl Segmenter {
   fn step(&mut self, frame: Vec<f32>) -> Option<Vec<f32>> {
     let level = rms(&frame);
     let rise = if self.seen < WARMUP_FRAMES { WARMUP_RISE } else { FLOOR_RISE };
-    let floor = self.floor.map_or(level, |f| f + (level - f) * if level > f { rise } else { FLOOR_FALL });
+    let floor = if self.adapt { self.floor.map_or(level, |f| f + (level - f) * if level > f { rise } else { FLOOR_FALL }) } else { self.floor.unwrap_or(0.0) };
     self.floor = Some(floor);
     self.seen += 1;
     let loud = level > self.threshold.max(floor * FLOOR_FACTOR);
@@ -166,10 +192,10 @@ impl Segmenter {
     let buffer = self.active.as_mut()?;
     buffer.extend_from_slice(&frame);
     if loud { self.quiet = 0; self.loud_frames += 1; } else { self.quiet += 1; }
-    let too_long = buffer.len() >= MAX_FRAMES * self.frame;
-    if self.quiet < END_FRAMES && !too_long { return None; }
+    let too_long = buffer.len() >= self.max_frames * self.frame;
+    if self.quiet < self.end_frames && !too_long { return None; }
     // 15 s sans une pause : de la musique, un ventilateur allumé après l'apprentissage, pas une phrase. On l'apprend comme bruit ambiant.
-    if too_long { self.floor = Some(rms(buffer)); }
+    if too_long && self.adapt { self.floor = Some(rms(buffer)); }
     let enough = self.loud_frames >= MIN_LOUD_FRAMES;
     let utterance = self.active.take();
     self.quiet = 0;
@@ -336,6 +362,8 @@ fn run(app: &AppHandle, dir: &Path) -> Result<(), String> {
   log(dir, false, &format!("écoute démarrée sur « {name} » ({rate} Hz, {format:?}), Whisper prêt"));
 
   let mut segmenter = Segmenter::new(rate, config(dir).threshold);
+  let mut barge: Option<Segmenter> = None; // écoute réduite pendant qu'elle parle (voir barge_command)
+  let mut barge_tail: Vec<String> = vec![];
   let mut playing = true;
   let mut armed_until: Option<Instant> = None;
   loop {
@@ -349,8 +377,32 @@ fn run(app: &AppHandle, dir: &Path) -> Result<(), String> {
     }
     let received = rx.recv_timeout(Duration::from_millis(500));
     if let Err(mpsc::RecvTimeoutError::Disconnected) = received { return Err("le micro s'est arrêté".into()); }
-    // Løra ne doit pas s'entendre elle-même (sa voix contient son propre nom) : pendant qu'elle parle, et un instant après, on jette tout.
-    if received.is_ok() && (!wanted || crate::speech::busy()) { segmenter.reset(); continue; }
+    if let Ok(chunk) = &received {
+      if !wanted { segmenter.reset(); barge = None; continue; }
+      // Løra ne doit pas s'entendre elle-même (sa voix contient son propre nom) : un instant après qu'elle a parlé, et pendant un bip, on jette
+      // tout. Pendant qu'elle parle on n'écoute que « Løra, stop », « Løra, repose-toi » et « Løra, fin de mission » (barge_command).
+      if crate::speech::speaking() {
+        segmenter.reset();
+        let segmenter_ref = &segmenter;
+        let heard_chunks = barge.get_or_insert_with(|| { barge_tail.clear(); Segmenter::barge(rate, segmenter_ref.threshold, segmenter_ref.floor) }).push(chunk);
+        for utterance in heard_chunks {
+          let cfg = config(dir);
+          let Ok(text) = transcribe(&wav(&resample(&utterance, rate))) else { continue };
+          let heard = speech_only(&text);
+          let Some(control) = barge_command(&heard, &cfg.wake, &mut barge_tail) else { continue };
+          log(dir, cfg.log, &format!("« {heard} » -> {control:?} pendant qu'elle parle"));
+          barge = None;
+          if let Some(reply) = control::apply(control, app, dir).filter(|r| !r.is_empty()) {
+            let dir = dir.to_path_buf();
+            thread::spawn(move || { let _ = crate::speech::speak(&reply, &dir); });
+          }
+          break;
+        }
+        continue;
+      }
+      barge = None;
+      if crate::speech::busy() { segmenter.reset(); continue; }
+    }
     for utterance in received.iter().flat_map(|chunk| segmenter.push(chunk)).collect::<Vec<_>>() {
       let cfg = config(dir);
       segmenter.threshold = cfg.threshold;
@@ -431,6 +483,40 @@ mod tests {
   fn speech_only_drops_whisper_noise_markers() {
     assert_eq!(speech_only("[Musique]"), "");
     assert_eq!(speech_only("(silence) Laura, ouvre *toux* Blender"), "Laura, ouvre Blender");
+  }
+
+  #[test]
+  fn while_she_speaks_the_wake_word_is_looked_for_anywhere_and_only_the_three_commands_count() {
+    assert_eq!(barge_command("Je te lis le résumé. Løra, stop, voici la suite", &words(), &mut vec![]), Some(Control::Stop));
+    assert_eq!(barge_command("Laura fin de mission", &words(), &mut vec![]), Some(Control::Quit));
+    assert_eq!(barge_command("elle dit Laura, repose-toi", &words(), &mut vec![]), Some(Control::Rest));
+    // Sans mot d'activation, avec un « l'aura », ou pour toute autre demande : rien.
+    assert_eq!(barge_command("stop, stop, stop", &words(), &mut vec![]), None);
+    assert_eq!(barge_command("l'aura stop", &words(), &mut vec![]), None);
+    assert_eq!(barge_command("Laura, quelle est la météo", &words(), &mut vec![]), None);
+    // Ce qui suit la commande peut être sa propre voix : le début compte, pas la phrase entière (hors parole, control::parse exige la phrase entière).
+    assert_eq!(barge_command("Laura, stop la suite du texte", &words(), &mut vec![]), Some(Control::Stop));
+    assert_eq!(barge_command("Laura, ferme blender", &words(), &mut vec![]), None);
+  }
+
+  #[test]
+  fn an_order_cut_between_two_chunks_is_still_heard() {
+    let mut tail = vec![];
+    assert_eq!(barge_command("la suite du texte dit par elle Laura", &words(), &mut tail), None);
+    assert_eq!(barge_command("repose-toi et la fin", &words(), &mut tail), Some(Control::Rest));
+    let mut tail = vec![];
+    assert_eq!(barge_command("un mot", &words(), &mut tail), None);
+    assert_eq!(barge_command("stop", &words(), &mut tail), None, "« stop » sans « Løra » juste avant ne coupe rien");
+  }
+
+  #[test]
+  fn the_speaking_segmenter_cuts_short_pieces_and_keeps_the_quiet_room_as_reference() {
+    let mut seg = Segmenter::barge(RATE, 0.02, Some(0.001));
+    let mut pieces: Vec<Vec<f32>> = vec![];
+    for part in [voice(5.0), silence(1.0)] { for chunk in part.chunks(777) { pieces.extend(seg.push(chunk)); } }
+    assert!(pieces.len() >= 2, "5 s de voix continue donnent plusieurs morceaux : {}", pieces.len());
+    assert!(pieces.iter().all(|p| p.len() <= (RATE as f32 * 2.5) as usize), "morceaux de 2 s environ au plus");
+    assert_eq!(seg.floor, Some(0.001), "la voix ne devient pas le bruit ambiant");
   }
 
   #[test]
@@ -558,6 +644,37 @@ mod tests {
 
   // Tout le chemin sauf le micro, sur un enregistrement : `cargo test real_pipeline -- --ignored --nocapture`, avec LORA_TEST_SPEECH_WAV =
   // un WAV 16 bits mono (n'importe quelle fréquence). Whisper installé dans voice/whisper.
+  // Phrases des modes de travail à travers le vrai chemin (découpage, Whisper local, mot d'activation, reconnaissance) :
+  // LORA_TEST_MODE_WAVS="fichier.wav|creatif;autre.wav|dev;encore.wav|spotify" (« spotify » = la commande « connecte Spotify »).
+  #[test]
+  #[ignore = "demande Whisper installé et des fichiers audio"]
+  fn real_work_mode_phrases() {
+    let dir = PathBuf::from(std::env::var("APPDATA").unwrap()).join("com.soza.assistant").join("voice").join("whisper");
+    ensure_server(&dir).unwrap();
+    let wake_words = config(&dir).wake;
+    let mut wrong = vec![];
+    for item in std::env::var("LORA_TEST_MODE_WAVS").unwrap().split(';').filter(|s| !s.is_empty()) {
+      let (file, expected) = item.split_once('|').unwrap();
+      let bytes = fs::read(file).unwrap();
+      let rate = u32::from_le_bytes(bytes[24..28].try_into().unwrap());
+      let speech: Vec<f32> = bytes[44..].chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / i16::MAX as f32).collect();
+      let tape: Vec<f32> = [vec![0.0; rate as usize * 2], speech, vec![0.0; rate as usize * 2]].concat();
+      let mut seg = Segmenter::new(rate, 0.02);
+      let utterances: Vec<Vec<f32>> = tape.chunks(1000).flat_map(|c| seg.push(c)).collect();
+      let heard: Vec<String> = utterances.iter().map(|u| speech_only(&transcribe(&wav(&resample(u, rate))).unwrap())).collect();
+      let command = heard.first().and_then(|h| wake(h, &wake_words)).unwrap_or_default();
+      let got = if expected == "spotify" {
+        matches!(crate::system::parse(&command), Some(crate::system::Command::ConnectSpotify)).then(|| "spotify".to_string())
+      } else {
+        crate::modes::mode_name(&command)
+      };
+      println!("{} phrase(s) -> entendu {heard:?} -> demande « {command} » -> reconnu {got:?} (attendu {expected})", utterances.len());
+      if utterances.len() != 1 || got.as_deref() != Some(expected) { wrong.push(format!("{file} : {heard:?}")); }
+    }
+    stop();
+    assert!(wrong.is_empty(), "{wrong:?}");
+  }
+
   #[test]
   #[ignore = "demande Whisper installé et un fichier audio"]
   fn real_pipeline() {

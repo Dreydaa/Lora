@@ -1,12 +1,23 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::Value;
-use std::{fs, io, path::Path, process::Command, time::Duration};
+use std::{
+  collections::hash_map::RandomState,
+  fs,
+  hash::BuildHasher,
+  io::{self, Read, Write},
+  net::{TcpListener, TcpStream},
+  path::{Path, PathBuf},
+  process::Command,
+  thread,
+  time::{Duration, Instant},
+};
 
 // Lancer Spotify et jouer un morceau demandé par son nom. Le lancement passe par le gestionnaire de protocole de Windows
 // (spotify:…), pas par un exécutable : Løra n'ouvre toujours que des adresses de ce schéma, avec un texte encodé.
 // La recherche utilise l'API web de Spotify (flux « client credentials », sans compte à connecter) avec une application
 // créée sur developer.spotify.com, dont l'identifiant et le secret sont dans spotify.json (dossier de données de l'app).
 
+#[derive(Debug)]
 pub struct Track { pub id: String, pub label: String }
 
 pub enum SearchError { NotConfigured, Failed(String) }
@@ -27,12 +38,16 @@ fn credentials(file: &Path) -> Option<(String, String)> {
   Some((field("client_id")?, field("client_secret")?))
 }
 
-// Premier résultat de /v1/search : identifiant (seulement lettres et chiffres, il finit dans une adresse) et « titre – artiste ».
-fn first_track(search: &Value) -> Option<Track> {
-  let item = search["tracks"]["items"].get(0)?;
+// Un morceau tel que Spotify le décrit : identifiant (seulement lettres et chiffres, il finit dans une adresse) et « titre – artiste ».
+fn track_from(item: &Value) -> Option<Track> {
   let id = item["id"].as_str().filter(|id| !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric()))?;
   let artist = item["artists"][0]["name"].as_str().unwrap_or("artiste inconnu");
   Some(Track { id: id.to_string(), label: format!("{} – {artist}", item["name"].as_str().unwrap_or("sans titre")) })
+}
+
+// Premier résultat de /v1/search.
+fn first_track(search: &Value) -> Option<Track> {
+  track_from(search["tracks"]["items"].get(0)?)
 }
 
 pub fn search(file: &Path, query: &str) -> Result<Option<Track>, SearchError> {
@@ -52,9 +67,320 @@ pub fn search(file: &Path, query: &str) -> Result<Option<Track>, SearchError> {
   Ok(first_track(&found))
 }
 
+// ── Tes titres likés (compte Spotify connecté une fois) ──────────────────────────────────────────────────────────────────────────────
+// La recherche ci-dessus n'a besoin d'aucun compte. Lire « Titres likés » en demande un : « connecte Spotify » ouvre la page d'accord de
+// Spotify dans le navigateur, un petit serveur local (127.0.0.1:8888, ouvert le temps de la connexion seulement) en reçoit le code, et le
+// jeton de renouvellement est gardé dans spotify-token.json (dossier de données, comme spotify.json). Droit demandé : lire la bibliothèque,
+// rien d'autre. Il faut ajouter http://127.0.0.1:8888/callback aux « Redirect URIs » de l'application sur developer.spotify.com.
+const REDIRECT_URI: &str = "http://127.0.0.1:8888/callback";
+const CALLBACK_ADDR: &str = "127.0.0.1:8888";
+const SCOPE: &str = "user-library-read";
+const CONNECT_SECS: u64 = 120;
+const TOKEN_URL: &str = "https://accounts.spotify.com/api/token";
+
+fn token_file(spotify_file: &Path) -> PathBuf {
+  spotify_file.with_file_name("spotify-token.json")
+}
+
+fn read_refresh_token(spotify_file: &Path) -> Option<String> {
+  let json: Value = serde_json::from_str(fs::read_to_string(token_file(spotify_file)).ok()?.trim_start_matches('\u{feff}')).ok()?;
+  json["refresh_token"].as_str().filter(|t| !t.is_empty()).map(String::from)
+}
+
+fn save_refresh_token(spotify_file: &Path, token: &str) -> Result<(), String> {
+  fs::write(token_file(spotify_file), serde_json::json!({ "refresh_token": token }).to_string()).map_err(|e| format!("jeton non enregistré : {e}"))
+}
+
+// Hasard du système (RandomState est semé par Windows) : assez pour l'« état » anti-falsification de la connexion et pour tirer un titre.
+fn random_below(n: u64) -> u64 {
+  RandomState::new().hash_one(0u8) % n.max(1)
+}
+fn random_hex() -> String {
+  format!("{:016x}{:016x}", RandomState::new().hash_one(1u8), RandomState::new().hash_one(2u8))
+}
+
+fn authorize_url(client_id: &str, state: &str) -> String {
+  format!("https://accounts.spotify.com/authorize?response_type=code&client_id={}&scope={}&redirect_uri={}&state={}", encode(client_id), encode(SCOPE), encode(REDIRECT_URI), encode(state))
+}
+
+// La première ligne de la requête que le navigateur envoie au retour (« GET /callback?code=…&state=… HTTP/1.1 »).
+// None : ce n'est pas la bonne adresse (favicon…), on continue d'attendre. Some(Ok(code)) seulement si l'état est celui qu'on a envoyé.
+fn callback(request_line: &str, state: &str) -> Option<Result<String, String>> {
+  let target = request_line.split_whitespace().nth(1)?;
+  let (path, query) = target.split_once('?').unwrap_or((target, ""));
+  if path != "/callback" { return None; }
+  let param = |name: &str| query.split('&').find_map(|pair| pair.split_once('=').filter(|(key, _)| *key == name).map(|(_, value)| value));
+  if let Some(why) = param("error") { return Some(Err(format!("Spotify a refusé l'accès ({})", why.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_').collect::<String>()))); }
+  if param("state") != Some(state) { return Some(Err("état de sécurité incorrect".into())); }
+  Some(param("code").filter(|c| !c.is_empty() && c.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')).map(String::from).ok_or_else(|| "Spotify n'a pas rendu de code".into()))
+}
+
+fn respond(stream: &mut TcpStream, status: &str, text: &str) {
+  // text/plain : ce qu'on répond ne peut pas être pris pour du HTML (le message peut contenir ce que le navigateur a envoyé).
+  let _ = write!(stream, "HTTP/1.1 {status}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}", text.len());
+}
+
+fn agent() -> ureq::Agent {
+  ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(8))).build().into()
+}
+
+fn basic(id: &str, secret: &str) -> String {
+  format!("Basic {}", STANDARD.encode(format!("{id}:{secret}")))
+}
+
+// Attend le retour du navigateur sur `listener` (non bloquant) : rend le code, ou la raison du refus. Les requêtes qui ne sont pas
+// « /callback » (favicon…) reçoivent un 404 et on continue d'attendre.
+fn wait_for_code(listener: &TcpListener, state: &str, deadline: Instant) -> Result<String, String> {
+  loop {
+    if Instant::now() > deadline { return Err("délai dépassé : la page d'accord est restée sans réponse".into()); }
+    match listener.accept() {
+      Ok((mut stream, _)) => {
+        let _ = stream.set_nonblocking(false);
+        let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+        let mut buffer = [0u8; 2048];
+        let read = stream.read(&mut buffer).unwrap_or(0);
+        let request = String::from_utf8_lossy(&buffer[..read]).into_owned();
+        match callback(request.lines().next().unwrap_or(""), state) {
+          None => respond(&mut stream, "404 Not Found", "Introuvable."),
+          Some(Ok(code)) => { respond(&mut stream, "200 OK", "Løra est connectée à Spotify. Tu peux fermer cet onglet."); return Ok(code); }
+          Some(Err(why)) => { respond(&mut stream, "400 Bad Request", &format!("Connexion refusée : {why}.")); return Err(why); }
+        }
+      }
+      Err(e) if e.kind() == io::ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(50)),
+      Err(e) => return Err(format!("serveur local : {e}")),
+    }
+  }
+}
+
+// « connecte Spotify » : bloque jusqu'à l'accord de l'utilisateur dans le navigateur (2 minutes au plus), à lancer hors du fil de l'interface.
+pub fn connect(spotify_file: &Path) -> Result<String, String> {
+  let (id, secret) = credentials(spotify_file).ok_or_else(|| format!("remplis client_id et client_secret dans {}", spotify_file.display()))?;
+  let state = random_hex();
+  let listener = TcpListener::bind(CALLBACK_ADDR).map_err(|e| format!("le port 8888 est occupé ({e})"))?;
+  listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+  open_uri(&authorize_url(&id, &state)).map_err(|e| format!("le navigateur ne s'ouvre pas ({e})"))?;
+  let code = wait_for_code(&listener, &state, Instant::now() + Duration::from_secs(CONNECT_SECS))?;
+  let tokens: Value = agent().post(TOKEN_URL).header("Authorization", basic(&id, &secret))
+    .send_form([("grant_type", "authorization_code"), ("code", code.as_str()), ("redirect_uri", REDIRECT_URI)])
+    .map_err(|e| format!("échange du code refusé (la Redirect URI est-elle ajoutée dans l'application Spotify ?) : {e}"))?
+    .body_mut().read_json().map_err(|e| format!("réponse illisible : {e}"))?;
+  let refresh = tokens["refresh_token"].as_str().ok_or("Spotify n'a pas rendu de jeton de renouvellement")?;
+  save_refresh_token(spotify_file, refresh)?;
+  Ok("Spotify est connecté.".into())
+}
+
+// Un titre au hasard parmi les titres likés : le nombre total, puis un seul titre à une position tirée au sort.
+pub fn liked_random(spotify_file: &Path) -> Result<Track, String> {
+  liked_random_at(spotify_file, TOKEN_URL, "https://api.spotify.com/v1/me/tracks")
+}
+
+// Les adresses sont des paramètres pour qu'un test les dirige vers un faux Spotify local.
+fn liked_random_at(spotify_file: &Path, token_url: &str, tracks_url: &str) -> Result<Track, String> {
+  let (id, secret) = credentials(spotify_file).ok_or_else(|| format!("remplis client_id et client_secret dans {}", spotify_file.display()))?;
+  let refresh = read_refresh_token(spotify_file).ok_or("Spotify n'est pas connecté : dis « connecte Spotify »")?;
+  let reconnect = "Spotify refuse l'accès (jeton expiré ou droit manquant) : dis « connecte Spotify »";
+  let agent = agent();
+  let tokens: Value = agent.post(token_url).header("Authorization", basic(&id, &secret))
+    .send_form([("grant_type", "refresh_token"), ("refresh_token", refresh.as_str())])
+    .map_err(|e| if matches!(e, ureq::Error::StatusCode(400 | 401 | 403)) { reconnect.to_string() } else { format!("connexion à Spotify : {e}") })?
+    .body_mut().read_json().map_err(|e| format!("réponse de connexion illisible : {e}"))?;
+  let access = tokens["access_token"].as_str().ok_or("Spotify n'a pas rendu de jeton")?;
+  if let Some(renewed) = tokens["refresh_token"].as_str() { save_refresh_token(spotify_file, renewed)?; }
+  let page = |offset: u64| -> Result<Value, String> {
+    agent.get(tracks_url).query("limit", "1").query("offset", offset.to_string())
+      .header("Authorization", format!("Bearer {access}")).call()
+      .map_err(|e| if matches!(e, ureq::Error::StatusCode(401 | 403)) { reconnect.to_string() } else { format!("lecture des titres likés : {e}") })?
+      .body_mut().read_json().map_err(|e| format!("réponse illisible : {e}"))
+  };
+  let total = page(0)?["total"].as_u64().unwrap_or(0);
+  if total == 0 { return Err("tu n'as aucun titre liké".into()); }
+  track_from(&page(random_below(total))?["items"][0]["track"]).ok_or_else(|| "titre illisible".into())
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn the_return_page_gives_a_code_only_with_the_right_state() {
+    let line = |q: &str| format!("GET /callback?{q} HTTP/1.1");
+    assert_eq!(callback(&line("code=AQD-x_1&state=abc"), "abc"), Some(Ok("AQD-x_1".into())));
+    assert_eq!(callback(&line("code=AQD&state=autre"), "abc"), Some(Err("état de sécurité incorrect".into())));
+    assert_eq!(callback(&line("state=abc"), "abc"), Some(Err("Spotify n'a pas rendu de code".into())));
+    assert_eq!(callback(&line("code=a%26calc&state=abc"), "abc"), Some(Err("Spotify n'a pas rendu de code".into())), "un code qui n'est pas simple est refusé");
+    assert_eq!(callback(&line("error=access_denied&state=abc"), "abc"), Some(Err("Spotify a refusé l'accès (access_denied)".into())));
+    assert_eq!(callback("GET /favicon.ico HTTP/1.1", "abc"), None);
+    assert_eq!(callback("", "abc"), None);
+  }
+
+  #[test]
+  fn authorize_url_asks_only_to_read_the_library_and_encodes_everything() {
+    let url = authorize_url("id 1", "s&t");
+    assert!(url.starts_with("https://accounts.spotify.com/authorize?response_type=code&client_id=id%201&scope=user%2Dlibrary%2Dread"), "{url}");
+    assert!(url.contains("redirect_uri=http%3A%2F%2F127%2E0%2E0%2E1%3A8888%2Fcallback&state=s%26t"), "{url}");
+  }
+
+  #[test]
+  fn a_liked_track_is_read_like_a_search_result_and_random_stays_in_range() {
+    let liked: Value = serde_json::from_str(r#"{"total":3,"items":[{"track":{"id":"4cOdK2wGLETKBW3PvgPWqT","name":"Get Lucky","artists":[{"name":"Daft Punk"}]}}]}"#).unwrap();
+    assert_eq!(track_from(&liked["items"][0]["track"]).unwrap().label, "Get Lucky – Daft Punk");
+    assert!(track_from(&serde_json::json!({ "id": "x:y" })).is_none());
+    let seen: std::collections::BTreeSet<u64> = (0..400).map(|_| random_below(3)).collect();
+    assert_eq!(seen, [0, 1, 2].into(), "tous les rangs sortent, aucun hors limite");
+    assert_eq!(random_below(1), 0);
+    assert_eq!(random_hex().len(), 32);
+    assert_ne!(random_hex(), random_hex());
+  }
+
+  #[test]
+  fn the_refresh_token_is_kept_next_to_spotify_json() {
+    let dir = std::env::temp_dir().join(format!("lora-test-{}-token", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("spotify.json");
+    let token = token_file(&file);
+    assert_eq!(read_refresh_token(&file), None);
+    save_refresh_token(&file, "abc").unwrap();
+    assert_eq!(read_refresh_token(&file).as_deref(), Some("abc"));
+    let _ = fs::remove_file(&token);
+  }
+
+  // ── Vraies connexions locales (ni compte Spotify ni réseau) ─────────────────────────────────────────────────────────────────────────
+
+  fn http(addr: std::net::SocketAddr, request: &str) -> String {
+    let mut stream = TcpStream::connect(addr).unwrap();
+    stream.write_all(request.as_bytes()).unwrap();
+    let mut answer = String::new();
+    let _ = stream.read_to_string(&mut answer);
+    answer
+  }
+
+  fn local_listener() -> (TcpListener, std::net::SocketAddr) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let addr = listener.local_addr().unwrap();
+    (listener, addr)
+  }
+
+  #[test]
+  fn the_local_return_server_ignores_the_favicon_and_hands_over_the_code() {
+    let (listener, addr) = local_listener();
+    let browser = thread::spawn(move || {
+      let favicon = http(addr, "GET /favicon.ico HTTP/1.1\r\nHost: x\r\n\r\n");
+      let callback = http(addr, "GET /callback?code=AQD-1_x&state=etat HTTP/1.1\r\nHost: x\r\n\r\n");
+      (favicon, callback)
+    });
+    let code = wait_for_code(&listener, "etat", Instant::now() + Duration::from_secs(5));
+    let (favicon, callback) = browser.join().unwrap();
+    assert_eq!(code, Ok("AQD-1_x".into()));
+    assert!(favicon.starts_with("HTTP/1.1 404"), "{favicon}");
+    assert!(callback.starts_with("HTTP/1.1 200") && callback.contains("Løra est connectée") && callback.contains("text/plain"), "{callback}");
+  }
+
+  #[test]
+  fn the_local_return_server_refuses_a_wrong_state_and_gives_up_on_time() {
+    let (listener, addr) = local_listener();
+    let browser = thread::spawn(move || http(addr, "GET /callback?code=AQD&state=pirate HTTP/1.1\r\nHost: x\r\n\r\n"));
+    assert_eq!(wait_for_code(&listener, "etat", Instant::now() + Duration::from_secs(5)), Err("état de sécurité incorrect".into()));
+    assert!(browser.join().unwrap().starts_with("HTTP/1.1 400"));
+    let (idle, _) = local_listener();
+    assert!(wait_for_code(&idle, "etat", Instant::now()).unwrap_err().starts_with("délai dépassé"));
+  }
+
+  type Seen = std::sync::Arc<std::sync::Mutex<Vec<(String, String, String)>>>; // (« GET /chemin », en-têtes en minuscules, corps)
+
+  // Un faux Spotify : répond à chaque requête avec ce que rend `answer(« GET /chemin », corps)` et garde tout ce qu'il a reçu.
+  fn fake_spotify(answer: impl Fn(&str, &str) -> (u16, String) + Send + 'static) -> (String, Seen) {
+    let server = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", server.local_addr().unwrap());
+    let seen: Seen = Default::default();
+    let log = seen.clone();
+    thread::spawn(move || {
+      for mut stream in server.incoming().flatten() {
+        let (mut raw, mut buffer) = (Vec::new(), [0u8; 4096]);
+        let (head_end, length) = loop {
+          let n = stream.read(&mut buffer).unwrap_or(0);
+          if n == 0 { break (0, 0); }
+          raw.extend_from_slice(&buffer[..n]);
+          if let Some(i) = raw.windows(4).position(|w| w == b"\r\n\r\n") {
+            let head = String::from_utf8_lossy(&raw[..i]).to_lowercase();
+            break (i + 4, head.lines().find_map(|l| l.strip_prefix("content-length:")).and_then(|v| v.trim().parse::<usize>().ok()).unwrap_or(0));
+          }
+        };
+        if head_end == 0 { continue; }
+        while raw.len() < head_end + length {
+          let n = stream.read(&mut buffer).unwrap_or(0);
+          if n == 0 { break; }
+          raw.extend_from_slice(&buffer[..n]);
+        }
+        let head = String::from_utf8_lossy(&raw[..head_end]).into_owned();
+        let body = String::from_utf8_lossy(&raw[head_end..]).into_owned();
+        let target = head.lines().next().unwrap_or("").split_whitespace().take(2).collect::<Vec<_>>().join(" ");
+        log.lock().unwrap().push((target.clone(), head.to_lowercase(), body.clone()));
+        let (status, json) = answer(&target, &body);
+        let _ = write!(stream, "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json}", json.len());
+      }
+    });
+    (base, seen)
+  }
+
+  // Un dossier par test : le jeton s'enregistre sous un nom fixe à côté de spotify.json, deux tests ne doivent pas se le partager.
+  fn connected_file(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("lora-test-{}-{name}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("spotify.json");
+    fs::write(&file, r#"{ "client_id": "monid", "client_secret": "monsecret" }"#).unwrap();
+    save_refresh_token(&file, "ANCIEN").unwrap();
+    file
+  }
+
+  const TOKEN_ANSWER: &str = r#"{"access_token":"ACCES","refresh_token":"NOUVEAU"}"#;
+
+  #[test]
+  fn a_random_liked_track_is_drawn_from_the_whole_library_with_the_right_requests() {
+    let file = connected_file("liked");
+    let (base, seen) = fake_spotify(|target, _| {
+      if target.starts_with("POST /token") { return (200, TOKEN_ANSWER.into()); }
+      let offset: u64 = target.split("offset=").nth(1).and_then(|o| o.split(['&', ' ']).next()).and_then(|o| o.parse().ok()).unwrap();
+      (200, format!(r#"{{"total":7,"items":[{{"track":{{"id":"piste{offset}","name":"Titre {offset}","artists":[{{"name":"Artiste"}}]}}}}]}}"#))
+    });
+    let track = liked_random_at(&file, &format!("{base}/token"), &format!("{base}/v1/me/tracks")).unwrap();
+    let rank: u64 = track.id.strip_prefix("piste").unwrap().parse().unwrap();
+    assert!(rank < 7, "{rank}");
+    assert_eq!(track.label, format!("Titre {rank} – Artiste"));
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 3, "jeton, nombre total, un titre");
+    // 1. Le jeton est renouvelé avec l'identifiant et le secret (Basic) et le jeton de renouvellement enregistré.
+    assert_eq!(seen[0].0, "POST /token");
+    assert!(seen[0].1.contains(&format!("authorization: basic {}", STANDARD.encode("monid:monsecret")).to_lowercase()), "{}", seen[0].1);
+    assert!(seen[0].2.contains("grant_type=refresh_token") && seen[0].2.contains("refresh_token=ANCIEN"), "{}", seen[0].2);
+    // 2. Le nombre total, puis un seul titre à la position tirée, avec le jeton d'accès reçu.
+    assert_eq!(seen[1].0, "GET /v1/me/tracks?limit=1&offset=0");
+    assert_eq!(seen[2].0, format!("GET /v1/me/tracks?limit=1&offset={rank}"));
+    assert!(seen[1].1.contains("authorization: bearer acces") && seen[2].1.contains("authorization: bearer acces"));
+    assert_eq!(read_refresh_token(&file).as_deref(), Some("NOUVEAU"), "le nouveau jeton de renouvellement est gardé");
+    let _ = fs::remove_file(&file);
+    let _ = fs::remove_file(token_file(&file));
+  }
+
+  #[test]
+  fn refusals_ask_to_reconnect_and_an_empty_library_or_missing_token_is_said() {
+    let file = connected_file("errors");
+    let tracks = |base: &str| (format!("{base}/token"), format!("{base}/v1/me/tracks"));
+    let (base, _) = fake_spotify(|t, _| if t.starts_with("POST") { (400, r#"{"error":"invalid_grant"}"#.into()) } else { (200, "{}".into()) });
+    let (token_url, tracks_url) = tracks(&base);
+    assert!(liked_random_at(&file, &token_url, &tracks_url).unwrap_err().contains("connecte Spotify"), "jeton de renouvellement refusé");
+    let (base, _) = fake_spotify(|t, _| if t.starts_with("POST") { (200, TOKEN_ANSWER.into()) } else { (401, "{}".into()) });
+    let (token_url, tracks_url) = tracks(&base);
+    assert!(liked_random_at(&file, &token_url, &tracks_url).unwrap_err().contains("connecte Spotify"), "jeton d'accès refusé");
+    let (base, _) = fake_spotify(|t, _| if t.starts_with("POST") { (200, TOKEN_ANSWER.into()) } else { (200, r#"{"total":0,"items":[]}"#.into()) });
+    let (token_url, tracks_url) = tracks(&base);
+    assert_eq!(liked_random_at(&file, &token_url, &tracks_url).err().as_deref(), Some("tu n'as aucun titre liké"));
+    let _ = fs::remove_file(token_file(&file));
+    assert!(liked_random_at(&file, &token_url, &tracks_url).unwrap_err().contains("n'est pas connecté"), "jamais connecté");
+    let _ = fs::remove_file(&file);
+  }
 
   #[test]
   fn encode_keeps_only_letters_and_digits() {
