@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod apps;
+mod claude;
+mod control;
 mod listen;
 mod protocol;
 mod speech;
@@ -17,6 +19,8 @@ type Usage = BTreeMap<String, BTreeMap<String, u64>>;
 struct UsageState { data: Mutex<Usage>, file: PathBuf }
 // apps.json : les applications que « ouvre X » / « ferme X » ont le droit de toucher (voir apps.rs).
 struct AppsFile(PathBuf);
+// Ce qui se passe entre deux phrases dites à propos de Claude Code (lecture récente, message écrit, question « Je l'envoie ? ») : voir claude.rs.
+struct ClaudeState(Mutex<claude::State>);
 
 const AUTOSTART_ARG: &str = "--autostart";
 // Le front (src/lib/visibility.ts) met son rendu en pause quand la fenêtre est masquée dans la zone de notification :
@@ -72,11 +76,17 @@ fn tint_title_bar(window: &WebviewWindow) {
 }
 
 // Commande tapée dans la barre de commande du dashboard (Ctrl+K) : exécutée en local, la réponse est une phrase à afficher.
-// Volume, musique et batterie d'abord (system.rs), puis ouvrir/fermer une application (apps.rs).
+// Løra elle-même d'abord (« stop », « repose-toi », « fin de mission » : control.rs), puis Claude Code (lire sa dernière réponse, « écris … »,
+// « relis le message » puis oui ou non : claude.rs), puis volume, musique et batterie (system.rs), puis ouvrir/fermer une application (apps.rs).
 // None = ce n'est pas une commande locale : le front envoie alors la phrase au backend (api/ask), qui répond comme sur Telegram.
+// Une réponse vide veut dire « rien à dire » (le front ne la lit pas).
 #[tauri::command]
-fn run_command(text: String, apps: State<AppsFile>) -> Option<String> {
-  system::run(&text, &apps.0.with_file_name("spotify.json")).or_else(|| apps::parse(&text).map(|_| apps::run(&text, &apps.0)))
+fn run_command(text: String, app: AppHandle, apps: State<AppsFile>, claude: State<ClaudeState>) -> Option<String> {
+  let dir = apps.0.parent().map(PathBuf::from).unwrap_or_default();
+  control::parse(&text).and_then(|c| control::apply(c, &app, &dir))
+    .or_else(|| claude::run(&text, &dir, &claude.0))
+    .or_else(|| system::run(&text, &apps.0.with_file_name("spotify.json")))
+    .or_else(|| apps::parse(&text).map(|_| apps::run(&text, &apps.0)))
 }
 
 // say.txt (dossier de données) : un autre programme y ajoute une phrase par ligne (hook Stop de Claude Code : « Claude Code a terminé »),
@@ -129,6 +139,7 @@ fn main() {
       let data_dir = app.path().app_data_dir()?;
       fs::create_dir_all(&data_dir)?;
       let listen_item = CheckMenuItem::with_id(app, "listen", "Écoute du micro (« Løra, … »)", true, listen::enabled_in_config(&data_dir), None::<&str>)?;
+      app.manage(control::ListenItem(listen_item.clone())); // « repose-toi » décoche la case (control.rs)
       let menu = Menu::with_items(app, &[
         &MenuItem::with_id(app, "show", "Afficher Løra", true, None::<&str>)?,
         &listen_item,
@@ -157,6 +168,7 @@ fn main() {
       let apps_file = dir.join("apps.json");
       if !apps_file.exists() { let _ = fs::write(&apps_file, "{}\n"); }
       app.manage(AppsFile(apps_file));
+      app.manage(ClaudeState(Mutex::default()));
       // Pour « mets <titre> » : identifiants d'une application créée sur developer.spotify.com (voir spotify.rs). Créé vide, relu à chaque commande.
       let spotify_file = dir.join("spotify.json");
       if !spotify_file.exists() { let _ = fs::write(&spotify_file, "{ \"client_id\": \"\", \"client_secret\": \"\" }\n"); }
