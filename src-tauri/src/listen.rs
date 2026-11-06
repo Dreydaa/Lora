@@ -636,6 +636,37 @@ mod tests {
 
   // Tout le chemin sauf le micro, sur un enregistrement : `cargo test real_pipeline -- --ignored --nocapture`, avec LORA_TEST_SPEECH_WAV =
   // un WAV 16 bits mono (n'importe quelle fréquence). Whisper installé dans voice/whisper.
+  // Phrases des modes de travail à travers le vrai chemin (découpage, Whisper local, mot d'activation, reconnaissance) :
+  // LORA_TEST_MODE_WAVS="fichier.wav|creatif;autre.wav|dev;encore.wav|spotify" (« spotify » = la commande « connecte Spotify »).
+  #[test]
+  #[ignore = "demande Whisper installé et des fichiers audio"]
+  fn real_work_mode_phrases() {
+    let dir = PathBuf::from(std::env::var("APPDATA").unwrap()).join("com.soza.assistant").join("voice").join("whisper");
+    ensure_server(&dir).unwrap();
+    let wake_words = config(&dir).wake;
+    let mut wrong = vec![];
+    for item in std::env::var("LORA_TEST_MODE_WAVS").unwrap().split(';').filter(|s| !s.is_empty()) {
+      let (file, expected) = item.split_once('|').unwrap();
+      let bytes = fs::read(file).unwrap();
+      let rate = u32::from_le_bytes(bytes[24..28].try_into().unwrap());
+      let speech: Vec<f32> = bytes[44..].chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / i16::MAX as f32).collect();
+      let tape: Vec<f32> = [vec![0.0; rate as usize * 2], speech, vec![0.0; rate as usize * 2]].concat();
+      let mut seg = Segmenter::new(rate, 0.02);
+      let utterances: Vec<Vec<f32>> = tape.chunks(1000).flat_map(|c| seg.push(c)).collect();
+      let heard: Vec<String> = utterances.iter().map(|u| speech_only(&transcribe(&wav(&resample(u, rate))).unwrap())).collect();
+      let command = heard.first().and_then(|h| wake(h, &wake_words)).unwrap_or_default();
+      let got = if expected == "spotify" {
+        matches!(crate::system::parse(&command), Some(crate::system::Command::ConnectSpotify)).then(|| "spotify".to_string())
+      } else {
+        crate::modes::mode_name(&command)
+      };
+      println!("{} phrase(s) -> entendu {heard:?} -> demande « {command} » -> reconnu {got:?} (attendu {expected})", utterances.len());
+      if utterances.len() != 1 || got.as_deref() != Some(expected) { wrong.push(format!("{file} : {heard:?}")); }
+    }
+    stop();
+    assert!(wrong.is_empty(), "{wrong:?}");
+  }
+
   #[test]
   #[ignore = "demande Whisper installé et un fichier audio"]
   fn real_pipeline() {

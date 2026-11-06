@@ -3,6 +3,7 @@ mod apps;
 mod claude;
 mod control;
 mod listen;
+mod modes;
 mod protocol;
 mod speech;
 mod spotify;
@@ -76,7 +77,7 @@ fn tint_title_bar(window: &WebviewWindow) {
 }
 
 // Commande tapée dans la barre de commande du dashboard (Ctrl+K) : exécutée en local, la réponse est une phrase à afficher.
-// Løra elle-même d'abord (« stop », « repose-toi », « fin de mission » : control.rs), puis Claude Code (lire sa dernière réponse, « écris … »,
+// Løra elle-même d'abord (« stop », « repose-toi », « fin de mission » : control.rs), puis les modes (« mode créatif », « mode dev » : modes.rs), puis Claude Code (lire sa dernière réponse, « écris … »,
 // « relis le message » puis oui ou non : claude.rs), puis volume, musique et batterie (system.rs), puis ouvrir/fermer une application (apps.rs).
 // None = ce n'est pas une commande locale : le front envoie alors la phrase au backend (api/ask), qui répond comme sur Telegram.
 // Une réponse vide veut dire « rien à dire » (le front ne la lit pas).
@@ -84,6 +85,7 @@ fn tint_title_bar(window: &WebviewWindow) {
 fn run_command(text: String, app: AppHandle, apps: State<AppsFile>, claude: State<ClaudeState>) -> Option<String> {
   let dir = apps.0.parent().map(PathBuf::from).unwrap_or_default();
   control::parse(&text).and_then(|c| control::apply(c, &app, &dir))
+    .or_else(|| modes::run(&text, &dir, &apps.0))
     .or_else(|| claude::run(&text, &dir, &claude.0))
     .or_else(|| system::run(&text, &apps.0.with_file_name("spotify.json")))
     .or_else(|| apps::parse(&text).map(|_| apps::run(&text, &apps.0)))
@@ -172,6 +174,8 @@ fn main() {
       // Pour « mets <titre> » : identifiants d'une application créée sur developer.spotify.com (voir spotify.rs). Créé vide, relu à chaque commande.
       let spotify_file = dir.join("spotify.json");
       if !spotify_file.exists() { let _ = fs::write(&spotify_file, "{ \"client_id\": \"\", \"client_secret\": \"\" }\n"); }
+      // Modes de travail (« mode créatif », « mode dev » : voir modes.rs), créés avec les deux modes de départ, relus à chaque phrase.
+      modes::ensure_default(&dir);
 
       // Voix de Løra, relue à chaque phrase (voir speech.rs) : "volume" de 0 à 1 à régler à l'oreille, "english" les mots dits avec
       // l'accent anglais (noms d'applications : ["blender", "discord"]). Piper et son modèle vont dans voice/.
