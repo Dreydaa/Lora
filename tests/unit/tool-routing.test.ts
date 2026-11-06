@@ -57,6 +57,10 @@ describe("lectures vocales", () => {
     expect(names("qu'est-ce que j'ai fait hier ?")).toContain("get_last_progress");
   });
 
+  it("un simple merci reçoit les lectures, pas les outils d'écriture", () => {
+    expect(names("Merci !")).toEqual(["list_ideas", "list_milestones", "get_agenda"]);
+  });
+
   it("n'envoie pas la météo pour un changement d'heure de briefing", () => {
     expect(names("décale le briefing à 8h")).not.toContain("get_weather");
   });

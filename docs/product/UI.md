@@ -38,7 +38,7 @@ Un nom inconnu ou une phrase non reconnue est refusé, rien n'est exécuté. Le 
 
 **Écoute du micro (05/11/2026).** Une phrase qui commence par « Løra » est traitée comme une phrase tapée dans `Ctrl+K` (un bip signale qu'elle écoute, la phrase captée s'affiche dans la barre, puis la réponse). La zone de texte reste en secours. Pendant ce temps le ruban du dashboard **se réduit de moitié quand elle écoute** et **se déforme en étoile à six branches quand elle parle** (pas encore réactif au volume réel). Réglages dans `listen.json`.
 
-**Widget de bureau (06/11/2026, code non commité).** Une seconde fenêtre transparente, 320 px, en bas à droite de l'écran principal, avec le seul ruban : elle n'apparaît que pendant qu'elle écoute ou parle, ne prend pas le focus et laisse passer les clics. Détail : `docs/ai/STATUS-V2.md`, étape 10.
+**Widget de bureau (06/11/2026).** Une seconde fenêtre transparente, 320 px, en bas à droite de l'écran principal, avec le seul ruban : elle n'apparaît que pendant qu'elle écoute ou parle, ne prend pas le focus et laisse passer les clics. Détail : `docs/ai/STATUS-V2.md`, étape 10.
 
 ## Zone de notification
 Fermer la fenêtre la masque. Clic gauche sur l'icône : afficher. Clic droit : Afficher Løra / Écoute du micro (case à cocher) / Quitter. Au démarrage de Windows (app installée), Løra se lance fenêtre masquée.
