@@ -11,6 +11,7 @@ use std::{
   thread,
   time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use crate::levels::{self, Levels};
 use windows::{
   core::HSTRING,
   Foundation::{TypedEventHandler, Uri},
@@ -159,7 +160,8 @@ fn synthesize(exe: &Path, model: &Path, dir: &Path, text: &str) -> std::io::Resu
   Err(std::io::Error::other("Piper ne répond pas"))
 }
 
-fn play(source: &MediaSource, volume: f64) -> windows::core::Result<()> {
+// `levels` : le son analysé de cette phrase (levels.rs), envoyé à la page à l'instant où la lecture démarre.
+fn play(source: &MediaSource, volume: f64, levels: Option<&Levels>) -> windows::core::Result<()> {
   let player = MediaPlayer::new()?;
   player.SetVolume(volume)?;
   let (done, ended) = mpsc::channel();
@@ -167,7 +169,10 @@ fn play(source: &MediaSource, volume: f64) -> windows::core::Result<()> {
   player.MediaEnded(&TypedEventHandler::new(move |_, _| { let _ = done.send(()); Ok(()) }))?;
   player.MediaFailed(&TypedEventHandler::new(move |_, _| { let _ = failed.send(()); Ok(()) }))?;
   player.SetSource(source)?;
+  // Le nuage s'anime quand le son démarre, pas quand la phrase est demandée (la synthèse de Piper prend jusqu'à 2,5 s à froid).
+  crate::listen::emit_state("speaking");
   player.Play()?;
+  crate::listen::emit_speech(levels);
   let _ = ended.recv_timeout(Duration::from_secs(MAX_SPEECH_SECS));
   Ok(())
 }
@@ -180,9 +185,10 @@ fn piper(text: &str, dir: &Path) -> Result<(), String> {
   let said = mark_english(text, &english_names(dir));
   log(dir, "dit", &said.replace(ENGLISH_START, "⟨").replace(ENGLISH_END, "⟩"));
   let wav = synthesize(&exe, &model, dir, &said).map_err(|e| e.to_string())?;
+  let levels = levels::analyze_file(&wav);
   let played = Uri::CreateUri(&HSTRING::from(file_uri(&wav)))
     .and_then(|uri| MediaSource::CreateFromUri(&uri))
-    .and_then(|source| play(&source, volume(dir)));
+    .and_then(|source| play(&source, volume(dir), levels.as_ref()));
   if let Some(kept) = keep(&wav, &voice.join("history")) { log(dir, "Wrote", &kept.display().to_string()); }
   played.map_err(|e| e.to_string())
 }
@@ -208,7 +214,7 @@ pub fn busy() -> bool {
 
 // `dir` : le dossier de données de l'app (celui de apps.json).
 pub fn speak(text: &str, dir: &Path) -> windows::core::Result<()> {
-  if SPEAKING.fetch_add(1, Ordering::Relaxed) == 0 { crate::listen::emit_state("speaking"); } // le ruban s'agite
+  SPEAKING.fetch_add(1, Ordering::Relaxed); // « speaking » pour le ruban est annoncé par play(), au début du son
   let result = speak_now(text, dir);
   QUIET_AT_MS.store(now_ms() + ECHO_TAIL_MS, Ordering::Relaxed);
   if SPEAKING.fetch_sub(1, Ordering::Relaxed) == 1 { crate::listen::emit_state("idle"); }
@@ -223,7 +229,7 @@ fn speak_now(text: &str, dir: &Path) -> windows::core::Result<()> {
   }
   // join() et non get() : get() refuse de bloquer sur un thread à appartement monothread (crate windows 0.62).
   let stream = SpeechSynthesizer::new()?.SynthesizeTextToStreamAsync(&HSTRING::from(text))?.join()?;
-  play(&MediaSource::CreateFromStream(&stream, &stream.ContentType()?)?, 1.0)
+  play(&MediaSource::CreateFromStream(&stream, &stream.ContentType()?)?, 1.0, None)
 }
 
 #[cfg(test)]
