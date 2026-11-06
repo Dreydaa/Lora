@@ -386,7 +386,7 @@ La V1 a été déclarée terminée par l'utilisateur le 09/10/2026, après trois
 - Une valeur « par défaut » écrite dans un prompt tend à se retrouver partout dans les réponses.
 - Déclarer « terminé » n'efface pas la liste de ce qu'on n'a pas vérifié : la clôture l'inscrit au lieu de l'omettre.
 
-**La suite** : la V2, décrite dans [`LoraV2.md`](../ai/LoraV2.md) (avancement dans [`STATUS-V2.md`](../ai/STATUS-V2.md)). Ses étapes 0 à 7 sont faites et la 8 (protocoles) est livrée côté code avec un premier protocole, essai réel à faire ; la 9 (voix) est commencée, avec la voix de Windows en attendant la voix finale ; les étapes 10 à 12 (agent résident et widget, « qu'est-ce que je regarde ? », gestes de la main) ne sont pas commencées.
+**La suite** : la V2, décrite dans [`LoraV2.md`](../ai/LoraV2.md) (avancement dans [`STATUS-V2.md`](../ai/STATUS-V2.md)). Ses étapes 0 à 7 sont faites ; la 8 (protocoles) est livrée avec un premier protocole, 7E3A, essayé en réel le 05/11/2026 (2B et 6H9K reportés) ; la 9 (voix) est bien avancée : voix Piper entraînée sur des enregistrements consentis, mot d'activation « Løra » et reconnaissance par Whisper local (essayés avec la vraie voix), commandes « stop », « repose-toi » et « fin de mission », ruban qui réagit à l'écoute et à la parole ; la 10 (agent résident et widget de bureau) est commencée, le widget est écrit et testé dans un navigateur, pas encore essayé dans l'app ; la 13 (élargir les commandes vocales) a un premier lot (réponses dites, Claude Code, modes de travail) ; les étapes 11 et 12 (« qu'est-ce que je regarde ? », gestes de la main) ne sont pas commencées. Le détail et ce qui n'est pas vérifié sont dans `STATUS-V2.md`.
 
 ---
 
