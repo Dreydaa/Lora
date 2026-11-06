@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod apps;
+mod levels;
 mod listen;
 mod protocol;
 mod speech;
@@ -9,7 +10,7 @@ use std::{collections::BTreeMap, fs, path::PathBuf, sync::Mutex, thread, time::D
 use tauri::{
   menu::{CheckMenuItem, Menu, MenuItem},
   tray::{MouseButton, MouseButtonState, TrayIconEvent},
-  AppHandle, Emitter, Manager, State, WebviewWindow, WindowEvent,
+  AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 
 // Temps d'écran : jour local -> exécutable (minuscules, sans .exe) -> secondes. Sauvé dans usage.json (dossier de données de l'app).
@@ -92,12 +93,55 @@ fn take_say(file: &std::path::Path) -> Option<String> {
   if lines.is_empty() { None } else { Some(lines.join(" ")) }
 }
 
+// Mêmes surnoms que lib/ai/prompts/friday.ts (les seuls autorisés). Une phrase de say.txt sur deux en reçoit un, à la fin : « …sur Løra, chef. »
+// `roll` vient de l'horloge (pas de crate aléatoire pour ça) ; hors des surnoms, la phrase reste telle quelle.
+const NICKNAMES: [&str; 3] = ["Boss", "patron", "chef"];
+fn with_nickname(text: &str, roll: usize) -> String {
+  match (NICKNAMES.get(roll % (NICKNAMES.len() * 2)), text.strip_suffix('.')) {
+    (Some(nick), Some(stem)) => format!("{stem}, {nick}."),
+    _ => text.to_string(),
+  }
+}
+
 // Dit la phrase à voix haute avec la voix de Løra (Piper, sinon celle de Windows : voir speech.rs). Rend la main tout de suite :
 // la lecture tourne sur son propre thread.
 #[tauri::command]
 fn speak(text: String, apps: State<AppsFile>) {
   let dir = apps.0.parent().map(PathBuf::from).unwrap_or_default();
   thread::spawn(move || { if let Err(e) = speech::speak(&text, &dir) { eprintln!("[voix] lecture impossible : {e}"); } });
+}
+
+// Widget de bureau (src/features/widget) : le ruban seul, sur fond transparent, dans le coin bas droit de l'écran. Il n'apparaît que
+// pendant que Løra écoute ou parle (la page le demande par `set_widget`), ne prend jamais le focus et laisse passer les clics.
+const WIDGET_LABEL: &str = "widget";
+const WIDGET_SIZE: f64 = 320.0; // pixels logiques
+const WIDGET_MARGIN: f64 = 16.0;
+
+fn create_widget(app: &tauri::App) -> tauri::Result<()> {
+  let window = WebviewWindowBuilder::new(app, WIDGET_LABEL, WebviewUrl::App("index.html".into()))
+    .title("Løra (widget)")
+    .inner_size(WIDGET_SIZE, WIDGET_SIZE)
+    .decorations(false).transparent(true).shadow(false).resizable(false)
+    .always_on_top(true).skip_taskbar(true)
+    .focusable(false).focused(false).visible(false)
+    .build()?;
+  window.set_ignore_cursor_events(true)?;
+  // Zone de travail (sans la barre des tâches), écran principal.
+  if let Some(monitor) = window.primary_monitor()? {
+    let area = monitor.work_area();
+    let size = window.outer_size()?;
+    let margin = (WIDGET_MARGIN * monitor.scale_factor()) as i32;
+    window.set_position(PhysicalPosition::new(
+      area.position.x + area.size.width as i32 - size.width as i32 - margin,
+      area.position.y + area.size.height as i32 - size.height as i32 - margin,
+    ))?;
+  }
+  Ok(())
+}
+
+#[tauri::command]
+fn set_widget(app: AppHandle, visible: bool) {
+  if let Some(window) = app.get_webview_window(WIDGET_LABEL) { let _ = if visible { window.show() } else { window.hide() }; }
 }
 
 fn show_main(app: &AppHandle) {
@@ -109,7 +153,7 @@ fn main() {
     .plugin(tauri_plugin_opener::init())
     // Lancée par Windows à l'ouverture de session avec --autostart : la fenêtre reste masquée (icône de la zone de notification).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
-    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command, speak])
+    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command, speak, set_widget])
     .setup(|app| {
       // Inscription au démarrage de Windows, seulement pour l'app installée : en dev, elle pointerait vers l'exécutable de debug.
       // Inscrite une seule fois par lancement sans toucher au choix de l'utilisateur (Gestionnaire des tâches > Démarrage).
@@ -126,6 +170,7 @@ fn main() {
       // Zone de notification : clic gauche = afficher la fenêtre, clic droit = menu (Afficher / Quitter).
       // Fermer la fenêtre ne fait que la masquer ; « Quitter » est le seul moyen d'arrêter vraiment Løra (et le suivi).
       // « Écoute du micro » : coupe le micro lui-même (voir listen.rs) ; l'état de départ vient de listen.json.
+      create_widget(app)?;
       let data_dir = app.path().app_data_dir()?;
       fs::create_dir_all(&data_dir)?;
       let listen_item = CheckMenuItem::with_id(app, "listen", "Écoute du micro (« Løra, … »)", true, listen::enabled_in_config(&data_dir), None::<&str>)?;
@@ -172,6 +217,9 @@ fn main() {
       let say_dir = dir.clone();
       thread::spawn(move || loop {
         if let Some(text) = take_say(&say_file) {
+          // Microsecondes et non nanosecondes : l'horloge de Windows tourne à 100 ns, donc les nanosecondes sont un multiple de 100 (modulo 6 : que des pairs, « patron » ne sortirait jamais).
+          let roll = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_micros() as usize);
+          let text = with_nickname(&text, roll);
           if let Err(e) = speech::speak(&text, &say_dir) { eprintln!("[voix] lecture impossible : {e}"); }
         }
         thread::sleep(Duration::from_secs(SAY_POLL_SECS));
@@ -240,6 +288,14 @@ mod tests {
     assert_eq!(take_say(&file).as_deref(), Some("Claude Code a terminé sur Løra. Claude Code a besoin de toi."));
     assert!(!file.exists());
     assert_eq!(take_say(&file), None); // rien n'est redit
+  }
+
+  #[test]
+  fn nickname_goes_before_the_final_period_on_half_of_the_rolls() {
+    assert_eq!(with_nickname("Claude Code a terminé sur Løra.", 0), "Claude Code a terminé sur Løra, Boss.");
+    assert_eq!(with_nickname("Claude Code a terminé sur Løra.", 2), "Claude Code a terminé sur Løra, chef.");
+    assert_eq!(with_nickname("Claude Code a terminé sur Løra.", 4), "Claude Code a terminé sur Løra."); // une fois sur deux, rien
+    assert_eq!(with_nickname("Claude Code a terminé", 0), "Claude Code a terminé"); // pas de point final : on n'y touche pas
   }
 
   #[test]

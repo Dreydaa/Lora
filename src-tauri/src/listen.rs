@@ -272,6 +272,14 @@ pub fn emit_state(state: &'static str) {
   if let Some(app) = APP.get() { let _ = app.emit(STATE_EVENT, state); }
 }
 
+// Niveaux sonores de la phrase qui commence à être jouée (voir levels.rs), pour que le nuage de particules suive la voix ; `None` quand il
+// n'y en a pas (voix de Windows) : la page revient à son son simulé.
+pub const SPEECH_EVENT: &str = "lora://speech";
+pub fn emit_speech(levels: Option<&crate::levels::Levels>) {
+  let payload = levels.map_or(serde_json::Value::Null, |l| serde_json::json!({ "fps": l.fps, "bands": l.bands, "data": l.data }));
+  if let Some(app) = APP.get() { let _ = app.emit(SPEECH_EVENT, payload); }
+}
+
 pub fn set_enabled(on: bool) { ENABLED.store(on, Ordering::Relaxed); }
 pub fn enabled_in_config(dir: &Path) -> bool { config(dir).enabled }
 

@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { buildPath, FRAME_H, FRAME_W, PATH_SAMPLES } from "./path";
 import { createFrameLoop } from "../particles/frameLoop";
-import { MAX_PIXEL_RATIO, PARTICLE_COUNT, REST_FPS, RIBBON_SIZE, RIBBON_SPIN, RIBBON_TILT, buildRibbonPoints, ribbonPosition } from "../particles/ribbon";
+import { MAX_PIXEL_RATIO, PARTICLE_COUNT, REST_FPS, RIBBON_SIZE, buildRibbonPoints, ribbonPosition } from "../particles/ribbon";
+import { createVoiceShape, type VoiceState } from "../particles/voiceShape";
 import { DEFAULT_BACKGROUND, createBackground } from "../particles/background";
 import { createGlow } from "../particles/glow";
 import { createParticleLook } from "../particles/look";
@@ -34,14 +35,7 @@ const MORPH_STAGGER_SECONDS = 1;
 const MORPH_SECONDS = 1.8;
 const SWIRL = 260;
 
-// idle : au repos ; listening : Løra écoute (ruban réduit) ; speaking : Løra parle (particules agitées). Envoyé par src-tauri/src/listen.rs.
-export type VoiceState = "idle" | "listening" | "speaking";
-const LISTEN_SHRINK = 0.5; // à l'écoute, le ruban passe à la moitié de sa taille
-const STAR_BRANCHES = 6; // pointes de l'étoile : une tous les 60°
-const STAR_STRETCH = 0.5; // une pointe est 1,5 fois plus loin du centre que le ruban au repos (au-delà, elle sort de la fenêtre)
-const STAR_UNTILT = 0.8; // part de l'inclinaison du ruban (58°) rendue pendant qu'elle parle : 0 = inchangé, 1 = face à l'écran
-const STAR_SHARPNESS = 3; // plus c'est grand, plus les pointes sont fines (1 = lobes arrondis)
-const VOICE_EASE = 6; // par seconde : un changement d'état se fait en un tiers de seconde environ
+export type { VoiceState };
 
 const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
@@ -91,9 +85,7 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: 
   const scatter = new Float32Array(COUNT * 3);
   const swirl = new Float32Array(COUNT * 3);
   const { points: ribbon, wobblePhase } = buildRibbonPoints(COUNT);
-  const ribbonAngle = new Float32Array(COUNT); // angle de chaque particule dans le plan du ruban, pour placer les pointes de l'étoile
   for (let i = 0; i < COUNT; i++) {
-    ribbonAngle[i] = Math.atan2(ribbon[i * 3 + 1], ribbon[i * 3]);
     delay[i] = Math.random() * spawnWindow;
     speed[i] = (PATH_SPEED * (1 + (Math.random() * 2 - 1) * SPEED_VARIATION)) / length;
     morphAt[i] = morphStart + Math.random() * MORPH_STAGGER_SECONDS;
@@ -115,12 +107,7 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: 
   const ribbonPos = new THREE.Vector3();
   const startedAt = performance.now() - (skip ? duration * 1000 : 0);
   let ribbonScale = 1;
-  // Retour visuel de la voix (événement « lora://state » de Rust) : le ruban se réduit quand Løra écoute, il se déforme
-  // en étoile à six branches quand elle parle. Les deux valeurs rejoignent leur cible en douceur, sinon le passage d'un état à l'autre claque.
-  let voiceState: VoiceState = "idle";
-  let shrink = 0;
-  let agitation = 0;
-  let lastRender = performance.now();
+  const voice = createVoiceShape(ribbon, COUNT); // retour visuel de la voix : voir voiceShape.ts
 
   // Le tracé occupe toute la largeur du cadre 16:9 ; sur les fenêtres plus larges on élargit
   // le champ pour garder la hauteur, sur les fenêtres plus hautes on garde la largeur.
@@ -145,22 +132,7 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: 
     const t = (performance.now() - startedAt) / 1000;
     // L'ombre apparaît avec le ruban, pas avant.
     bg.setShadowAmount(easeInOutCubic(Math.min(Math.max((t - morphStart - MORPH_STAGGER_SECONDS * 0.5) / (MORPH_SECONDS + 0.6), 0), 1)));
-    const spin = t * RIBBON_SPIN;
-    const spinCos = Math.cos(spin);
-    const spinSin = Math.sin(spin);
-
-    const now = performance.now();
-    const ease = 1 - Math.exp(-VOICE_EASE * Math.min((now - lastRender) / 1000, 0.1));
-    lastRender = now;
-    shrink += ((voiceState === "listening" ? 1 : 0) - shrink) * ease;
-    agitation += ((voiceState === "speaking" ? 1 : 0) - agitation) * ease;
-    const voiceScale = ribbonScale * (1 - LISTEN_SHRINK * shrink); // le ruban se réduit vers son centre
-    // La longueur des pointes respire un peu pendant qu'elle parle (elle ne se fige pas), et grandit en douceur depuis le ruban.
-    const starStretch = STAR_STRETCH * agitation * (0.88 + 0.12 * Math.sin(t * 5));
-    // Incliné à 58° l'étoile se verrait écrasée et de travers : le ruban se redresse vers l'écran pendant qu'elle parle.
-    const tilt = RIBBON_TILT * (1 - STAR_UNTILT * agitation);
-    const tiltCos = Math.cos(tilt);
-    const tiltSin = Math.sin(tilt);
+    const { tiltCos, tiltSin, spinCos, spinSin, size: pulse } = voice.step(t, ribbonScale);
 
     for (let i = 0; i < COUNT; i++) {
       const s = (t - delay[i]) * speed[i];
@@ -186,11 +158,9 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: 
       const fade = Math.min(1, Math.min(frac, 1 - frac) / END_FADE);
 
       // Position sur le ruban : rotation autour de son axe propre, puis inclinaison.
-      // Quand elle parle, c'est le ruban lui-même qui se déforme : dans son plan, chaque particule est repoussée du centre d'autant plus
-      // qu'elle est proche de l'un des six angles de l'étoile. Rien n'est ajouté par-dessus : mêmes particules, même torsion de Möbius,
-      // six pointes qui sortent de la boucle. Les six pointes sont symétriques, donc l'ensemble reste centré.
-      const stretch = 1 + starStretch * Math.pow(Math.max(0, Math.cos(STAR_BRANCHES * ribbonAngle[i])), STAR_SHARPNESS);
-      ribbonPosition(ribbon[i * 3] * stretch, ribbon[i * 3 + 1] * stretch, ribbon[i * 3 + 2], spinCos, spinSin, ph, voiceScale, ribbonPos, tiltCos, tiltSin);
+      // Quand elle parle ou écoute, ce sont les mêmes particules qui se déforment ou forment un huit (voir voiceShape.ts) : rien n'est ajouté par-dessus.
+      ribbonPosition(ribbon[i * 3], ribbon[i * 3 + 1], ribbon[i * 3 + 2], spinCos, spinSin, ph, ribbonScale, ribbonPos, tiltCos, tiltSin);
+      voice.place(i, ribbonPos);
 
       const w = easeInOutCubic(Math.min(Math.max((t - morphAt[i]) / MORPH_SECONDS, 0), 1));
       const burst = Math.sin(Math.PI * w);
@@ -199,7 +169,7 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: 
         pathY + (ribbonPos.y - pathY) * w + swirl[i * 3 + 1] * burst,
         pathZ + (ribbonPos.z - pathZ) * w + swirl[i * 3 + 2] * burst,
       );
-      dummy.scale.setScalar(size[i] * (fade + (RIBBON_SIZE * ribbonScale - fade) * w));
+      dummy.scale.setScalar(size[i] * (fade + (RIBBON_SIZE * ribbonScale - fade) * w) * pulse);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
     }
@@ -212,9 +182,7 @@ export function createIntro(canvas: HTMLCanvasElement, { particleColor, skip }: 
 
   return {
     duration,
-    setVoiceState: (state: VoiceState) => {
-      voiceState = state;
-    },
+    setVoiceState: (state: VoiceState) => voice.setState(state),
     setParticleColor: (color: string) => {
       colorParticles(mesh, [color]);
     },
