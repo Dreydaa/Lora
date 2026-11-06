@@ -24,6 +24,8 @@ const GROUPS: ToolGroup[] = [
   { tools: ["update_briefing_schedule", "get_briefing"], pattern: /briefing|bilan|decale|heure d.envoi|matin|soir|reveil/ },
   // Lectures (voix et Telegram) : un avis sur un projet a besoin des idées, des jalons et de l'agenda ensemble.
   { tools: ["list_ideas", "list_milestones", "get_agenda"], pattern: /\bidees?\b|projets?|en cours|avis|pense|conseil|tache|prevu|programme|a faire|planning|agenda|rdv|rendez|calendrier/ },
+  // Un merci peut appeler une suggestion (« merci » après un briefing) : les lectures suffisent, pas tous les outils.
+  { tools: ["list_ideas", "list_milestones", "get_agenda"], pattern: /\bmerci|\bthanks?\b/ },
   { tools: ["get_weather"], pattern: /meteo|temps (fait|il)|pluie|pleu|temperature|degres|soleil|parapluie|chaud|froid/ },
   { tools: ["get_last_progress"], pattern: /bilan|hier|derniere? (fois|seance|session)|avance/ },
   { tools: ["set_break", "cancel_break"], pattern: /pause|vacance|week-?end|repos|conge|ne (vais|travaille|bosse)|pas (bosser|travailler)|jusqu.a|reprend|annule/ },
