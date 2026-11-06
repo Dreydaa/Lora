@@ -10,7 +10,7 @@ use windows::{
 
 // Commandes simples sur la machine, reconnues en local sans réseau : volume système, lecteur de musique, batterie de la souris.
 #[derive(Debug, PartialEq)]
-pub enum Command { SetVolume(u8), StepVolume(i8), Mute(bool), GetVolume, Play, PlayQuery(String), Pause, Next, Previous, MouseBattery }
+pub enum Command { SetVolume(u8), StepVolume(i8), Mute(bool), GetVolume, Play, PlayQuery(String), Pause, Next, Previous, MouseBattery, ConnectSpotify }
 
 const VOLUME_STEP: i8 = 10;
 // « mets de la musique de Daft Punk » : ces mots annoncent que le titre ou l'artiste suit ; « mets Get Lucky » n'en a pas.
@@ -27,6 +27,8 @@ pub fn parse(text: &str) -> Option<Command> {
   let words: Vec<&str> = folded.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
   let has = |list: &[&str]| words.iter().any(|w| list.contains(w));
   if has(&["batterie"]) && has(&["souris"]) { return Some(Command::MouseBattery); }
+  // « connecte Spotify » : donner à Løra l'accès à tes titres likés (spotify.rs), nécessaire au mode créatif (modes.rs).
+  if has(&["connecte", "connecter", "reconnecte", "reconnecter", "connexion"]) && has(&["spotify"]) { return Some(Command::ConnectSpotify); }
   if has(&["unmute"]) || (has(&["remets", "remet", "reactive", "retablis", "active"]) && has(&["son"])) { return Some(Command::Mute(false)); }
   if has(&["mute", "muet"]) || (has(&["coupe", "couper"]) && has(&["son"])) { return Some(Command::Mute(true)); }
   if has(&["volume", "son"]) {
@@ -197,12 +199,23 @@ fn play_query(query: &str, file: &Path) -> Result<String, String> {
   }
 }
 
+// L'accord se donne dans le navigateur (jusqu'à 2 minutes) : on répond tout de suite et le résultat est dit quand il arrive.
+fn connect_spotify(spotify_file: &Path) -> String {
+  let file = spotify_file.to_path_buf();
+  thread::spawn(move || {
+    let said = spotify::connect(&file).unwrap_or_else(|e| format!("Je n'ai pas pu me connecter à Spotify : {e}"));
+    let _ = crate::speech::speak(&said, file.parent().unwrap_or(Path::new(".")));
+  });
+  "Je t'ouvre la page de connexion Spotify. Accepte, et je te préviens.".into()
+}
+
 pub fn run(text: &str, spotify_file: &Path) -> Option<String> {
   let command = parse(text)?;
   let result = match &command {
     Command::PlayQuery(query) => play_query(query, spotify_file),
     Command::Play | Command::Pause | Command::Next | Command::Previous => music(&command).map_err(|e| e.to_string()),
     Command::MouseBattery => mouse_battery(),
+    Command::ConnectSpotify => Ok(connect_spotify(spotify_file)),
     _ => volume(&command).map_err(|e| e.to_string()),
   };
   Some(result.unwrap_or_else(|e| format!("Impossible : {e}.")))
@@ -211,6 +224,13 @@ pub fn run(text: &str, spotify_file: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn connecting_spotify_is_asked_by_name_and_does_not_steal_other_commands() {
+    for text in ["connecte Spotify", "Reconnecte-toi à Spotify", "connexion spotify"] { assert_eq!(parse(text), Some(Command::ConnectSpotify), "{text}"); }
+    assert_eq!(parse("ouvre spotify"), None);
+    assert_eq!(parse("mets de la musique"), Some(Command::Play));
+  }
 
   #[test]
   fn parse_volume() {
