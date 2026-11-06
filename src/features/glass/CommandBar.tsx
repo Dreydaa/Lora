@@ -59,7 +59,7 @@ export function CommandBar() {
       .then((local) => local ?? askBackend(text, voice))
       .then(
         (said) => {
-          void invoke("speak", { text: said }); // chaque réponse est dite
+          if (said) void invoke("speak", { text: said }); // chaque réponse est dite ; vide (« stop », « fin de mission ») : rien à dire
           return said;
         },
         (error) => {
