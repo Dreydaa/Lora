@@ -169,9 +169,9 @@ pub fn stop_speaking() {
   STOP_GEN.fetch_add(1, Ordering::Relaxed);
 }
 
-// `generation` : la valeur de STOP_GEN quand la phrase a été demandée.
 // `levels` : le son analysé de cette phrase (levels.rs), envoyé à la page à l'instant où la lecture démarre.
-fn play(source: &MediaSource, volume: f64, generation: u64, levels: Option<&Levels>) -> windows::core::Result<()> {
+// `generation` : la valeur de STOP_GEN quand la phrase a été demandée.
+fn play(source: &MediaSource, volume: f64, levels: Option<&Levels>, generation: u64) -> windows::core::Result<()> {
   if STOP_GEN.load(Ordering::Relaxed) != generation { return Ok(()); }
   let player = MediaPlayer::new()?;
   player.SetVolume(volume)?;
@@ -206,7 +206,7 @@ fn piper(text: &str, dir: &Path, generation: u64) -> Result<(), String> {
   let levels = levels::analyze_file(&wav);
   let played = Uri::CreateUri(&HSTRING::from(file_uri(&wav)))
     .and_then(|uri| MediaSource::CreateFromUri(&uri))
-    .and_then(|source| play(&source, volume(dir), generation, levels.as_ref()));
+    .and_then(|source| play(&source, volume(dir), levels.as_ref(), generation));
   if let Some(kept) = keep(&wav, &voice.join("history")) { log(dir, "Wrote", &kept.display().to_string()); }
   played.map_err(|e| e.to_string())
 }
@@ -254,7 +254,7 @@ fn speak_now(text: &str, dir: &Path, generation: u64) -> windows::core::Result<(
   }
   // join() et non get() : get() refuse de bloquer sur un thread à appartement monothread (crate windows 0.62).
   let stream = SpeechSynthesizer::new()?.SynthesizeTextToStreamAsync(&HSTRING::from(text))?.join()?;
-  play(&MediaSource::CreateFromStream(&stream, &stream.ContentType()?)?, 1.0, generation, None)
+  play(&MediaSource::CreateFromStream(&stream, &stream.ContentType()?)?, 1.0, None, generation)
 }
 
 #[cfg(test)]
