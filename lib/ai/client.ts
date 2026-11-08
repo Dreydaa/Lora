@@ -69,33 +69,6 @@ export function cleanAnswer(text: string) {
   return text.replace(/【[^】]*】/g, "");
 }
 
-// Seul modèle Groq à accepter des images (vérifié dans la doc le 08/11/2026 : Llama 4 Scout et Maverick sont retirés).
-// Chaque image compte 2 048 jetons : une demande « qu'est-ce que je regarde ? » coûte environ 2,5 k jetons du quota journalier gratuit.
-const VISION_MODEL = "qwen/qwen3.8-27b";
-
-const SCREEN_INSTRUCTION = `
-Une capture de l'écran de l'utilisateur est jointe à sa question. Réponds à sa question en regardant la capture : ce qu'il regarde, ce qu'il fait, ce qui est affiché. Réponse dite à voix haute : tutoiement, deux à quatre phrases au ton parlé, sans liste, sans markdown, sans symbole ni adresse web. Tu ne nommes un langage, un projet, un fichier, un thème, un réglage, un titre ou un nombre que si tu le lis distinctement sur l'image : ne devine jamais un texte à partir de sa forme. Si le texte est trop petit, flou ou coupé pour être lu, dis-le franchement (« je n'arrive pas à lire le détail ») et décris seulement ce qui se voit sans lire : la disposition, le type de fenêtres, les couleurs. Une réponse courte et honnête vaut mieux qu'une réponse complète inventée. Ne recopie jamais un mot de passe, un code, un numéro de carte ou une adresse e-mail visibles : dis seulement qu'il y en a. Tu n'as pas d'outils ici, n'annonce aucune action.`;
-
-// « Qu'est-ce que je regarde ? » : la capture vient de l'app (src-tauri/src/screen.rs), jamais stockée ; seul le texte entre dans l'historique.
-export async function askAboutScreen(chatId: number, question: string, image: string) {
-  if (typeof chatId !== "number" || !Number.isFinite(chatId)) throw new Error(`askAboutScreen: chatId must be a number, got ${typeof chatId}`);
-  if (!question.trim() || !image.startsWith("data:image/jpeg;base64,")) throw new Error("askAboutScreen: question and a JPEG data URL are required");
-  const { text } = await generateText({
-    model: resolveModel(process.env.GROQ_VISION_MODEL ?? VISION_MODEL),
-    system: fridayPrompt + HONESTY_INSTRUCTION + SCREEN_INSTRUCTION + nicknameInstruction("cette réponse dite à voix haute"),
-    messages: [{ role: "user", content: [{ type: "text", text: question }, { type: "image", image }] }],
-    abortSignal: AbortSignal.timeout(ASK_TIMEOUT_MS),
-    maxRetries: 0,
-  });
-  // Un modèle qui raisonne peut laisser son raisonnement dans le texte : il serait lu à voix haute.
-  const answer = cleanAnswer(text).replace(/<think>[\s\S]*?<\/think>/g, "").trim() || "Je n'ai pas réussi à lire l'écran.";
-  await appendToHistory(chatId, [
-    { role: "user", content: `${question} (capture d'écran jointe)` },
-    { role: "assistant", content: answer },
-  ]);
-  return answer;
-}
-
 export async function askLora(chatId: number, input: string, spoken = false, voice = false) {
   if (typeof chatId !== "number" || !Number.isFinite(chatId)) {
     throw new Error(`askLora: chatId must be a number, got ${typeof chatId}`);
