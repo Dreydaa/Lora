@@ -7,7 +7,6 @@ mod levels;
 mod listen;
 mod modes;
 mod protocol;
-mod screen;
 mod speech;
 mod spotify;
 mod system;
@@ -94,18 +93,6 @@ fn run_command(text: String, app: AppHandle, apps: State<AppsFile>, claude: Stat
     .or_else(|| apps::parse(&text).map(|_| apps::run(&text, &apps.0)))
 }
 
-// « Qu'est-ce que je regarde ? » (screen.rs) : `image` = capture à envoyer au backend avec la phrase, `said` = refus à dire tel quel.
-// None = la phrase ne demande pas de regarder l'écran : rien n'est capturé.
-// (serde n'est pas une dépendance directe du projet : on rend du JSON construit à la main.)
-#[tauri::command]
-fn look(text: String) -> Result<Option<serde_json::Value>, String> {
-  if !screen::asked(&text) { return Ok(None); }
-  Ok(Some(match screen::capture()? {
-    screen::Capture::Image(image) => serde_json::json!({ "image": image }),
-    screen::Capture::Refused(said) => serde_json::json!({ "said": said }),
-  }))
-}
-
 // say.txt (dossier de données) : un autre programme y ajoute une phrase par ligne (hook Stop de Claude Code : « Claude Code a terminé »),
 // Løra la dit puis vide le fichier. Renommé avant lecture : ce qui est ajouté pendant ce temps part dans un nouveau fichier.
 // Fichier encore ouvert par l'écrivain (Windows refuse le renommage) : on réessaie au tour suivant.
@@ -179,7 +166,7 @@ fn main() {
     .plugin(tauri_plugin_opener::init())
     // Lancée par Windows à l'ouverture de session avec --autostart : la fenêtre reste masquée (icône de la zone de notification).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
-    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command, look, speak, set_widget])
+    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command, speak, set_widget])
     .setup(|app| {
       // Inscription au démarrage de Windows, seulement pour l'app installée : en dev, elle pointerait vers l'exécutable de debug.
       // Inscrite une seule fois par lancement sans toucher au choix de l'utilisateur (Gestionnaire des tâches > Démarrage).

@@ -24,7 +24,7 @@ Notion est la source de vérité pour toutes les données (idées, agenda, jalon
 
 - **Backend** : fonctions Vercel (Edge Runtime) en TypeScript, `@upstash/qstash`, `@upstash/redis`, `@notionhq/client`.
 - **IA** : Groq via `ai` (Vercel AI SDK) + `zod` pour la validation des paramètres de tool calls.
-- **Frontend / dashboard** : React + Vite, three.js pour le ruban en particules, packagé en application de bureau avec Tauri (`src-tauri/`, Rust : suivi du temps d'écran, zone de notification, démarrage automatique, commandes locales : applications, volume, musique, batterie de la souris, agent de protocoles, voix de sortie avec Piper, écoute du micro avec Whisper local).
+- **Frontend / dashboard** : React + Vite, three.js pour le ruban en particules, packagé en application de bureau avec Tauri (`src-tauri/`, Rust : suivi du temps d'écran, zone de notification, démarrage automatique, commandes locales : applications, volume, musique, batterie de la souris, agent de protocoles, voix de sortie avec Piper, écoute du micro avec Whisper local, widget de bureau, parole spontanée).
 - **Tests** : Vitest (unitaires, intégration, régression, acceptation dans un vrai navigateur via Playwright) et `cargo test` pour le Rust.
 
 ## Structure du repo
@@ -41,7 +41,7 @@ lib/
   memory.ts           Redis : mémoire courte durée, dernier briefing, pause en cours
 src/                  Dashboard Tauri (React)
   features/           glass (bento en verre), widgets, calendar, intro et particles (ruban de Möbius), hub…
-src-tauri/            Application de bureau (Rust) : fenêtre, temps d'écran, zone de notification, démarrage automatique ; commandes locales dans `apps.rs`, `system.rs` (volume, musique, batterie), `spotify.rs` et `protocol.rs` ; voix de sortie dans `speech.rs` (Piper), écoute du micro et mot d'activation dans `listen.rs` (Whisper)
+src-tauri/            Application de bureau (Rust) : fenêtre, temps d'écran, zone de notification, démarrage automatique ; commandes locales dans `apps.rs`, `system.rs` (volume, musique, batterie), `spotify.rs` et `protocol.rs` ; voix de sortie dans `speech.rs` (Piper), écoute du micro et mot d'activation dans `listen.rs` (Whisper), commandes de contrôle dans `control.rs`, modes de travail dans `modes.rs`, lien avec Claude Code dans `claude.rs`, analyse audio du ruban dans `levels.rs`, parole spontanée dans `ambient.rs`
 tests/                unit, integration, regression, acceptance (+ helpers : faux Notion, faux Redis, réseau bloqué)
 scripts/              Setup et migration Notion/QStash, test contre les vraies APIs (`full-mechanics-test.ts`), batteries contre le vrai modèle (`search-battery.ts`, `projects-battery.ts`), essai de bout en bout des protocoles (`protocol-e2e.ts`)
 docs/
@@ -108,7 +108,7 @@ Les tests (`npm test`, `test:acceptance`, `test:rust`) n'utilisent jamais le `.e
 
 ## État du projet
 
-**La V1 est terminée (09/10/2026).** Voir [`docs/ai/STATUS.md`](docs/ai/STATUS.md) (section « Clôture de la V1 ») pour ce qui est livré, ce qui a été vérifié et ce qui ne l'a pas été. **La V2 est en cours** (démarrée le 12/10/2026, une pull request par étape) : les étapes 0 à 7 sont faites (finition de la V1, lancer et fermer des applications, recherche web, volume / musique / batterie de la souris, plusieurs projets en parallèle) ; l'étape 8 (moteur de protocoles) est faite avec le protocole 7E3A, essayé en réel (2B et 6H9K reportés) ; l'étape 9 (voix) est faite côté code, voix de Løra (Piper) et mot d'activation (Whisper) essayés avec la vraie voix, il reste du temps d'usage, un ruban réactif au volume réel et l'écoute fenêtre fermée ; l'étape 13 (commandes vocales élargies) a un premier lot ; l'étape 10 (widget de bureau) est commencée. Les étapes 11 et 12 (« qu'est-ce que je regarde ? », gestes de la main) ne sont pas commencées. L'avancement, ce qui est vérifié et ce qui ne l'est pas : [`docs/ai/STATUS-V2.md`](docs/ai/STATUS-V2.md) ; la vision et la liste des étapes : [`docs/ai/LoraV2.md`](docs/ai/LoraV2.md).
+**La V1 est terminée (09/10/2026).** Voir [`docs/ai/STATUS.md`](docs/ai/STATUS.md) (section « Clôture de la V1 ») pour ce qui est livré, ce qui a été vérifié et ce qui ne l'a pas été. **La V2 est en cours** (démarrée le 12/10/2026, une pull request par étape) : les étapes 0 à 7 sont faites (finition de la V1, lancer et fermer des applications, recherche web, volume / musique / batterie de la souris, plusieurs projets en parallèle) ; l'étape 8 (moteur de protocoles) est faite avec le protocole 7E3A, essayé en réel (2B et 6H9K reportés) ; les étapes 9 (voix : Løra parle avec Piper, mot d'activation et reconnaissance avec Whisper), 10 (agent résident et widget de bureau) et 13 (commandes vocales élargies) sont validées par l'utilisateur (08/11/2026) ; l'étape 11 (« qu'est-ce que je regarde ? ») est abandonnée (08/11/2026, code retiré) ; l'étape 12 (gestes de la main) n'est pas commencée. Hors liste, Løra peut aussi prendre la parole d'elle-même (rendez-vous, batterie de la souris, pause pour le dos ; code fait le 08/11/2026, pas essayé en réel). L'avancement, ce qui est vérifié et ce qui ne l'est pas : [`docs/ai/STATUS-V2.md`](docs/ai/STATUS-V2.md) ; la vision et la liste des étapes : [`docs/ai/LoraV2.md`](docs/ai/LoraV2.md).
 
 ## Journal de construction
 
