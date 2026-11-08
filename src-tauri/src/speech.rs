@@ -19,14 +19,14 @@ use windows::{
 };
 
 // Voix de Løra : Piper (modèle affiné sur la voix d'un proche, avec son accord), en local, sans réseau ni clé.
-// Fichiers dans <dossier de l'app>/voice/ : piper/piper.exe (Piper 1.8.0 compilé avec PyInstaller, son dossier _internal à côté, voir
+// Fichiers dans `voice_dir` (%APPDATA%\lora-voice\, voisin du dossier de données de l'app) : piper/piper.exe (Piper 1.8.0 compilé avec PyInstaller, son dossier _internal à côté, voir
 // work/piper_entry.py) et fr_FR-soza-medium.onnx (+ .onnx.json). L'ancien piper.exe C++ ne convient pas : il ne lit pas les symboles
 // de ce modèle. Absents, ou Piper en échec : voix de Windows (WinRT, Hortense en français), Løra ne reste jamais muette.
 // Chaque fonction bloque jusqu'à la fin de la lecture, car le lecteur s'arrête dès qu'il est libéré.
 const MAX_SPEECH_SECS: u64 = 60;
 const MAX_SYNTH_SECS: u64 = 30; // une phrase n'en demande qu'une : au-delà, Piper est considéré bloqué
 const IDLE_SECS: u64 = 600; // sans phrase depuis 10 minutes, Piper est arrêté et rend ses ~230 Mo de mémoire
-const KEPT_WAVS: usize = 30; // les dernières phrases dites restent dans voice/history/ pour être réécoutées (phase d'essais)
+const KEPT_WAVS: usize = 30; // les dernières phrases dites restent dans voice/history/ pour être réécoutées (phase d'essais, dans voice_dir/history/)
 const MODEL: &str = "fr_FR-soza-medium.onnx";
 const CREATE_NO_WINDOW: u32 = 0x0800_0000; // pas de fenêtre de console quand piper.exe se lance
 // La sortie de Piper est à pleine échelle : volume de départ (0 à 1), à régler à l'oreille dans voice.json (relu à chaque phrase).
@@ -195,9 +195,15 @@ fn play(source: &MediaSource, volume: f64, levels: Option<&Levels>, generation: 
   Ok(())
 }
 
+// Moteurs de voix (Piper, modèle, Whisper : ~1,9 Go posés à la main) dans un dossier VOISIN du dossier de données, pas dedans : la case
+// « Delete the application data » de la désinstallation supprime %APPDATA%\com.soza.assistant, et c'est arrivé le 06/11/2026.
+pub fn voice_dir(dir: &Path) -> PathBuf {
+  dir.parent().unwrap_or(dir).join("lora-voice")
+}
+
 // `text` : déjà passé par clean().
 fn piper(text: &str, dir: &Path, generation: u64) -> Result<(), String> {
-  let voice = dir.join("voice");
+  let voice = voice_dir(dir);
   let (exe, model) = (voice.join("piper").join("piper.exe"), voice.join(MODEL));
   if !exe.exists() || !model.exists() { return Err("fichiers de Piper absents".into()); }
   let said = mark_english(text, &english_names(dir));
@@ -380,7 +386,7 @@ mod tests {
   #[ignore]
   fn real_piper_stays_loaded_restarts_after_a_kill_and_logs_phonemes() {
     let dir = temp_dir("real");
-    let voice = app_dir().join("voice");
+    let voice = voice_dir(&app_dir());
     let (exe, model) = (voice.join("piper").join("piper.exe"), voice.join(MODEL));
     let english = vec!["spotify".to_string()];
     let mut times = vec![];
