@@ -207,7 +207,7 @@ mod tests {
   #[test]
   #[ignore = "demande une phrase déjà dite par Løra dans voice/history"]
   fn real_sentence_from_piper_is_analyzed() {
-    let history = PathBuf::from(std::env::var("APPDATA").unwrap()).join("com.soza.assistant").join("voice").join("history");
+    let history = PathBuf::from(std::env::var("APPDATA").unwrap()).join("lora-voice").join("history");
     let newest = fs::read_dir(&history).unwrap().flatten().max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok()).expect("aucun WAV gardé").path();
     let started = std::time::Instant::now();
     let levels = analyze_file(&newest).expect("WAV de Piper illisible");
