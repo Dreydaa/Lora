@@ -248,7 +248,7 @@ fn main() {
         thread::sleep(Duration::from_secs(SAY_POLL_SECS));
       });
 
-      // Écoute du mot d'activation « Løra » (voir listen.rs) : sans Whisper installé dans voice/whisper, elle ne démarre pas.
+      // Écoute du mot d'activation « Løra » (voir listen.rs) : sans Whisper installé dans voice_dir/whisper, elle ne démarre pas.
       listen::start(app.handle().clone(), dir.clone());
 
       // Løra qui prend la parole d'elle-même (voir ambient.rs) : ambient.json créé avec les réglages par défaut, relu à chaque tour.

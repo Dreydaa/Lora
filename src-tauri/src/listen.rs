@@ -22,7 +22,7 @@ use windows::Win32::{System::Diagnostics::Debug::MessageBeep, UI::WindowsAndMess
 
 // Écoute du mot d'activation : micro -> découpage en phrases (silence) -> Whisper local -> « Løra, <demande> » -> événement vers l'interface,
 // qui traite la demande comme une phrase tapée dans Ctrl+K (commande locale, sinon backend, réponse dite).
-// Whisper = whisper.cpp (whisper-server.exe, version CUDA) et son modèle, dans <dossier de l'app>/voice/whisper/. Absents : pas d'écoute.
+// Whisper = whisper.cpp (whisper-server.exe, version CUDA) et son modèle, dans speech::voice_dir/whisper/ (%APPDATA%\lora-voice\whisper\). Absents : pas d'écoute.
 // Rien ne quitte le PC : le serveur n'écoute que 127.0.0.1.
 const SERVER_PORT: u16 = 8178;
 const MODEL: &str = "ggml-large-v3-turbo-q5_0.bin";
@@ -342,7 +342,7 @@ pub fn start(app: AppHandle, dir: PathBuf) {
 }
 
 fn run(app: &AppHandle, dir: &Path) -> Result<(), String> {
-  let whisper = dir.join("voice").join("whisper");
+  let whisper = crate::speech::voice_dir(dir).join("whisper");
   if !whisper.join("whisper-server.exe").exists() || !whisper.join(MODEL).exists() { return Err(format!("Whisper absent de {} : pas d'écoute", whisper.display())); }
   ensure_server(&whisper)?;
 
@@ -643,13 +643,13 @@ mod tests {
   }
 
   // Tout le chemin sauf le micro, sur un enregistrement : `cargo test real_pipeline -- --ignored --nocapture`, avec LORA_TEST_SPEECH_WAV =
-  // un WAV 16 bits mono (n'importe quelle fréquence). Whisper installé dans voice/whisper.
+  // un WAV 16 bits mono (n'importe quelle fréquence). Whisper installé dans lora-voice/whisper.
   // Phrases des modes de travail à travers le vrai chemin (découpage, Whisper local, mot d'activation, reconnaissance) :
   // LORA_TEST_MODE_WAVS="fichier.wav|creatif;autre.wav|dev;encore.wav|spotify" (« spotify » = la commande « connecte Spotify »).
   #[test]
   #[ignore = "demande Whisper installé et des fichiers audio"]
   fn real_work_mode_phrases() {
-    let dir = PathBuf::from(std::env::var("APPDATA").unwrap()).join("com.soza.assistant").join("voice").join("whisper");
+    let dir = PathBuf::from(std::env::var("APPDATA").unwrap()).join("lora-voice").join("whisper");
     ensure_server(&dir).unwrap();
     let wake_words = config(&dir).wake;
     let mut wrong = vec![];
@@ -685,7 +685,7 @@ mod tests {
     let mut seg = Segmenter::new(rate, 0.02);
     let utterances: Vec<Vec<f32>> = tape.chunks(1000).flat_map(|c| seg.push(c)).collect();
     assert_eq!(utterances.len(), 1, "une phrase attendue");
-    let dir = PathBuf::from(std::env::var("APPDATA").unwrap()).join("com.soza.assistant").join("voice").join("whisper");
+    let dir = PathBuf::from(std::env::var("APPDATA").unwrap()).join("lora-voice").join("whisper");
     ensure_server(&dir).unwrap();
     let heard = speech_only(&transcribe(&wav(&resample(&utterances[0], rate))).unwrap());
     println!("{rate} Hz, {:.1} s -> entendu : « {heard} » -> demande : {:?}", utterances[0].len() as f32 / rate as f32, wake(&heard, &config(&dir).wake));
@@ -718,11 +718,11 @@ mod tests {
     assert!(samples.len() as u32 > rate, "moins d'une seconde captée");
   }
 
-  // Vrai Whisper : `cargo test real_transcribe -- --ignored`, avec LORA_TEST_WAV = un WAV 16 kHz mono. Lance whisper-server installé dans voice/whisper.
+  // Vrai Whisper : `cargo test real_transcribe -- --ignored`, avec LORA_TEST_WAV = un WAV 16 kHz mono. Lance whisper-server installé dans lora-voice/whisper.
   #[test]
   #[ignore = "demande Whisper installé et un fichier audio"]
   fn real_transcribe() {
-    let dir = PathBuf::from(std::env::var("APPDATA").unwrap()).join("com.soza.assistant").join("voice").join("whisper");
+    let dir = PathBuf::from(std::env::var("APPDATA").unwrap()).join("lora-voice").join("whisper");
     ensure_server(&dir).unwrap();
     let text = transcribe(&fs::read(std::env::var("LORA_TEST_WAV").unwrap()).unwrap()).unwrap();
     println!("transcrit : {text}");
