@@ -75,8 +75,8 @@ Setup Notion détaillé dans `docs/product/NOTION-SCHEMA.md`.
 | `agent.json` | `api_url` et `api_key` (mêmes valeurs que `VITE_API_URL` et `VITE_DASHBOARD_API_KEY`) pour que le PC récupère les protocoles. |
 | `modes.json` | Modes de travail (« mode créatif », « mode dev ») : pour chacun, une phrase de départ et des étapes (`open` une application de `apps.json`, `browse` des pages web dans Brave, `liked_song` un titre au hasard parmi tes titres likés). Créé avec deux modes de départ. |
 | `spotify-token.json` | Jeton de renouvellement de ton compte Spotify, créé par « connecte Spotify » (lecture de tes titres likés seulement) ; le supprimer déconnecte. |
-| `voice.json` | Voix de sortie : `volume` (0 à 1) et `english` (noms d'applications dits avec l'accent anglais). Le moteur (Piper compilé et modèle de voix) est dans `voice\piper\` et `voice\`, à installer à la main, hors du dépôt. |
-| `listen.json` | Écoute du micro : `enabled`, `wake` (orthographes du mot d'activation), `threshold`, `command_secs`, `log` (**`true` écrit tout ce qui est entendu en clair** dans `listen.log` : seulement pour régler). Whisper (`voice\whisper\`) s'installe à la main. |
+| `voice.json` | Voix de sortie : `volume` (0 à 1) et `english` (noms d'applications dits avec l'accent anglais). Le moteur (Piper compilé et modèle de voix) est dans `%APPDATA%\lora-voice\piper\` et `%APPDATA%\lora-voice\` (hors du dossier de données, voir `STATUS-V2.md`), à installer à la main, hors du dépôt. |
+| `listen.json` | Écoute du micro : `enabled`, `wake` (orthographes du mot d'activation), `threshold`, `command_secs`, `log` (**`true` écrit tout ce qui est entendu en clair** dans `listen.log` : seulement pour régler). Whisper (`%APPDATA%\lora-voice\whisper\`) s'installe à la main. |
 
 ## Commandes
 
