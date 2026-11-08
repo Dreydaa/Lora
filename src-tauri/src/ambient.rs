@@ -40,7 +40,7 @@ const TOP_APP_MIN_SECS: u64 = 3600; // « ça fait une heure sur X » : pas avan
 
 // ambient.json (dossier de données), relu à chaque tour : « enabled » = état de départ de la case du menu, « speak » = dire les phrases
 // (sinon seulement les écrire dans ambient.log), un interrupteur par type d'événement, puis les seuils.
-const DEFAULT_CONFIG: &str = "{ \"enabled\": true, \"speak\": true, \"agenda\": true, \"battery\": true, \"stand\": true, \"chat\": true, \"agenda_minutes\": 10, \"battery_percent\": 20, \"stand_minutes\": 60, \"chat_minutes\": 60, \"max_per_hour\": 3 }\n";
+const DEFAULT_CONFIG: &str = "{ \"enabled\": true, \"speak\": true, \"agenda\": true, \"battery\": true, \"stand\": true, \"chat\": true, \"greeting\": true, \"agenda_minutes\": 10, \"battery_percent\": 20, \"stand_minutes\": 60, \"chat_minutes\": 60, \"max_per_hour\": 3 }\n";
 
 pub fn ensure_default(dir: &Path) {
   let file = dir.join("ambient.json");
@@ -48,7 +48,7 @@ pub fn ensure_default(dir: &Path) {
 }
 
 #[derive(Debug, PartialEq)]
-struct Config { enabled: bool, speak: bool, agenda: bool, battery: bool, stand: bool, chat: bool, agenda_minutes: i64, battery_percent: u8, stand_minutes: u64, chat_minutes: u64, max_per_hour: usize }
+struct Config { enabled: bool, speak: bool, agenda: bool, battery: bool, stand: bool, chat: bool, greeting: bool, agenda_minutes: i64, battery_percent: u8, stand_minutes: u64, chat_minutes: u64, max_per_hour: usize }
 
 fn config(dir: &Path) -> Config {
   let json: Value = fs::read_to_string(dir.join("ambient.json")).ok()
@@ -56,7 +56,7 @@ fn config(dir: &Path) -> Config {
   let flag = |name: &str| json[name].as_bool().unwrap_or(true);
   let number = |name: &str, default: u64, min: u64, max: u64| json[name].as_u64().map_or(default, |n| n.clamp(min, max));
   Config {
-    enabled: flag("enabled"), speak: flag("speak"), agenda: flag("agenda"), battery: flag("battery"), stand: flag("stand"), chat: flag("chat"),
+    enabled: flag("enabled"), speak: flag("speak"), agenda: flag("agenda"), battery: flag("battery"), stand: flag("stand"), chat: flag("chat"), greeting: flag("greeting"),
     agenda_minutes: number("agenda_minutes", 10, 1, 60) as i64,
     battery_percent: number("battery_percent", 20, 5, 50) as u8,
     stand_minutes: number("stand_minutes", 60, 20, 240),
@@ -66,6 +66,10 @@ fn config(dir: &Path) -> Config {
 }
 
 pub fn enabled_in_config(dir: &Path) -> bool { config(dir).enabled }
+
+// Pour greeting.rs (le bonjour au démarrage est aussi une parole spontanée) : la case du menu, puis (bonjour activé, voix activée).
+pub fn enabled() -> bool { ENABLED.load(Ordering::Relaxed) }
+pub fn greeting_settings(dir: &Path) -> (bool, bool) { let c = config(dir); (c.greeting, c.speak) }
 
 // --- phrases (modèles fixes) ---------------------------------------------------------------------------------------------------------
 
@@ -139,7 +143,7 @@ fn due_events(agenda: &Value, now: DateTime<Local>, window: i64, announced: &Has
 }
 
 // La pause de plusieurs jours du backend (clé Redis `break`) couvre aujourd'hui : Løra se tait.
-fn paused(body: &Value, today: &str) -> bool {
+pub(crate) fn paused(body: &Value, today: &str) -> bool {
   match (body["pause"]["start"].as_str(), body["pause"]["end"].as_str()) {
     (Some(start), Some(end)) => start <= today && today <= end,
     _ => false,
@@ -237,8 +241,7 @@ fn top_app(app: &AppHandle) -> Option<(String, u64)> {
   data.get(&day)?.iter().max_by_key(|(_, secs)| **secs).map(|(name, secs)| (name.clone(), *secs))
 }
 
-fn log(dir: &Path, kind: &Kind, text: &str) {
-  let kind = match kind { Kind::Agenda(_) => "agenda", Kind::Battery => "batterie", Kind::Stand => "dos", Kind::Chat => "ambiance" };
+pub(crate) fn log(dir: &Path, kind: &str, text: &str) {
   if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(dir.join("ambient.log")) {
     let _ = writeln!(file, "{} [{kind}] {text}", Local::now().format("%Y-%m-%d %H:%M:%S"));
   }
@@ -276,7 +279,8 @@ pub fn start(app: AppHandle, dir: PathBuf) {
       let facts = Facts { now, wall: Local::now(), idle_secs, top_app: if cfg.chat { top_app(&app) } else { None }, roll: roll() };
       let Some((kind, text)) = state.decide(&cfg, &facts) else { continue };
       let text = crate::with_nickname(&text, facts.roll);
-      log(&dir, &kind, &text);
+      let label = match &kind { Kind::Agenda(_) => "agenda", Kind::Battery => "batterie", Kind::Stand => "dos", Kind::Chat => "ambiance" };
+      log(&dir, label, &text);
       if cfg.speak { if let Err(e) = crate::speech::speak(&text, &dir) { eprintln!("[voix] lecture impossible : {e}"); } }
       state.commit(kind, &cfg, &facts);
     }
@@ -287,7 +291,7 @@ pub fn start(app: AppHandle, dir: PathBuf) {
 mod tests {
   use super::*;
 
-  fn cfg() -> Config { Config { enabled: true, speak: true, agenda: true, battery: true, stand: true, chat: true, agenda_minutes: 10, battery_percent: 20, stand_minutes: 60, chat_minutes: 60, max_per_hour: 3 } }
+  fn cfg() -> Config { Config { enabled: true, speak: true, agenda: true, battery: true, stand: true, chat: true, greeting: true, agenda_minutes: 10, battery_percent: 20, stand_minutes: 60, chat_minutes: 60, max_per_hour: 3 } }
   fn facts(now: Instant, idle_secs: u64) -> Facts { Facts { now, wall: Local.with_ymd_and_hms(2026, 11, 8, 15, 0, 0).unwrap(), idle_secs, top_app: None, roll: 0 } }
   fn minutes(m: u64) -> Duration { Duration::from_secs(m * 60) }
   fn dated(date: &str) -> Value { serde_json::json!([{ "id": "a1", "title": "Dentiste", "date": date }]) }
