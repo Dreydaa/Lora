@@ -19,3 +19,6 @@ Thumbs.db
 
 # Config locale de Claude Code (hooks, lancement) : propre a chaque poste
 .claude/
+
+# Fichiers vides créés par le hook de notification de Claude Code (chemin Windows mal interprété)
+*claude-notify-signals*
