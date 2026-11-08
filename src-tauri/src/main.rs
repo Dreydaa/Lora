@@ -3,6 +3,7 @@ mod ambient;
 mod apps;
 mod claude;
 mod control;
+mod greeting;
 mod levels;
 mod listen;
 mod modes;
@@ -253,6 +254,8 @@ fn main() {
       // Løra qui prend la parole d'elle-même (voir ambient.rs) : ambient.json créé avec les réglages par défaut, relu à chaque tour.
       ambient::ensure_default(&dir);
       ambient::start(app.handle().clone(), dir.clone());
+      // Le bonjour au démarrage (voir greeting.rs) : à la première touche pressée ou à l'affichage de la fenêtre.
+      greeting::start(app.handle().clone(), dir.clone());
 
       // Protocoles lancés depuis Telegram (voir protocol.rs) : adresse et clé du backend, créés vides, relus à chaque tour.
       let agent_file = dir.join("agent.json");
