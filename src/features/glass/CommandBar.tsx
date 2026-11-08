@@ -11,19 +11,26 @@ const CHARS_MS = 40; // une réponse longue reste affichée plus longtemps (elle
 const ASK_TIMEOUT_MS = 25_000;
 
 // Ce qui n'est pas une commande locale (briefing, Notion, météo, recherche, calcul, avis…) : même cerveau que Telegram, via api/ask.
-async function askBackend(text: string, voice: boolean): Promise<string> {
+async function askBackend(text: string, voice: boolean, image?: string): Promise<string> {
   const apiUrl = import.meta.env.VITE_API_URL;
   const apiKey = import.meta.env.VITE_DASHBOARD_API_KEY;
   if (!apiUrl || !apiKey) throw new Error("VITE_API_URL ou VITE_DASHBOARD_API_KEY manquant");
   const response = await fetch(`${apiUrl}/api/ask`, {
     method: "POST",
     headers: { "x-dashboard-key": apiKey, "content-type": "application/json" },
-    body: JSON.stringify({ text, voice }),
+    body: JSON.stringify({ text, voice, image }),
     signal: AbortSignal.timeout(ASK_TIMEOUT_MS),
   });
   const body = await response.json().catch(() => null);
   if (!response.ok || typeof body?.text !== "string") throw new Error(body?.error ?? `réponse ${response.status}`);
   return body.text;
+}
+
+// « Qu'est-ce que je regarde ? » : seule l'app peut capturer l'écran, et seulement si la phrase le demande (screen.rs). Un refus
+// (gestionnaire de mots de passe ouvert) est une phrase à dire telle quelle, sans appel au backend.
+async function askOrLook(text: string, voice: boolean): Promise<string> {
+  const look = await invoke<{ image?: string; said?: string } | null>("look", { text });
+  return look?.said ?? askBackend(text, voice, look?.image);
 }
 
 export function CommandBar() {
@@ -56,10 +63,10 @@ export function CommandBar() {
     clearTimeout(replyTimer.current);
     setReply(voice ? `« ${text} »` : "…"); // la réponse du backend peut prendre plusieurs secondes
     const answer = await invoke<string | null>("run_command", { text })
-      .then((local) => local ?? askBackend(text, voice))
+      .then((local) => local ?? askOrLook(text, voice))
       .then(
         (said) => {
-          void invoke("speak", { text: said }); // chaque réponse est dite
+          if (said) void invoke("speak", { text: said }); // chaque réponse est dite ; vide (« stop », « fin de mission ») : rien à dire
           return said;
         },
         (error) => {

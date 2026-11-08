@@ -11,6 +11,7 @@ use std::{
   thread,
   time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use crate::levels::{self, Levels};
 use windows::{
   core::HSTRING,
   Foundation::{TypedEventHandler, Uri},
@@ -159,7 +160,19 @@ fn synthesize(exe: &Path, model: &Path, dir: &Path, text: &str) -> std::io::Resu
   Err(std::io::Error::other("Piper ne répond pas"))
 }
 
-fn play(source: &MediaSource, volume: f64) -> windows::core::Result<()> {
+// « Løra, stop » (voir control.rs) : chaque coupure fait avancer ce compteur ; une phrase dont le départ est plus ancien s'arrête
+// (ou ne commence pas), une phrase demandée après la coupure se dit normalement.
+static STOP_GEN: AtomicU64 = AtomicU64::new(0);
+const STOP_POLL_MS: u64 = 50;
+
+pub fn stop_speaking() {
+  STOP_GEN.fetch_add(1, Ordering::Relaxed);
+}
+
+// `generation` : la valeur de STOP_GEN quand la phrase a été demandée.
+// `levels` : le son analysé de cette phrase (levels.rs), envoyé à la page à l'instant où la lecture démarre.
+fn play(source: &MediaSource, volume: f64, generation: u64, levels: Option<&Levels>) -> windows::core::Result<()> {
+  if STOP_GEN.load(Ordering::Relaxed) != generation { return Ok(()); }
   let player = MediaPlayer::new()?;
   player.SetVolume(volume)?;
   let (done, ended) = mpsc::channel();
@@ -167,22 +180,33 @@ fn play(source: &MediaSource, volume: f64) -> windows::core::Result<()> {
   player.MediaEnded(&TypedEventHandler::new(move |_, _| { let _ = done.send(()); Ok(()) }))?;
   player.MediaFailed(&TypedEventHandler::new(move |_, _| { let _ = failed.send(()); Ok(()) }))?;
   player.SetSource(source)?;
+  // Le nuage s'anime quand le son démarre, pas quand la phrase est demandée (la synthèse de Piper prend jusqu'à 2,5 s à froid).
+  crate::listen::emit_state("speaking");
   player.Play()?;
-  let _ = ended.recv_timeout(Duration::from_secs(MAX_SPEECH_SECS));
+  crate::listen::emit_speech(levels);
+  let started = Instant::now();
+  while started.elapsed() < Duration::from_secs(MAX_SPEECH_SECS) {
+    match ended.recv_timeout(Duration::from_millis(STOP_POLL_MS)) {
+      Err(mpsc::RecvTimeoutError::Timeout) if STOP_GEN.load(Ordering::Relaxed) != generation => { let _ = player.Pause(); break; }
+      Err(mpsc::RecvTimeoutError::Timeout) => {}
+      _ => break, // fin de la lecture, échec, ou lecteur disparu
+    }
+  }
   Ok(())
 }
 
 // `text` : déjà passé par clean().
-fn piper(text: &str, dir: &Path) -> Result<(), String> {
+fn piper(text: &str, dir: &Path, generation: u64) -> Result<(), String> {
   let voice = dir.join("voice");
   let (exe, model) = (voice.join("piper").join("piper.exe"), voice.join(MODEL));
   if !exe.exists() || !model.exists() { return Err("fichiers de Piper absents".into()); }
   let said = mark_english(text, &english_names(dir));
   log(dir, "dit", &said.replace(ENGLISH_START, "⟨").replace(ENGLISH_END, "⟩"));
   let wav = synthesize(&exe, &model, dir, &said).map_err(|e| e.to_string())?;
+  let levels = levels::analyze_file(&wav);
   let played = Uri::CreateUri(&HSTRING::from(file_uri(&wav)))
     .and_then(|uri| MediaSource::CreateFromUri(&uri))
-    .and_then(|source| play(&source, volume(dir)));
+    .and_then(|source| play(&source, volume(dir), generation, levels.as_ref()));
   if let Some(kept) = keep(&wav, &voice.join("history")) { log(dir, "Wrote", &kept.display().to_string()); }
   played.map_err(|e| e.to_string())
 }
@@ -206,24 +230,31 @@ pub fn busy() -> bool {
   SPEAKING.load(Ordering::Relaxed) > 0 || now_ms() < QUIET_AT_MS.load(Ordering::Relaxed)
 }
 
+// Elle est en train de parler (sans la queue d'écho ni le bip de busy()) : le micro n'écoute alors que « Løra, stop » et les deux autres
+// commandes de control.rs.
+pub fn speaking() -> bool {
+  SPEAKING.load(Ordering::Relaxed) > 0
+}
+
 // `dir` : le dossier de données de l'app (celui de apps.json).
 pub fn speak(text: &str, dir: &Path) -> windows::core::Result<()> {
-  if SPEAKING.fetch_add(1, Ordering::Relaxed) == 0 { crate::listen::emit_state("speaking"); } // le ruban s'agite
-  let result = speak_now(text, dir);
+  let generation = STOP_GEN.load(Ordering::Relaxed);
+  SPEAKING.fetch_add(1, Ordering::Relaxed); // « speaking » pour le ruban est annoncé par play(), au début du son
+  let result = speak_now(text, dir, generation);
   QUIET_AT_MS.store(now_ms() + ECHO_TAIL_MS, Ordering::Relaxed);
   if SPEAKING.fetch_sub(1, Ordering::Relaxed) == 1 { crate::listen::emit_state("idle"); }
   result
 }
 
-fn speak_now(text: &str, dir: &Path) -> windows::core::Result<()> {
+fn speak_now(text: &str, dir: &Path, generation: u64) -> windows::core::Result<()> {
   let text = clean(text);
-  match piper(&text, dir) {
+  match piper(&text, dir, generation) {
     Ok(()) => return Ok(()),
     Err(e) => eprintln!("[voix] Piper indisponible ({e}), voix de Windows"),
   }
   // join() et non get() : get() refuse de bloquer sur un thread à appartement monothread (crate windows 0.62).
   let stream = SpeechSynthesizer::new()?.SynthesizeTextToStreamAsync(&HSTRING::from(text))?.join()?;
-  play(&MediaSource::CreateFromStream(&stream, &stream.ContentType()?)?, 1.0)
+  play(&MediaSource::CreateFromStream(&stream, &stream.ContentType()?)?, 1.0, generation, None)
 }
 
 #[cfg(test)]
@@ -314,7 +345,7 @@ mod tests {
   #[test]
   fn without_piper_files_piper_declines_so_windows_voice_takes_over() {
     let dir = temp_dir("absent");
-    assert!(piper("Bonjour.", &dir).is_err());
+    assert!(piper("Bonjour.", &dir, STOP_GEN.load(Ordering::Relaxed)).is_err());
     let _ = fs::remove_dir_all(&dir);
   }
 

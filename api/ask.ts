@@ -1,11 +1,12 @@
 import { assertDashboardKey } from "../lib/auth";
-import { askLora } from "../lib/ai/client";
+import { askAboutScreen, askLora } from "../lib/ai/client";
 
 export const config = {
   runtime: "edge",
 };
 
 const MAX_TEXT = 500;
+const MAX_IMAGE = 3_000_000; // caractères ; une capture réduite à 1280 px pèse ~190 000 caractères (mesuré le 08/11/2026)
 // Appelée depuis le webview Tauri (autre origine) : la clé voyage dans un en-tête, d'où le pré-vol OPTIONS.
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -28,8 +29,12 @@ export default async function handler(request: Request) {
   const chatId = Number(process.env.TELEGRAM_ALLOWED_CHAT_ID);
   if (!text || text.length > MAX_TEXT || !Number.isFinite(chatId)) return new Response("Invalid request", { status: 400, headers: CORS_HEADERS });
 
+  // Capture d'écran jointe (« qu'est-ce que je regarde ? ») : JPEG en data URL, plafonné (le corps d'une fonction Edge est limité à 4,5 Mo).
+  const image = typeof body?.image === "string" ? body.image : undefined;
+  if (image !== undefined && (!image.startsWith("data:image/jpeg;base64,") || image.length > MAX_IMAGE)) return new Response("Invalid image", { status: 400, headers: CORS_HEADERS });
+
   try {
-    const { text: answer } = await askLora(chatId, text, true, body.voice === true);
+    const answer = image ? await askAboutScreen(chatId, text, image) : (await askLora(chatId, text, true, body.voice === true)).text;
     return Response.json({ text: answer }, { headers: CORS_HEADERS });
   } catch (error) {
     console.error("[ask] échec :", error);
