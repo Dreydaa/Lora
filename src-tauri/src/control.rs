@@ -43,6 +43,9 @@ pub fn apply(control: Control, app: &AppHandle, dir: &Path) -> Option<String> {
       crate::speech::stop_speaking();
       crate::listen::set_enabled(false);
       if let Some(item) = app.try_state::<ListenItem>() { let _ = item.0.set_checked(false); }
+      // Au repos elle ne prend pas non plus la parole d'elle-même (ambient.rs).
+      crate::ambient::set_enabled(false);
+      if let Some(item) = app.try_state::<crate::ambient::AmbientItem>() { let _ = item.0.set_checked(false); }
       Some("D'accord, je me repose.".into())
     }
     Control::Quit => {

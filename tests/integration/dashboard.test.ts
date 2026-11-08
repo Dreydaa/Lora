@@ -95,6 +95,24 @@ describe("/api/dashboard : contenu", () => {
     });
   });
 
+  describe("?only=agenda (sondage de l'app Løra)", () => {
+    const light = (headers: Record<string, string> = { "x-dashboard-key": "dashboard-key" }) =>
+      handler(new Request("https://lora.test/api/dashboard?only=agenda", { headers }));
+    it("rend l'agenda et la pause, sans interroger les flux RSS", async () => {
+      const fetchSpy = vi.fn(async () => { throw new Error("aucun appel réseau attendu"); });
+      vi.stubGlobal("fetch", fetchSpy);
+      store.set("break", { start: "2000-01-01", end: "2999-12-31" });
+      const data = await (await light()).json();
+      expect(Object.keys(data).sort()).toEqual(["agenda", "pause"]);
+      expect(data.agenda[0]).toMatchObject({ title: "Dentiste", date: "2026-10-09T14:30:00" });
+      expect(data.pause).toEqual({ start: "2000-01-01", end: "2999-12-31" });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+    it("garde l'accès par clé", async () => {
+      expect((await light({})).status).toBe(401);
+    });
+  });
+
   it("les flux RSS en panne n'empêchent pas le dashboard de répondre", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => {
       throw new Error("réseau coupé");

@@ -24,6 +24,13 @@ export default async function handler(request: Request) {
   try {
     assertDashboardKey(request);
 
+    // L'app Løra l'interroge toutes les 5 min pour prévenir d'un rendez-vous et se taire pendant une pause (ambient.rs) :
+    // l'agenda et la pause seulement, sans les articles ni les autres bases.
+    if (new URL(request.url).searchParams.get("only") === "agenda") {
+      const [agenda, savedBreak] = await Promise.all([getUpcomingAgenda(true, 20), getBreak()]);
+      return Response.json({ agenda, pause: savedBreak && savedBreak.end >= todayInParis() ? savedBreak : null }, { headers: CORS_HEADERS });
+    }
+
     const [agenda, milestones, ideas, settings, articles, briefing, eveningBriefing, savedBreak] = await Promise.all([
       getUpcomingAgenda(true, 60),
       getMilestones(true),
