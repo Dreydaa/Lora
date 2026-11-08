@@ -164,7 +164,8 @@ fn hidpp(dev: &hidapi::HidDevice, index: u8, feature: u8, func: u8, params: &[u8
   None
 }
 
-fn mouse_battery() -> Result<String, String> {
+// Pourcentage et code d'état HID++ (1, 2, 4 = en charge, 3 = chargée, 0 = sur batterie). Lu aussi par ambient.rs (batterie basse).
+pub fn mouse_battery_level() -> Result<(u8, u8), String> {
   let api = hidapi::HidApi::new().map_err(|e| e.to_string())?;
   let mut receivers = api.device_list().filter(|d| d.vendor_id() == LOGITECH && d.usage_page() == VENDOR_PAGE && d.usage() == LONG_REPORT_USAGE).peekable();
   if receivers.peek().is_none() { return Err("aucun récepteur Logitech trouvé".into()); }
@@ -175,11 +176,16 @@ fn mouse_battery() -> Result<String, String> {
       let Some(root) = hidpp(&dev, index, 0x00, 0, &UNIFIED_BATTERY.to_be_bytes()) else { continue };
       if root[4] == 0 { continue; }
       let Some(status) = hidpp(&dev, index, root[4], 1, &[]) else { continue };
-      let charge = match status[6] { 1 | 2 | 4 => ", en charge", 3 => ", chargée", _ => "" };
-      return Ok(format!("Batterie de la souris : {} %{charge}.", status[4]));
+      return Ok((status[4], status[6]));
     }
   }
   Err("souris injoignable (éteinte, en veille) ou batterie non exposée".into())
+}
+
+fn mouse_battery() -> Result<String, String> {
+  let (percent, state) = mouse_battery_level()?;
+  let charge = match state { 1 | 2 | 4 => ", en charge", 3 => ", chargée", _ => "" };
+  Ok(format!("Batterie de la souris : {percent} %{charge}."))
 }
 
 // « mets Get Lucky » : le morceau est cherché sur Spotify (identifiants dans spotify.json) puis lancé par son adresse.

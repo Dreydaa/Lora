@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod ambient;
 mod apps;
 mod claude;
 mod control;
@@ -187,9 +188,13 @@ fn main() {
       fs::create_dir_all(&data_dir)?;
       let listen_item = CheckMenuItem::with_id(app, "listen", "Écoute du micro (« Løra, … »)", true, listen::enabled_in_config(&data_dir), None::<&str>)?;
       app.manage(control::ListenItem(listen_item.clone())); // « repose-toi » décoche la case (control.rs)
+      // « Løra parle d'elle-même » : rendez-vous, batterie de la souris, pause pour le dos, remarques (voir ambient.rs).
+      let ambient_item = CheckMenuItem::with_id(app, "ambient", "Løra parle d'elle-même", true, ambient::enabled_in_config(&data_dir), None::<&str>)?;
+      app.manage(ambient::AmbientItem(ambient_item.clone()));
       let menu = Menu::with_items(app, &[
         &MenuItem::with_id(app, "show", "Afficher Løra", true, None::<&str>)?,
         &listen_item,
+        &ambient_item,
         &MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?,
       ])?;
       let _tray = tauri::tray::TrayIconBuilder::with_id("lora")
@@ -202,6 +207,7 @@ fn main() {
           "show" => show_main(app),
           // La case se coche toute seule au clic : on relit son état pour que le micro suive.
           "listen" => listen::set_enabled(listen_item.is_checked().unwrap_or(true)),
+          "ambient" => ambient::set_enabled(ambient_item.is_checked().unwrap_or(true)),
           "quit" => { listen::stop(); app.state::<UsageState>().save(); app.exit(0); } // sans attendre la prochaine sauvegarde périodique
           _ => {}
         })
@@ -243,6 +249,10 @@ fn main() {
 
       // Écoute du mot d'activation « Løra » (voir listen.rs) : sans Whisper installé dans voice/whisper, elle ne démarre pas.
       listen::start(app.handle().clone(), dir.clone());
+
+      // Løra qui prend la parole d'elle-même (voir ambient.rs) : ambient.json créé avec les réglages par défaut, relu à chaque tour.
+      ambient::ensure_default(&dir);
+      ambient::start(app.handle().clone(), dir.clone());
 
       // Protocoles lancés depuis Telegram (voir protocol.rs) : adresse et clé du backend, créés vides, relus à chaque tour.
       let agent_file = dir.join("agent.json");
