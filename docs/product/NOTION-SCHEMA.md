@@ -16,10 +16,11 @@ Propriétés lues ou écrites par le code (`lib/notion/*.ts`, état du 12/10/202
 | --- | --- |
 | Agenda | Titre (title), Date (date, avec fin possible), Statut (select : À faire / Fait), Type (select : Perso / Shift), Catégorie (select) |
 | Idées | Titre (title), Taille (select : Petit/Moyen/Grand), Statut (select : Brute / En cours / **Terminé** / Archivée), Date d'entrée (date), Notes (rich_text), Catégorie (select) |
-| Jalons | Titre (title), Échéance (date), Statut (select : À faire / Validé), Preuve (url), Idée liée (relation vers Idées), Catégorie (select) |
+| Jalons | Titre (title), Échéance (date), Statut (select : À faire / Validé / **Manqué**), Preuve (url), Idée liée (relation vers Idées), Catégorie (select) |
 | Progression | Date (title), Bilan (rich_text) |
 | Réglages | Nom (title, une seule ligne « Config »), Heure briefing matin, Heure bilan soir, QStash id briefing, QStash id bilan (rich_text) |
 
 - **Statut d'une idée** : `Terminé` = projet fini (outil `complete_project`), `Archivée` = abandonné. Le compteur « Finis » du dashboard ne compte que les `Terminé`.
+- **Statut d'un jalon** : `Manqué` est posé par le cron du matin (`markMissedMilestones`, `lib/notion/milestones.ts`) sur les jalons `À faire` dont l'échéance est passée ; c'est un simple statut, l'interface ne change pas. Valider un projet (`complete_project`) valide tous ses jalons ouverts (`À faire` ou `Manqué`).
 - **Catégorie** : 15 options, les mêmes noms que les pastilles de logos (`CATEGORIES` dans `lib/types.ts`). Le code la lit et elle prime sur la détection par mots-clés ; `Autre` veut dire « pas de logo ». Les outils `create_idea`, `add_agenda_item` et `create_milestone` l'écrivent. Les 52 idées existantes ont une catégorie ; les entrées d'Agenda et de Jalons créées avant le 12/10/2026 n'en ont pas.
 - **Vérifié le 13/10/2026** : `Catégorie` écrite puis relue sur le vrai Notion dans Idées, Agenda et Jalons ; `npm run test:live` a donné 48/48 après l'ajout du statut `Terminé` dans la base Idées (à refaire si la base est recréée). Le script `test:live` ne couvre pas `Catégorie` (test ponctuel).

@@ -36,7 +36,7 @@ fn answer(body: &Value, apps_file: &Path) -> Option<Value> {
   Some(json!({ "id": run["id"], "results": run_steps(&run["steps"], apps_file) }))
 }
 
-fn http_agent() -> ureq::Agent {
+pub fn http_agent() -> ureq::Agent {
   ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(10))).build().into()
 }
 
