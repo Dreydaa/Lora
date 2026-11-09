@@ -79,6 +79,16 @@ export async function clearProtocolRun() {
 // c'est ce qui permet de reconnaître « ouvre blender » sans prendre pour une commande toute phrase qui commence par « ouvre ».
 const AGENT_APPS_KEY = "agent:apps";
 
+// Présence du PC : l'app Løra la signale toutes les 2 minutes (api/protocol.ts, ?presence=1). Pas de durée de vie : on veut dire « depuis quand ».
+export async function touchPc(now = Date.now()) {
+  await redis.set("pc:seen", now);
+}
+
+export async function getPcSeen(): Promise<number | null> {
+  const seen = await redis.get<number>("pc:seen");
+  return typeof seen === "number" ? seen : null;
+}
+
 export async function saveAgentApps(apps: string[]) {
   await redis.set(AGENT_APPS_KEY, apps);
 }

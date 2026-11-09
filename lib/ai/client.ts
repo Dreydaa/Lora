@@ -5,6 +5,7 @@ import { loraTools } from "./tools";
 import { pickTools } from "./tool-routing";
 import { getHistory, appendToHistory } from "../memory";
 import { todayInParis } from "../date";
+import { quickAnswer } from "../quick-answers";
 
 const DOUBT_INSTRUCTION = `
 Quand l'utilisateur mentionne quelque chose qui pourrait être une idée de projet ou un jalon, n'utilise create_idea ou create_milestone que si tu es raisonnablement sûr que c'est son intention. Si c'est ambigu, n'appelle pas l'outil — pose d'abord une question courte pour confirmer.`;
@@ -23,7 +24,7 @@ Cette réponse sera dite à voix haute par la voix de Løra : tutoiement toujour
 
 // Phrase venue du micro : la reconnaissance vocale se trompe (« Blender » devient « Blondet »), une mauvaise écriture dans Notion se paie.
 const VOICE_INSTRUCTION = `
-Cette demande vient de la reconnaissance vocale, qui peut se tromper. Avant toute écriture (create_idea, update_idea_notes, update_idea_status, create_milestone, complete_project, add_agenda_item, add_shift_schedule, update_briefing_schedule, set_break, cancel_break, record_progress), reformule en une phrase ce que tu vas enregistrer et demande « je le fais ? » ; n'appelle l'outil qu'après un « oui » explicite au message suivant. Les lectures et les réponses n'ont pas besoin de confirmation.`;
+Cette demande vient de la reconnaissance vocale, qui peut se tromper. Avant toute écriture (create_idea, update_idea_notes, update_idea_status, create_milestone, complete_project, add_agenda_item, update_agenda_item, delete_agenda_item, complete_milestone, add_quick_note, add_shift_schedule, update_briefing_schedule, set_break, cancel_break, record_progress), reformule en une phrase ce que tu vas enregistrer et demande « je le fais ? » ; n'appelle l'outil qu'après un « oui » explicite au message suivant. Les lectures et les réponses n'ont pas besoin de confirmation.`;
 
 // Sans la date du jour, le modèle ne peut pas convertir « demain » ou « ce week-end » en dates réelles pour les outils.
 function dateInstruction() {

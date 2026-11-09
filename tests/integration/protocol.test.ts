@@ -11,7 +11,7 @@ import { store } from "../helpers/redis-mock";
 import worker from "../../api/qstash-worker";
 import protocol from "../../api/protocol";
 import { readOpenCommand, readOpenRequest, readProtocolCommand } from "../../lib/protocols";
-import { getProtocolRun, saveAgentApps } from "../../lib/memory";
+import { getPcSeen, getProtocolRun, saveAgentApps } from "../../lib/memory";
 
 process.env.QSTASH_CURRENT_SIGNING_KEY = "current";
 process.env.QSTASH_NEXT_SIGNING_KEY = "next";
@@ -296,6 +296,35 @@ describe("ouverture directe d'une application", () => {
     await sendJob(job("Ouvre blender", { protocolTimeout: run.id }));
     expect(texts(net).at(-1)).toBe("blender : le PC n'a pas répondu, rien n'a été lancé (10 minutes).");
     expect(askLora).not.toHaveBeenCalled();
+  });
+});
+
+describe("api/protocol : présence du PC", () => {
+  const poll = (query: string, key: string | null = "dashboard-key") => protocol(new Request(`https://lora.test/api/protocol${query}`, { method: "GET", headers: key ? { "x-dashboard-key": key } : {} }));
+
+  it("note l'heure du dernier signe de vie seulement quand l'app le demande (une interrogation sur quatre)", async () => {
+    expect(await getPcSeen()).toBeNull();
+    expect((await poll("")).status).toBe(200);
+    expect(await getPcSeen()).toBeNull();
+    const before = Date.now();
+    expect((await poll("?presence=1")).status).toBe(200);
+    const seen = await getPcSeen();
+    expect(seen).toBeGreaterThanOrEqual(before);
+    expect(seen).toBeLessThanOrEqual(Date.now());
+  });
+
+  it("une autre valeur ne note rien, et sans la bonne clé rien n'est noté", async () => {
+    await poll("?presence=0");
+    await poll("?presence=oui");
+    await poll("?presence=1", "mauvaise");
+    await poll("?presence=1", null);
+    expect(await getPcSeen()).toBeNull();
+  });
+
+  it("ne change pas la réponse : le protocole en attente est toujours remis une seule fois", async () => {
+    store.set("protocol:run", { id: "r1", code: "7E3A", chatId: 42, steps: [{ kind: "open", app: "blender" }], claimed: false });
+    expect((await (await poll("?presence=1")).json()).run).toMatchObject({ id: "r1", code: "7E3A" });
+    expect((await (await poll("?presence=1")).json()).run).toBeNull();
   });
 });
 
