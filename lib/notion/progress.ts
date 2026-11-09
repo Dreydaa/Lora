@@ -17,6 +17,17 @@ export async function getLatestProgress() {
   };
 }
 
+// Les derniers bilans (un par jour au plus), du plus récent au plus ancien : « les bilans de la semaine » = 7.
+export async function getRecentProgress(count = 7) {
+  const database_id = process.env.NOTION_PROGRESS_DATABASE_ID;
+  if (!database_id) throw new Error("NOTION_PROGRESS_DATABASE_ID is missing");
+  const data = await notion().databases.query({ database_id, page_size: count, sorts: [{ property: "Date", direction: "descending" }] });
+  return data.results.map((page: any) => {
+    const title: string = page.properties?.Date?.title?.[0]?.plain_text ?? "";
+    return { date: /^\d{4}-\d{2}-\d{2}$/.test(title) ? title : null, review: page.properties?.Bilan?.rich_text?.[0]?.plain_text ?? "" };
+  });
+}
+
 // Les projets travaillés sont écrits en tête du bilan (pas de colonne Notion à ajouter) : le briefing du matin relit ce texte tel quel.
 export async function saveProgress(review: string, projects: string[] = []) {
   const database_id = process.env.NOTION_PROGRESS_DATABASE_ID;

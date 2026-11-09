@@ -3,9 +3,9 @@ import { tool } from "ai";
 import { z } from "zod";
 import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose, getProjectsInProgress, getAllIdeas, resolveProjectNames } from "../notion/idees";
 import { CATEGORIES } from "../types";
-import { createMilestone, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
-import { addAgendaItem, addShiftSchedule, getUpcomingAgenda } from "../notion/agenda";
-import { getLatestProgress, saveProgress } from "../notion/progress";
+import { createMilestone, completeMilestoneByTitle, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
+import { addAgendaItem, addShiftSchedule, deleteAgendaItem, findAgendaItem, getAgendaOn, getUpcomingAgenda, shiftIso, updateAgendaItem } from "../notion/agenda";
+import { getLatestProgress, getRecentProgress, saveProgress } from "../notion/progress";
 import { getSettings, saveBriefingTime } from "../notion/settings";
 import { upsertSchedule } from "../integrations/qstash";
 import { getWeather } from "../integrations/weather";
@@ -184,6 +184,85 @@ export const loraTools = {
     },
   }),
 
+  // Modifier ou supprimer l'agenda, valider un jalon, une note rapide : des écritures, donc confirmées avant d'agir quand la demande vient de la voix.
+  update_agenda_item: tool({
+    description:
+      "Modifie une entrée de l'agenda Notion : la décale (`shiftMinutes` : « décale d'une heure » = 60, « avance de 30 minutes » = -30, « à demain, même heure » = 1440), la déplace à une date précise (`newDate`) ou la renomme (`newTitle`). Désigne l'entrée par les mots de son titre (`title`) ; sans `title`, c'est la PROCHAINE entrée. Plusieurs entrées qui correspondent : rien n'est modifié, demande laquelle. Pour décaler, utilise toujours shiftMinutes : ne recalcule jamais une date toi-même.",
+    inputSchema: z.object({
+      title: z.string().nullish().describe("Mots du titre de l'entrée à modifier ; vide = la prochaine entrée de l'agenda."),
+      shiftMinutes: z.number().int().nullish().describe("Décalage en minutes, positif = plus tard. Le début et la fin bougent ensemble."),
+      newDate: z.string().nullish().describe("Nouvelle date de début, YYYY-MM-DD ou YYYY-MM-DDTHH:mm, seulement si l'utilisateur donne une date précise."),
+      newEndDate: z.string().nullish().describe("Nouvelle fin, même format, seulement si l'utilisateur change la durée."),
+      newTitle: z.string().nullish().describe("Nouveau titre, seulement pour renommer."),
+    }),
+    execute: async ({ title, shiftMinutes, newDate, newEndDate, newTitle }) => {
+      console.log("[tool] update_agenda_item →", { title, shiftMinutes, newDate, newEndDate, newTitle });
+      if (!shiftMinutes && !newDate && !newEndDate && !newTitle) return { success: false, reason: "Rien à modifier : précise un décalage, une date ou un titre" };
+      if (shiftMinutes && newDate) return { success: false, reason: "Un décalage OU une nouvelle date, pas les deux" };
+      const found = await findAgendaItem(title ?? undefined);
+      if (!("item" in found)) {
+        return found.candidates.length ? { success: false, reason: "Plusieurs entrées correspondent : demande laquelle", candidates: found.candidates.map((c) => c.title) } : { success: false, reason: "Entrée introuvable dans l'agenda" };
+      }
+      const { item } = found;
+      if (!item.date) return { success: false, reason: "Cette entrée n'a pas de date" };
+      try {
+        // Heure du mur sans décalage : Notion rend « …+01:00 » mais le fuseau est remis à l'écriture (toDateProperty), les deux ensemble sont refusés.
+        const wall = (iso: string) => (iso.includes("T") ? iso.slice(0, 16) : iso);
+        const dateChanged = Boolean(shiftMinutes || newDate || newEndDate);
+        const start = !dateChanged ? undefined : (newDate ?? (shiftMinutes ? shiftIso(item.date, shiftMinutes) : wall(item.date)));
+        const end = newEndDate ?? (shiftMinutes && item.end ? shiftIso(item.end, shiftMinutes) : item.end ? wall(item.end) : null);
+        await updateAgendaItem(item.id, { title: newTitle ?? undefined, start, end });
+        return { success: true, title: newTitle ?? item.title, ...(start ? { avant: dayLabel(item.date.slice(0, 10), todayInParis()), nouvelleDate: start, quand: dayLabel(start.slice(0, 10), todayInParis()) } : {}) };
+      } catch (error) {
+        return { success: false, reason: error instanceof Error ? error.message : "Modification impossible" };
+      }
+    },
+  }),
+
+  delete_agenda_item: tool({
+    description:
+      "Supprime une entrée de l'agenda Notion (elle est archivée : Notion la garde 30 jours dans sa corbeille), désignée par les mots de son titre. Plusieurs entrées qui correspondent : rien n'est supprimé, demande laquelle.",
+    inputSchema: z.object({ title: z.string().min(1).describe("Mots du titre de l'entrée à supprimer") }),
+    execute: async ({ title }) => {
+      console.log("[tool] delete_agenda_item →", { title });
+      const found = await findAgendaItem(title);
+      if (!("item" in found)) {
+        return found.candidates.length ? { success: false, reason: "Plusieurs entrées correspondent : demande laquelle", candidates: found.candidates.map((c) => c.title) } : { success: false, reason: "Entrée introuvable dans l'agenda" };
+      }
+      await deleteAgendaItem(found.item.id);
+      return { success: true, title: found.item.title };
+    },
+  }),
+
+  complete_milestone: tool({
+    description:
+      "Valide UN jalon (statut Validé), désigné par les mots de son titre. Pour un projet entier terminé, utilise complete_project. Plusieurs jalons qui correspondent : rien n'est validé, demande lequel.",
+    inputSchema: z.object({ title: z.string().min(1).describe("Mots du titre du jalon à valider") }),
+    execute: async ({ title }) => {
+      console.log("[tool] complete_milestone →", { title });
+      const found = await completeMilestoneByTitle(title);
+      if (found.match) return { success: true, title: found.match.title };
+      return found.candidates.length ? { success: false, reason: "Plusieurs jalons correspondent : demande lequel", candidates: found.candidates.map((c) => c.title) } : { success: false, reason: "Jalon introuvable parmi les jalons ouverts" };
+    },
+  }),
+
+  add_quick_note: tool({
+    description:
+      "Ajoute une note rapide, datée, à la fin des notes d'une idée ou d'un projet, sans rien écraser : pour « note : … » ou « ajoute une note au projet X ». Pour réécrire ou compléter toute la synthèse, utilise update_idea_notes. Sans idée nommée, demande laquelle.",
+    inputSchema: z.object({
+      ideaTitle: z.string().min(1).describe("Titre (ou extrait) de l'idée ou du projet"),
+      text: z.string().min(1).describe("La note, telle que dite, courte."),
+    }),
+    execute: async ({ ideaTitle, text }) => {
+      console.log("[tool] add_quick_note →", { ideaTitle, textLength: text.length });
+      const idea: any = await findIdeaByTitle(ideaTitle);
+      if (!idea) return { success: false, reason: "Idée introuvable dans Notion" };
+      const existing: string = (idea.properties?.Notes?.rich_text ?? []).map((part: any) => part.plain_text).join("");
+      await updateIdeaNotes(idea.id, `${existing}${existing ? "\n" : ""}- ${todayInParis()} : ${text.trim()}`);
+      return { success: true, ideaTitle, note: text.trim() };
+    },
+  }),
+
   list_milestones: tool({
     description: "Liste les jalons de projet à venir (non validés), triés par échéance, avec leur statut.",
     inputSchema: z.object({}),
@@ -314,6 +393,43 @@ export const loraTools = {
     execute: async () => {
       console.log("[tool] get_last_progress");
       return getLatestProgress();
+    },
+  }),
+
+  get_week_progress: tool({
+    description:
+      "Lit les bilans des 7 derniers jours enregistrés dans Notion (date et texte, du plus récent au plus ancien) : « mes bilans de la semaine », « comment s'est passée ma semaine ». Résume, ne recopie pas ; un jour sans bilan n'apparaît pas.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] get_week_progress");
+      return { bilans: (await getRecentProgress(7)).map(({ date, review }) => ({ date, bilan: review.slice(0, 300) })) };
+    },
+  }),
+
+  get_what_to_do_now: tool({
+    description:
+      "Rassemble de quoi répondre à « que devrais-je faire maintenant ? » : heure de Paris, agenda d'aujourd'hui, prochains rendez-vous, jalon le plus proche, projets en cours. Propose une ou deux actions concrètes d'après ces seules données (ce qui est prévu maintenant d'abord, sinon le jalon le plus proche, sinon un projet en cours), sans rien inventer, sans rien écrire ni programmer. Une source « indisponible » : dis-le.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      console.log("[tool] get_what_to_do_now");
+      const today = todayInParis();
+      const [agenda, upcoming, milestones, projects] = await Promise.allSettled([getAgendaOn(today), getUpcomingAgenda(false, 3), getMilestones(), getProjectsInProgress()]);
+      const read = <T>(result: PromiseSettledResult<T>, pick: (value: T) => unknown) => {
+        if (result.status === "fulfilled") return pick(result.value);
+        console.error("[tool] get_what_to_do_now, lecture en échec :", result.reason);
+        return "indisponible (lecture impossible)";
+      };
+      return {
+        maintenant: new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }).format(new Date()),
+        aujourdhui: today,
+        agendaAujourdhui: read(agenda, (items) => items.filter((i) => i.status !== "Fait").map(({ title, date }) => ({ title, heure: date?.includes("T") ? date.slice(11, 16) : null }))),
+        prochainsRendezVous: read(upcoming, (items) => items.map(({ title, date }) => ({ title, quand: date ? dayLabel(date.slice(0, 10), today) : null }))),
+        jalonLePlusProche: read(milestones, (items) => {
+          const next = items.find((m) => m.dueDate);
+          return next ? { title: next.title, quand: dayLabel(next.dueDate!.slice(0, 10), today), statut: next.status } : "aucun jalon ouvert";
+        }),
+        projetsEnCours: read(projects, (items) => items.map((p) => p.title)),
+      };
     },
   }),
 
