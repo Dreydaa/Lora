@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { decodeEntities, getArticles, getNews } from "../../lib/integrations/news";
+import { decodeEntities, getArticles, getNews, getTopicNews } from "../../lib/integrations/news";
 
 describe("decodeEntities", () => {
   it("décode les entités numériques décimales et hexadécimales", () => {
@@ -64,13 +64,46 @@ describe("getArticles", () => {
   });
 });
 
+describe("getTopicNews (outil get_news)", () => {
+  const feed = (title: string, link: string) => rss(`<item><title>${title}</title><link>${link}</link><description>Résumé ${title}</description></item>`);
+  it("réunit les médias du thème, retire le pistage BBC et ignore un média en panne", async () => {
+    respond({
+      "https://www.lefigaro.fr/rss/figaro_bourse.xml": feed("CAC", "https://f.test/1"),
+      "https://feeds.bbci.co.uk/news/business/rss.xml": feed("FTSE", "https://bbc.test/1?at_medium=RSS&amp;at_campaign=rss"),
+    });
+    expect(await getTopicNews("bourse")).toEqual(["[Le Figaro Bourse] CAC — Résumé CAC — https://f.test/1", "[BBC Business] FTSE — Résumé FTSE — https://bbc.test/1"]);
+    respond({ "https://feeds.bbci.co.uk/news/business/rss.xml": feed("FTSE", "https://bbc.test/1") });
+    expect(await getTopicNews("bourse")).toHaveLength(1);
+  });
+  it("plafonne un résumé trop long (le Guardian y met le début de l'article)", async () => {
+    const long = `<item><title>G</title><link>https://g.test/1</link><description><![CDATA[<p>${"mot ".repeat(200)}</p>]]></description></item>`;
+    respond({ "https://www.theguardian.com/fashion/rss": rss(long) });
+    const [line] = await getTopicNews("mode");
+    expect(line.length).toBeLessThan(330);
+    expect(line).toContain("…");
+  });
+  it("tous les médias en panne : message de repli", async () => {
+    respond({});
+    expect(await getTopicNews("sport")).toEqual(["Actualités indisponibles."]);
+  });
+  it("le thème mode reprend le flux Mode du briefing", async () => {
+    respond({ "https://feeds.test/mode.xml": feed("M", "https://b.test/1") });
+    expect(await getTopicNews("mode")).toEqual(["[Mode] M — Résumé M — https://b.test/1"]);
+  });
+});
+
 describe("getNews (briefing Telegram)", () => {
   it("renvoie des titres étiquetés, 2 par flux", async () => {
     respond({
       "https://feeds.test/tech.xml": rss(item("A", "https://a.test/1") + item("B", "https://a.test/2") + item("C", "https://a.test/3")),
       "https://feeds.test/mode.xml": rss(item("D", "https://b.test/1")),
     });
-    expect(await getNews()).toEqual(["[Tech] A", "[Tech] B", "[Mode] D"]);
+    expect(await getNews()).toEqual(["[Tech] A — https://a.test/1", "[Tech] B — https://a.test/2", "[Mode] D — https://b.test/1"]);
+  });
+  it("ajoute le résumé (CDATA, balises retirées, entités décodées) et le lien quand le flux en fournit", async () => {
+    const withDesc = "<item><title>A</title><link>https://a.test/1</link><description><![CDATA[Un <b>résumé</b> &#8216;net&#8217;.]]></description></item>";
+    respond({ "https://feeds.test/tech.xml": rss(withDesc), "https://feeds.test/mode.xml": rss(item("D", "https://b.test/1")) });
+    expect(await getNews()).toEqual(["[Tech] A — Un résumé ‘net’. — https://a.test/1", "[Mode] D — https://b.test/1"]);
   });
   it("tous les flux en panne : message de repli", async () => {
     respond({});

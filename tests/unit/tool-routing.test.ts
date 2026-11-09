@@ -26,6 +26,11 @@ describe("selectToolNames", () => {
     expect(names("je ne bosse pas ce week-end")).toEqual(expect.arrayContaining(["set_break", "cancel_break"]));
   });
 
+  it("garde get_news pour une demande d'actualité, sans les outils d'écriture", () => {
+    expect(names("donne-moi l'actu en bourse")).toEqual(["get_news"]);
+    expect(names("quoi de neuf dans l'actualité tech ?")).toContain("get_news");
+  });
+
   it("garde le planning récurrent pour un shift", () => {
     expect(names("je travaille de 5h à 13h du lundi au vendredi jusqu'au 24 octobre")).toContain("add_shift_schedule");
   });
