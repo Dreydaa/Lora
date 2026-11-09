@@ -53,7 +53,7 @@ pub fn mode_name(text: &str) -> Option<String> {
 }
 
 // Seulement http(s), sans espace ni caractère de commande : ce texte finit dans la ligne de commande du navigateur.
-fn is_web_address(url: &str) -> bool {
+pub(crate) fn is_web_address(url: &str) -> bool {
   (url.starts_with("https://") || url.starts_with("http://")) && !url.chars().any(|c| c.is_whitespace() || c.is_control() || c == '"')
 }
 

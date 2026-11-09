@@ -1,13 +1,18 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod ambient;
 mod apps;
+mod audio;
 mod claude;
 mod control;
+mod desk;
 mod greeting;
 mod levels;
 mod listen;
 mod modes;
+mod pc;
+mod player;
 mod protocol;
+mod reminders;
 mod speech;
 mod spotify;
 mod system;
@@ -80,15 +85,23 @@ fn tint_title_bar(window: &WebviewWindow) {
 }
 
 // Commande tapée dans la barre de commande du dashboard (Ctrl+K) : exécutée en local, la réponse est une phrase à afficher.
-// Løra elle-même d'abord (« stop », « repose-toi », « fin de mission » : control.rs), puis les modes (« mode créatif », « mode dev » : modes.rs), puis Claude Code (lire sa dernière réponse, « écris … »,
-// « relis le message » puis oui ou non : claude.rs), puis volume, musique et batterie (system.rs), puis ouvrir/fermer une application (apps.rs).
+// Løra elle-même d'abord (« stop », « repose-toi », « fin de mission » : control.rs), puis les modes (« mode créatif », « mode dev » : modes.rs), puis minuteurs, rappels, heure et date
+// (reminders.rs : avant le reste, « rappelle-moi de faire une pause » ne doit pas devenir « pause »), puis temps d'écran, sites et dossiers, fenêtres (desk.rs), puis Claude Code (lire sa
+// dernière réponse, « écris … », « relis le message » puis oui ou non : claude.rs), puis volume, musique et batterie (system.rs), puis ouvrir/fermer une application (apps.rs).
+// Entre desk.rs et claude.rs : verrouiller, veille, éteindre, corbeille avec confirmation, presse-papiers, dictée (pc.rs), puis volume par application, sortie audio et micro (audio.rs :
+// avant system.rs, « baisse Discord » et « mets le son sur le casque » ne doivent pas devenir le volume du système ni une recherche Spotify).
 // None = ce n'est pas une commande locale : le front envoie alors la phrase au backend (api/ask), qui répond comme sur Telegram.
 // Une réponse vide veut dire « rien à dire » (le front ne la lit pas).
 #[tauri::command]
-fn run_command(text: String, app: AppHandle, apps: State<AppsFile>, claude: State<ClaudeState>) -> Option<String> {
+fn run_command(text: String, app: AppHandle, apps: State<AppsFile>, claude: State<ClaudeState>, usage: State<UsageState>) -> Option<String> {
   let dir = apps.0.parent().map(PathBuf::from).unwrap_or_default();
   control::parse(&text).and_then(|c| control::apply(c, &app, &dir))
     .or_else(|| modes::run(&text, &dir, &apps.0))
+    .or_else(|| reminders::run(&text, &dir))
+    .or_else(|| desk::run(&text, &dir, &apps.0, &usage.data.lock().unwrap()))
+    .or_else(|| pc::run(&text, &dir))
+    .or_else(|| audio::run(&text, &apps.0))
+    .or_else(|| player::run(&text, &apps.0.with_file_name("spotify.json")))
     .or_else(|| claude::run(&text, &dir, &claude.0))
     .or_else(|| system::run(&text, &apps.0.with_file_name("spotify.json")))
     .or_else(|| apps::parse(&text).map(|_| apps::run(&text, &apps.0)))
@@ -228,6 +241,10 @@ fn main() {
       if !spotify_file.exists() { let _ = fs::write(&spotify_file, "{ \"client_id\": \"\", \"client_secret\": \"\" }\n"); }
       // Modes de travail (« mode créatif », « mode dev » : voir modes.rs), créés avec les deux modes de départ, relus à chaque phrase.
       modes::ensure_default(&dir);
+      // Sites et dossiers que « ouvre YouTube » / « ouvre mes téléchargements » ont le droit d'ouvrir (voir desk.rs), relus à chaque phrase.
+      desk::ensure_default(&dir);
+      // Minuteurs et rappels en attente (reminders.json) : relus au démarrage, dits à l'heure (voir reminders.rs).
+      reminders::start(dir.clone());
 
       // Voix de Løra, relue à chaque phrase (voir speech.rs) : "volume" de 0 à 1 à régler à l'oreille, "english" les mots dits avec
       // l'accent anglais (noms d'applications : ["blender", "discord"]). Piper et son modèle vont dans voice/.
