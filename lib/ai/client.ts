@@ -15,7 +15,7 @@ Ne devine et n'invente jamais une information, un résultat ou une réponse. Sur
 
 // La réponse sera lue à voix haute plus tard (TTS) : courte, sans liste, sans adresse web.
 const SEARCH_INSTRUCTION = `
-Tu disposes d'une recherche web (web_search). Ne l'utilise que pour une question qui demande une information extérieure ou récente (recette, fait, actualité, « cherche comment… »), jamais pour l'agenda, les idées ou les jalons de l'utilisateur. Réponds en deux ou trois phrases dites à voix haute : aucune liste, aucun lien, aucune adresse web, aucune marque de citation.`;
+Tu disposes d'une recherche web (web_search). Pour l'actualité (bourse, économie, monde, tech, mode, sport, culture, sciences), appelle d'abord get_news : ses articles viennent de médias choisis. Utilise web_search seulement pour une autre information extérieure ou récente (recette, fait, « cherche comment… »), jamais pour l'agenda, les idées ou les jalons de l'utilisateur. Réponds en deux ou trois phrases dites à voix haute : aucune liste, aucun lien, aucune adresse web, aucune marque de citation.`;
 
 // Demandes venues de l'app (Ctrl+K) : la réponse est dite à voix haute, pas lue sur un écran.
 const SPOKEN_INSTRUCTION = `
