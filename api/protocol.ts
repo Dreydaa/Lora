@@ -1,5 +1,5 @@
 import { assertDashboardKey } from "../lib/auth";
-import { getProtocolRun, saveAgentApps, saveProtocolRun } from "../lib/memory";
+import { getProtocolRun, saveAgentApps, saveProtocolRun, touchPc } from "../lib/memory";
 import { finishProtocol } from "../lib/protocols";
 import type { StepResult } from "../lib/types";
 
@@ -23,6 +23,8 @@ export default async function handler(request: Request) {
   }
 
   if (request.method === "GET") {
+    // Une interrogation sur quatre (toutes les 2 min) porte ?presence=1 : une écriture Redis à ce rythme, pas à chaque interrogation de 30 s.
+    if (new URL(request.url).searchParams.get("presence") === "1") await touchPc();
     const run = await getProtocolRun();
     // Remis une seule fois : si le PC tombe en route, le protocole n'est pas relancé en double (le délai prévient l'utilisateur).
     if (!run || run.claimed) return Response.json({ run: null });

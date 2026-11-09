@@ -25,7 +25,7 @@ const TAIL_BYTES: u64 = 4 * 1024 * 1024; // la fin de la conversation suffit ; u
 const SPOKEN_CHARS: usize = 600; // une lecture dépasse vite la minute : on s'arrête à la fin d'une phrase avant cette taille
 const TYPED_CHARS: usize = 2000;
 
-fn fold(text: &str) -> String {
+pub(crate) fn fold(text: &str) -> String {
   text.to_lowercase().chars().map(|c| match c { 'é' | 'è' | 'ê' | 'ë' => 'e', 'à' | 'â' | 'ä' => 'a', 'î' | 'ï' => 'i', 'ô' | 'ö' => 'o', 'ù' | 'û' | 'ü' => 'u', 'ç' => 'c', c => c }).collect()
 }
 pub(crate) fn words(text: &str) -> Vec<String> {
@@ -251,7 +251,7 @@ pub fn is_vscode_window(title: &str, project: &str) -> bool {
 type Hwnd = *mut c_void;
 
 #[repr(C)]
-struct KeyInput { kind: u32, _pad1: u32, vk: u16, scan: u16, flags: u32, time: u32, _pad2: u32, extra: usize, _tail: [u8; 8] } // INPUT de Windows (40 octets sur 64 bits)
+pub(crate) struct KeyInput { kind: u32, _pad1: u32, vk: u16, scan: u16, flags: u32, time: u32, _pad2: u32, extra: usize, _tail: [u8; 8] } // INPUT de Windows (40 octets sur 64 bits)
 
 #[link(name = "user32")]
 extern "system" {
@@ -302,15 +302,15 @@ fn bring_to_front(hwnd: Hwnd) -> bool {
   }
 }
 
-fn key(vk: u16, scan: u16, flags: u32) -> KeyInput { KeyInput { kind: 1, _pad1: 0, vk, scan, flags, time: 0, _pad2: 0, extra: 0, _tail: [0; 8] } }
+pub(crate) fn key(vk: u16, scan: u16, flags: u32) -> KeyInput { KeyInput { kind: 1, _pad1: 0, vk, scan, flags, time: 0, _pad2: 0, extra: 0, _tail: [0; 8] } }
 
-fn unicode_keys(text: &str) -> Vec<KeyInput> {
+pub(crate) fn unicode_keys(text: &str) -> Vec<KeyInput> {
   const UNICODE: u32 = 0x4; // KEYEVENTF_UNICODE : le caractère lui-même, sans touche du clavier (accents, « ø », émojis)
   const KEYUP: u32 = 0x2;
   text.encode_utf16().flat_map(|unit| [0, KEYUP].map(|up| key(0, unit, UNICODE | up))).collect()
 }
 
-fn send_keys(keys: &[KeyInput]) -> Result<(), String> {
+pub(crate) fn send_keys(keys: &[KeyInput]) -> Result<(), String> {
   for chunk in keys.chunks(400) {
     let sent = unsafe { SendInput(chunk.len() as u32, chunk.as_ptr(), std::mem::size_of::<KeyInput>() as i32) };
     if sent as usize != chunk.len() { return Err("Windows a bloqué la saisie (fenêtre lancée en administrateur ?)".into()); }
