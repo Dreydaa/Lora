@@ -74,7 +74,11 @@ pub fn search(file: &Path, query: &str) -> Result<Option<Track>, SearchError> {
 // rien d'autre. Il faut ajouter http://127.0.0.1:8888/callback aux « Redirect URIs » de l'application sur developer.spotify.com.
 const REDIRECT_URI: &str = "http://127.0.0.1:8888/callback";
 const CALLBACK_ADDR: &str = "127.0.0.1:8888";
-const SCOPE: &str = "user-library-read";
+// Lire et modifier les titres likés, lire le titre en cours, commander la lecture (aléatoire), lire tes playlists. Un jeton enregistré avant
+// l'ajout de ces droits n'a que « user-library-read » : « connecte Spotify » à refaire une fois.
+const SCOPE: &str = "user-library-read user-library-modify user-read-playback-state user-read-currently-playing user-modify-playback-state playlist-read-private";
+const API: &str = "https://api.spotify.com/v1";
+const RECONNECT: &str = "Spotify refuse l'accès (jeton expiré ou droit manquant) : dis « connecte Spotify »";
 const CONNECT_SECS: u64 = 120;
 const TOKEN_URL: &str = "https://accounts.spotify.com/api/token";
 
@@ -175,17 +179,23 @@ pub fn liked_random(spotify_file: &Path) -> Result<Track, String> {
 }
 
 // Les adresses sont des paramètres pour qu'un test les dirige vers un faux Spotify local.
-fn liked_random_at(spotify_file: &Path, token_url: &str, tracks_url: &str) -> Result<Track, String> {
+// Un jeton d'accès tout frais, obtenu avec le jeton de renouvellement enregistré (renouvelé s'il change).
+fn access_token(agent: &ureq::Agent, spotify_file: &Path, token_url: &str) -> Result<String, String> {
   let (id, secret) = credentials(spotify_file).ok_or_else(|| format!("remplis client_id et client_secret dans {}", spotify_file.display()))?;
   let refresh = read_refresh_token(spotify_file).ok_or("Spotify n'est pas connecté : dis « connecte Spotify »")?;
-  let reconnect = "Spotify refuse l'accès (jeton expiré ou droit manquant) : dis « connecte Spotify »";
-  let agent = agent();
   let tokens: Value = agent.post(token_url).header("Authorization", basic(&id, &secret))
     .send_form([("grant_type", "refresh_token"), ("refresh_token", refresh.as_str())])
-    .map_err(|e| if matches!(e, ureq::Error::StatusCode(400 | 401 | 403)) { reconnect.to_string() } else { format!("connexion à Spotify : {e}") })?
+    .map_err(|e| if matches!(e, ureq::Error::StatusCode(400 | 401 | 403)) { RECONNECT.to_string() } else { format!("connexion à Spotify : {e}") })?
     .body_mut().read_json().map_err(|e| format!("réponse de connexion illisible : {e}"))?;
-  let access = tokens["access_token"].as_str().ok_or("Spotify n'a pas rendu de jeton")?;
+  let access = tokens["access_token"].as_str().ok_or("Spotify n'a pas rendu de jeton")?.to_string();
   if let Some(renewed) = tokens["refresh_token"].as_str() { save_refresh_token(spotify_file, renewed)?; }
+  Ok(access)
+}
+
+fn liked_random_at(spotify_file: &Path, token_url: &str, tracks_url: &str) -> Result<Track, String> {
+  let reconnect = RECONNECT;
+  let agent = agent();
+  let access = access_token(&agent, spotify_file, token_url)?;
   let page = |offset: u64| -> Result<Value, String> {
     agent.get(tracks_url).query("limit", "1").query("offset", offset.to_string())
       .header("Authorization", format!("Bearer {access}")).call()
@@ -195,6 +205,75 @@ fn liked_random_at(spotify_file: &Path, token_url: &str, tracks_url: &str) -> Re
   let total = page(0)?["total"].as_u64().unwrap_or(0);
   if total == 0 { return Err("tu n'as aucun titre liké".into()); }
   track_from(&page(random_below(total))?["items"][0]["track"]).ok_or_else(|| "titre illisible".into())
+}
+
+// ── Commandes du compte : aimer le titre en cours, aléatoire, playlists ─────────────────────────────────────────────────────────────────
+// Même jeton que les titres likés, avec les droits de SCOPE (aléatoire : Spotify le réserve aux comptes Premium). « Quel est ce titre ? » n'en
+// fait pas partie : il se lit dans Windows, sans réseau (system.rs, now_playing).
+
+fn api_error(what: &'static str) -> impl Fn(ureq::Error) -> String {
+  move |e| match e {
+    ureq::Error::StatusCode(401 | 403) => RECONNECT.to_string(),
+    ureq::Error::StatusCode(404) => "Spotify n'est ouvert sur aucun appareil".to_string(),
+    e => format!("{what} : {e}"),
+  }
+}
+
+// « Titre – Artiste » du morceau en cours, que Spotify joue sur n'importe quel appareil de ton compte.
+fn current_track(agent: &ureq::Agent, access: &str, api: &str) -> Result<Track, String> {
+  let mut answer = agent.get(format!("{api}/me/player/currently-playing")).header("Authorization", format!("Bearer {access}")).call().map_err(api_error("lecture du titre en cours"))?;
+  if answer.status().as_u16() == 204 { return Err("rien ne joue sur Spotify".into()); }
+  let playing: Value = answer.body_mut().read_json().map_err(|e| format!("réponse illisible : {e}"))?;
+  // Un épisode de podcast ou une publicité ne s'ajoute pas aux titres likés.
+  if playing["currently_playing_type"].as_str().is_some_and(|kind| kind != "track") { return Err("ce n'est pas un titre (un podcast ?)".into()); }
+  track_from(&playing["item"]).ok_or_else(|| "ce n'est pas un titre (un podcast ?)".into())
+}
+
+pub fn like_current(spotify_file: &Path) -> Result<String, String> { like_current_at(spotify_file, TOKEN_URL, API) }
+
+fn like_current_at(spotify_file: &Path, token_url: &str, api: &str) -> Result<String, String> {
+  let agent = agent();
+  let access = access_token(&agent, spotify_file, token_url)?;
+  let track = current_track(&agent, &access, api)?;
+  agent.put(format!("{api}/me/tracks")).header("Authorization", format!("Bearer {access}")).send_json(serde_json::json!({ "ids": [track.id] })).map_err(api_error("ajout aux titres likés"))?;
+  Ok(track.label)
+}
+
+pub fn set_shuffle(spotify_file: &Path, on: bool) -> Result<(), String> { set_shuffle_at(spotify_file, TOKEN_URL, API, on) }
+
+fn set_shuffle_at(spotify_file: &Path, token_url: &str, api: &str, on: bool) -> Result<(), String> {
+  let agent = agent();
+  let access = access_token(&agent, spotify_file, token_url)?;
+  agent.put(format!("{api}/me/player/shuffle")).query("state", if on { "true" } else { "false" }).header("Authorization", format!("Bearer {access}")).send_empty().map_err(api_error("lecture aléatoire"))?;
+  Ok(())
+}
+
+// Ta playlist dont le nom ressemble le plus à `wanted` : le nom entier d'abord, sinon celui qui le contient. (identifiant, nom)
+fn pick_playlist(items: &[Value], wanted: &str) -> Option<(String, String)> {
+  let compact = |s: &str| crate::claude::fold(s).chars().filter(|c| c.is_alphanumeric()).collect::<String>();
+  let wanted = compact(wanted);
+  if wanted.is_empty() { return None; }
+  let named = |item: &Value| Some((item["id"].as_str().filter(|id| id.chars().all(|c| c.is_ascii_alphanumeric()))?.to_string(), item["name"].as_str()?.to_string()));
+  let all: Vec<(String, String)> = items.iter().filter_map(named).collect();
+  all.iter().find(|(_, name)| compact(name) == wanted).or_else(|| all.iter().find(|(_, name)| compact(name).contains(&wanted))).cloned()
+}
+
+pub fn find_playlist(spotify_file: &Path, name: &str) -> Result<Option<(String, String)>, String> { find_playlist_at(spotify_file, TOKEN_URL, API, name) }
+
+fn find_playlist_at(spotify_file: &Path, token_url: &str, api: &str, name: &str) -> Result<Option<(String, String)>, String> {
+  let agent = agent();
+  let access = access_token(&agent, spotify_file, token_url)?;
+  let mut items = vec![];
+  for page in 0..4u32 { // 200 playlists au plus
+    let list: Value = agent.get(format!("{api}/me/playlists")).query("limit", "50").query("offset", (page * 50).to_string())
+      .header("Authorization", format!("Bearer {access}")).call().map_err(api_error("lecture des playlists"))?
+      .body_mut().read_json().map_err(|e| format!("réponse illisible : {e}"))?;
+    let got = list["items"].as_array().cloned().unwrap_or_default();
+    let last = got.len() < 50;
+    items.extend(got);
+    if last { break; }
+  }
+  Ok(pick_playlist(&items, name))
 }
 
 #[cfg(test)]
@@ -214,9 +293,10 @@ mod tests {
   }
 
   #[test]
-  fn authorize_url_asks_only_to_read_the_library_and_encodes_everything() {
+  fn authorize_url_asks_for_the_listed_rights_and_encodes_everything() {
     let url = authorize_url("id 1", "s&t");
-    assert!(url.starts_with("https://accounts.spotify.com/authorize?response_type=code&client_id=id%201&scope=user%2Dlibrary%2Dread"), "{url}");
+    assert!(url.starts_with(&format!("https://accounts.spotify.com/authorize?response_type=code&client_id=id%201&scope={}&", encode(SCOPE))), "{url}");
+    for right in ["user-library-read", "user-library-modify", "user-read-currently-playing", "user-modify-playback-state", "playlist-read-private"] { assert!(SCOPE.split(' ').any(|r| r == right), "{right}"); }
     assert!(url.contains("redirect_uri=http%3A%2F%2F127%2E0%2E0%2E1%3A8888%2Fcallback&state=s%26t"), "{url}");
   }
 
@@ -379,6 +459,83 @@ mod tests {
     assert_eq!(liked_random_at(&file, &token_url, &tracks_url).err().as_deref(), Some("tu n'as aucun titre liké"));
     let _ = fs::remove_file(token_file(&file));
     assert!(liked_random_at(&file, &token_url, &tracks_url).unwrap_err().contains("n'est pas connecté"), "jamais connecté");
+    let _ = fs::remove_file(&file);
+  }
+
+  #[test]
+  fn the_current_track_is_liked_with_the_right_requests() {
+    let file = connected_file("like");
+    let (base, seen) = fake_spotify(|target, _| match target {
+      t if t.starts_with("POST /token") => (200, TOKEN_ANSWER.into()),
+      "GET /v1/me/player/currently-playing" => (200, r#"{"item":{"id":"4cOdK2wGLETKBW3PvgPWqT","name":"Get Lucky","artists":[{"name":"Daft Punk"}]}}"#.into()),
+      _ => (200, "{}".into()),
+    });
+    assert_eq!(like_current_at(&file, &format!("{base}/token"), &format!("{base}/v1")), Ok("Get Lucky – Daft Punk".to_string()));
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 3, "jeton, titre en cours, ajout");
+    assert_eq!(seen[2].0, "PUT /v1/me/tracks");
+    assert!(seen[2].1.contains("authorization: bearer acces"), "{}", seen[2].1);
+    assert_eq!(serde_json::from_str::<Value>(&seen[2].2).unwrap(), serde_json::json!({ "ids": ["4cOdK2wGLETKBW3PvgPWqT"] }));
+    let _ = fs::remove_file(token_file(&file));
+    let _ = fs::remove_file(&file);
+  }
+
+  #[test]
+  fn liking_says_why_it_failed_and_never_writes_without_a_track() {
+    let file = connected_file("like-errors");
+    let like = |current: (u16, &'static str)| {
+      let (base, seen) = fake_spotify(move |t, _| if t.starts_with("POST /token") { (200, TOKEN_ANSWER.into()) } else if t.starts_with("GET") { (current.0, current.1.into()) } else { (200, "{}".into()) });
+      (like_current_at(&file, &format!("{base}/token"), &format!("{base}/v1")), seen)
+    };
+    let (answer, seen) = like((204, ""));
+    assert_eq!(answer, Err("rien ne joue sur Spotify".into()));
+    assert!(!seen.lock().unwrap().iter().any(|r| r.0.starts_with("PUT")), "rien ne joue : rien n'est ajouté");
+    assert!(like((200, r#"{"currently_playing_type":"episode","item":{"id":"x"}}"#)).0.unwrap_err().contains("pas un titre"), "un épisode de podcast sans artiste lisible");
+    assert!(like((403, "{}")).0.unwrap_err().contains("connecte Spotify"), "droit manquant : reconnecter");
+    assert!(like((404, "{}")).0.unwrap_err().contains("aucun appareil"));
+    let _ = fs::remove_file(token_file(&file));
+    let _ = fs::remove_file(&file);
+  }
+
+  #[test]
+  fn shuffle_is_set_with_a_put_and_a_missing_device_is_said() {
+    let file = connected_file("shuffle");
+    let (base, seen) = fake_spotify(|t, _| if t.starts_with("POST /token") { (200, TOKEN_ANSWER.into()) } else { (200, "{}".into()) });
+    set_shuffle_at(&file, &format!("{base}/token"), &format!("{base}/v1"), true).unwrap();
+    set_shuffle_at(&file, &format!("{base}/token"), &format!("{base}/v1"), false).unwrap();
+    let targets: Vec<String> = seen.lock().unwrap().iter().map(|r| r.0.clone()).filter(|t| t.starts_with("PUT")).collect();
+    assert_eq!(targets, ["PUT /v1/me/player/shuffle?state=true", "PUT /v1/me/player/shuffle?state=false"]);
+    let (base, _) = fake_spotify(|t, _| if t.starts_with("POST /token") { (200, TOKEN_ANSWER.into()) } else { (404, "{}".into()) });
+    assert!(set_shuffle_at(&file, &format!("{base}/token"), &format!("{base}/v1"), true).unwrap_err().contains("aucun appareil"));
+    let _ = fs::remove_file(token_file(&file));
+    let _ = fs::remove_file(&file);
+  }
+
+  #[test]
+  fn a_playlist_is_found_by_its_name_whole_first_then_by_a_part_of_it() {
+    let items: Vec<Value> = serde_json::from_str(r#"[{"id":"p1","name":"Chill Vibes"},{"id":"p2","name":"Chill"},{"id":"p3","name":"Rock années 80"},{"id":"a:b","name":"Piégée"},{"name":"Sans id"}]"#).unwrap();
+    assert_eq!(pick_playlist(&items, "chill"), Some(("p2".into(), "Chill".into())), "le nom entier l'emporte");
+    assert_eq!(pick_playlist(&items, "vibes"), Some(("p1".into(), "Chill Vibes".into())));
+    assert_eq!(pick_playlist(&items, "Rock annees 80"), Some(("p3".into(), "Rock années 80".into())));
+    assert_eq!(pick_playlist(&items, "piegee"), None, "un identifiant qui n'est pas simple est ignoré : il finirait dans une adresse");
+    assert_eq!(pick_playlist(&items, "jazz"), None);
+    assert_eq!(pick_playlist(&items, ""), None);
+  }
+
+  #[test]
+  fn playlists_are_read_page_by_page_with_the_token() {
+    let file = connected_file("playlists");
+    let (base, seen) = fake_spotify(|t, _| {
+      if t.starts_with("POST /token") { return (200, TOKEN_ANSWER.into()); }
+      let page = if t.contains("offset=0") { (0..50).map(|i| format!(r#"{{"id":"a{i}","name":"Liste {i}"}}"#)).collect::<Vec<_>>().join(",") } else { r#"{"id":"cible","name":"Ma Cible"}"#.into() };
+      (200, format!(r#"{{"items":[{page}]}}"#))
+    });
+    let found = find_playlist_at(&file, &format!("{base}/token"), &format!("{base}/v1"), "ma cible").unwrap();
+    assert_eq!(found, Some(("cible".into(), "Ma Cible".into())));
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.iter().filter(|r| r.0.starts_with("GET /v1/me/playlists")).count(), 2, "la première page est pleine, la seconde l'est à moitié : on s'arrête");
+    assert!(seen[1].1.contains("authorization: bearer acces"));
+    let _ = fs::remove_file(token_file(&file));
     let _ = fs::remove_file(&file);
   }
 
