@@ -7,7 +7,7 @@ export const CATEGORIES = ["Blender", "GitHub", "Figma", "Notion", "Cinéma", "M
 export type Category = (typeof CATEGORIES)[number];
 export type AgendaItem = { id: string; title: string; date: string | null; end?: string | null; status: string; type: AgendaType; category?: Category };
 export type Milestone = { id: string; title: string; dueDate: string | null; status: string; proofUrl?: string; ideaId?: string; category?: Category };
-export type Article = { tag: string; title: string; url: string | null };
+export type Article = { tag: string; title: string; url: string | null; summary?: string };
 export type WorkerJob = { chatId: number; text: string; messageId: number; protocolTimeout?: string };
 // Étape d'un protocole exécutée sur le PC, et son statut rendu par l'app Løra.
 export type ProtocolStep = { kind: "open"; app: string };

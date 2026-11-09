@@ -9,6 +9,7 @@ import { getLatestProgress, saveProgress } from "../notion/progress";
 import { getSettings, saveBriefingTime } from "../notion/settings";
 import { upsertSchedule } from "../integrations/qstash";
 import { getWeather } from "../integrations/weather";
+import { NEWS_TOPICS, getTopicNews } from "../integrations/news";
 import { clearBreak, getAgentApps, getBreak, getLastBriefing, setBreak } from "../memory";
 import { dayLabel, todayInParis } from "../date";
 
@@ -294,6 +295,16 @@ export const loraTools = {
     execute: async () => {
       console.log("[tool] get_weather");
       return { weather: await getWeather() };
+    },
+  }),
+
+  get_news: tool({
+    description:
+      "Lit les derniers articles de médias fiables sur un thème (bourse, économie, monde, tech, mode, sport, culture, sciences) : titre, résumé et lien. À préférer à la recherche web pour toute question d'actualité. Ne cite que ce qui est dans les résumés, sans rien inventer ; à voix haute ne dis jamais les liens, sur Telegram joins le lien des articles que tu cites.",
+    inputSchema: z.object({ topic: z.enum(NEWS_TOPICS).describe("Thème demandé : « actu en bourse » = bourse, « l'actualité » sans précision = monde.") }),
+    execute: async ({ topic }) => {
+      console.log("[tool] get_news →", { topic });
+      return { articles: await getTopicNews(topic) };
     },
   }),
 

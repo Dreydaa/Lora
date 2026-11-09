@@ -22,7 +22,8 @@ const BRIEFING_INSTRUCTION = `
 Tu écris le briefing du matin. Rédige un message court et naturel (pas une liste à puces) dans ton ton habituel, à partir des données fournies.${BILAN_RULES}
 - Agenda : chaque rendez-vous vient avec son échéance (aujourd'hui, demain, dans N jours). Présente-le comme un rappel à venir et n'en parle jamais comme s'il avait lieu aujourd'hui, sauf si l'échéance est « aujourd'hui ».
 - Projets : cite en une phrase les projets en cours. Si le dernier bilan commence par « Projets : », ce sont ceux sur lesquels il a avancé : tu peux signaler, sans reproche, un projet en cours absent de cette liste.
-- Mentionne la météo ; ne cite les actualités que si elles apportent vraiment quelque chose au message.`;
+- Mentionne la météo.
+- Actualités : chaque article vient avec son résumé et son lien. Choisis-en un ou deux qui comptent vraiment pour lui, développe-les en une ou deux phrases en t'appuyant uniquement sur le résumé (n'invente aucun détail absent), et termine chacun par son lien tel quel. Si aucun ne vaut le coup, n'en cite pas.`;
 
 // Version affichée dans l'app : très courte, sans agenda ni actualités (le dashboard les affiche dans ses propres blocs).
 const DASHBOARD_BRIEFING_INSTRUCTION = `

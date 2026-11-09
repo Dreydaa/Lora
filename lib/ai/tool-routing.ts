@@ -27,6 +27,7 @@ const GROUPS: ToolGroup[] = [
   // Un merci peut appeler une suggestion (« merci » après un briefing) : les lectures suffisent, pas tous les outils.
   { tools: ["list_ideas", "list_milestones", "get_agenda"], pattern: /\bmerci|\bthanks?\b/ },
   { tools: ["get_weather"], pattern: /meteo|temps (fait|il)|pluie|pleu|temperature|degres|soleil|parapluie|chaud|froid/ },
+  { tools: ["get_news"], pattern: /\bactus?\b|actualite|news|nouvelles|infos?\b|journal|bourse|cac ?40|marches?\b|economi|monde|tech|\bmode\b|sport|cultur|scienc/ },
   { tools: ["get_last_progress"], pattern: /bilan|hier|derniere? (fois|seance|session)|avance/ },
   { tools: ["set_break", "cancel_break"], pattern: /pause|vacance|week-?end|repos|conge|ne (vais|travaille|bosse)|pas (bosser|travailler)|jusqu.a|reprend|annule/ },
   {
