@@ -96,6 +96,14 @@ fn session() -> windows::core::Result<Option<Session>> {
   }
 }
 
+// « Titre – Artiste » de ce que Windows voit jouer (Spotify, YouTube dans le navigateur…), sans réseau ni jeton. None : aucun lecteur.
+pub(crate) fn now_playing() -> Option<String> {
+  let session = session().ok()??;
+  let props = session.TryGetMediaPropertiesAsync().and_then(|p| p.join()).ok()?;
+  let (title, artist) = (props.Title().ok()?.to_string(), props.Artist().map(|a| a.to_string()).unwrap_or_default());
+  if title.is_empty() { None } else if artist.is_empty() { Some(title) } else { Some(format!("{title} – {artist}")) }
+}
+
 // Spotify est le lecteur de Løra : « mets de la musique » le lance s'il n'y a aucun lecteur, puis attend qu'il apparaisse
 // dans les commandes multimédia de Windows (jusqu'à 20 s : démarrage à froid).
 fn start_spotify() -> windows::core::Result<Option<Session>> {
