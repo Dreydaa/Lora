@@ -31,6 +31,12 @@ pub fn open_uri(uri: &str) -> io::Result<()> {
   Command::new("explorer.exe").arg(uri).spawn().map(|_| ())
 }
 
+// Une adresse web longue (%, &) donnée à explorer.exe n'est pas comprise : il ouvre alors le dossier Documents au lieu du navigateur.
+// rundll32 url.dll passe l'adresse telle quelle au navigateur par défaut, sans passer par un shell.
+fn open_web(url: &str) -> io::Result<()> {
+  Command::new("rundll32.exe").args(["url.dll,FileProtocolHandler", url]).spawn().map(|_| ())
+}
+
 // Fichier absent, illisible ou à moitié rempli : pas configuré (le BOM éventuel est ignoré, comme pour apps.json).
 fn credentials(file: &Path) -> Option<(String, String)> {
   let json: Value = serde_json::from_str(fs::read_to_string(file).ok()?.trim_start_matches('\u{feff}')).ok()?;
@@ -162,7 +168,7 @@ pub fn connect(spotify_file: &Path) -> Result<String, String> {
   let state = random_hex();
   let listener = TcpListener::bind(CALLBACK_ADDR).map_err(|e| format!("le port 8888 est occupé ({e})"))?;
   listener.set_nonblocking(true).map_err(|e| e.to_string())?;
-  open_uri(&authorize_url(&id, &state)).map_err(|e| format!("le navigateur ne s'ouvre pas ({e})"))?;
+  open_web(&authorize_url(&id, &state)).map_err(|e| format!("le navigateur ne s'ouvre pas ({e})"))?;
   let code = wait_for_code(&listener, &state, Instant::now() + Duration::from_secs(CONNECT_SECS))?;
   let tokens: Value = agent().post(TOKEN_URL).header("Authorization", basic(&id, &secret))
     .send_form([("grant_type", "authorization_code"), ("code", code.as_str()), ("redirect_uri", REDIRECT_URI)])

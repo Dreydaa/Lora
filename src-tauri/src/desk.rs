@@ -47,6 +47,9 @@ fn window(text: &str) -> Option<Window> {
     if has(&["gauche"]) { return Some(Window::Left); }
     if has(&["droite"]) { return Some(Window::Right); }
   }
+  // « mets en fenêtré », « repasse en mode fenêtre » : sans ça, « mets » lancerait une recherche Spotify. Même F11 que le plein écran
+  // (shortcut: F11 bascule sans connaître l'état, comme le plein écran ; à remplacer si on veut lire l'état de la fenêtre).
+  if has(&["fenetre", "fenetree", "fenetres"]) && has(&["en", "mode", "sors", "quitte", "repasse", "reviens"]) { return Some(Window::Fullscreen); }
   None
 }
 
@@ -153,6 +156,7 @@ mod tests {
     assert_eq!(window("mets-la à gauche"), Some(Window::Left));
     assert_eq!(window("mets la fenêtre à droite"), Some(Window::Right));
     for text in ["mets la page en plein écran", "Met la page en plein écran", "passe en plein écran"] { assert_eq!(window(text), Some(Window::Fullscreen), "{text}"); }
+    for text in ["mets en fenêtré", "repasse en mode fenêtre", "remets en fenêtré"] { assert_eq!(window(text), Some(Window::Fullscreen), "{text}"); }
     for text in ["agrandis la fenêtre", "maximise la page"] { assert_eq!(window(text), Some(Window::Maximize), "{text}"); }
     for text in ["combien de temps en plein écran", "mets de la musique à droite", "ouvre le bureau", "à gauche", "mets Get Lucky", "montre-moi la météo", ""] { assert_eq!(window(text), None, "{text}"); }
   }
