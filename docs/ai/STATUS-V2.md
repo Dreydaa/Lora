@@ -41,7 +41,7 @@ Dernière mise à jour : 08/11/2026 (étapes 9, 10 et 13 validées par l'utilisa
 
 | # | Étape | État | PR |
 |---|---|---|---|
-| 0 | Tests de cadence remis au vert, liste « non vérifié » de la V1 | **Fait**, liste non vérifiée en partie ouverte (voir plus bas) | #12 |
+| 0 | Tests de cadence remis au vert, liste « non vérifié » de la V1 | **Fait** ; liste « non vérifié » de la V1 soldée le 10/11/2026 d'après l'utilisateur (non rejouée par moi) | #12 |
 | 1 | Statut `Terminé`, catégorie Notion, applications inconnues | **Fait** | #13 |
 | 2 | Pause de plusieurs jours visible dans le dashboard | **Fait** | #14 |
 | 3 | Optimisation : cause du lag trouvée et corrigée | **Fait** | #15 |
@@ -389,6 +389,10 @@ Décidé avec l'utilisateur : **présence et « envoie-moi ça » seulement ; «
 
 Tout ce que l'utilisateur avait gardé de la liste du 08/11 est **codé** ; **rien n'est essayé en réel**. À faire par l'utilisateur : (1) dire « connecte Spotify » une fois (droits étendus, lot 3) ; (2) **redéployer le backend** (lots 4 à 6 : réponses directes, nouveaux outils Notion, `/api/send`, présence) ; (3) essayer à la voix, lot par lot, dans l'ordre de ce document ; (4) rappeler à Løra les trois « Casque » (lot 2) par un nom précis.
 
+**Mise à jour du 10/11/2026 : validé par l'utilisateur** (« tout est bon, il ne reste que l'étape 12 et 8 » ; son constat, je n'ai rien rejoué). Deux défauts trouvés à l'usage et corrigés ce jour-là :
+- **« Connecte Spotify » ouvrait le dossier Documents** au lieu du navigateur : l'adresse d'autorisation (longue, pleine de `%` et de `&`) donnée à `explorer.exe` n'était pas comprise. `spotify.rs` ouvre maintenant les adresses web par `rundll32 url.dll,FileProtocolHandler` (`open_web`) ; les `spotify:…` restent sur `explorer.exe`. Reconnexion faite par l'utilisateur.
+- **« Mets en fenêtré » lançait une recherche Spotify** : seul « plein écran » était reconnu, « mets » tombait dans la recherche de musique. `desk.rs` reconnaît « en fenêtré » / « en mode fenêtre » / « repasse en fenêtre » (même F11 que le plein écran, test ajouté). **Limite** : F11 bascule sans connaître l'état de la fenêtre.
+
 ### Extra 2 : Løra prend la parole d'elle-même (08/11/2026, **code fait, essai réel pas fait**)
 
 **Demandé par l'utilisateur le 08/11/2026** (avant la fin des étapes 11 et 12, que `LoraV2.md` place avant les Extras : signalé comme possible surdev, il a tranché). Périmètre choisi : un socle de garde-fous et quatre types d'événements. Module `src-tauri/src/ambient.rs`, un seul thread qui regarde toutes les 15 s ; une phrase au plus par tour.
@@ -409,6 +413,8 @@ Tout ce que l'utilisateur avait gardé de la liste du 08/11 est **codé** ; **ri
 **Relecture du code et des commits (06/11/2026, fin de journée)** : relus l'arbre de travail non commité et les modules neufs (`control.rs`, `claude.rs`, `modes.rs`, `levels.rs`, `voiceShape.ts`, `VoiceWidget.tsx`, `speechAudio.ts`), ainsi que les cinq commits de la branche `reconnaissance-vocale` (`ee7eb20` à `8976199`, dont `listen.rs` en entier). **Un défaut trouvé et corrigé** : le tirage des surnoms de `say.txt` (voir « Étape 13, petits ajouts »). Rien d'autre à corriger : tous les accès à des tranches de `levels.rs` sont bornés (un WAV illisible rend `None` et la page garde son son simulé), `modes.rs` n'ouvre que des applications de `apps.json` et des adresses `http(s)` sans espace ni guillemet passées en arguments (pas de shell), `claude.rs` ne tape jamais Entrée sans un « oui » à la question « Je l'envoie ? » et n'utilise l'identifiant de session que s'il est alphanumérique. **Limites de cette relecture** : faite sur le code et les tests, rien n'a été essayé dans l'app réelle (micro, haut-parleurs, VS Code, fenêtre transparente). Un point de conception à garder en tête : `modes::run` ne demande que « mode » suivi d'un nom connu de `modes.json`, donc, après le mot d'activation, une phrase comme « je suis en mode créatif ce soir » lancerait aussi le mode.
 
 ## À vérifier (ouvert)
+
+**10/11/2026 : l'utilisateur déclare la liste « non vérifié » de la V1 soldée** (« la V1 est finie, tout est bon », y compris la pause posée par conversation) ; je n'ai rien rejoué. Les points ci-dessous gardent leur détail pour l'historique.
 
 - **Dans l'app installée** : le menu de la zone de notification, la reprise du rendu après un clic sur l'icône, le suivi du temps d'écran et les clics sur les blocs. Seule la clé de démarrage automatique `Løra` (`lora.exe --autostart`) a été constatée dans le registre (`HKCU\...\Run`) le 12/10/2026 ; le démarrage réel au lancement de session n'est pas vérifié.
 - **L'app installée est celle de l'installeur du 13/10/2026** (étape 4 et noms d'applications inclus, d'après l'essai de l'utilisateur). Les vérifications ci-dessus (menu de la zone de notification, temps d'écran, démarrage automatique) peuvent se faire dessus. Le correctif du « demain » du bilan est dans le backend, déployé depuis la fusion de la PR #17 (13/10/2026).
