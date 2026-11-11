@@ -5,13 +5,23 @@
 //  « fin de mission » : elle dit « D'accord patron, à la prochaine. » puis ferme sa propre application.
 // Par la voix elles passent par le mot d'activation (« Løra, stop »), pendant qu'elle parle aussi (voir listen.rs : écoute réduite à ces
 // trois commandes) ; la barre Ctrl+K les comprend telles quelles.
-use std::{path::Path, sync::mpsc, thread, time::Duration};
-use tauri::{menu::CheckMenuItem, AppHandle, Manager};
+//  « mode manuel » / « fin du mode manuel » (étape 12, gestes de la main) : bascule les gestes sur le profil Blender et revient au profil de base.
+use std::{path::Path, sync::{atomic::{AtomicBool, Ordering}, mpsc}, thread, time::Duration};
+use tauri::{menu::CheckMenuItem, AppHandle, Emitter, Manager};
 
 const QUIT_SPEECH_SECS: u64 = 10; // on ne laisse pas Løra ouverte parce que sa dernière phrase traîne
+const MANUAL_EVENT: &str = "lora://manual"; // charge utile : true = mode manuel actif
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum Control { Stop, Rest, Quit }
+pub enum Control { Stop, Rest, Quit, Manual(bool) }
+
+// Profil de gestes actif : faux = commandes de base, vrai = profil Blender. Une seule table à la fois (voir LoraV2.md, chantier 9).
+static MANUAL: AtomicBool = AtomicBool::new(false);
+pub fn manual() -> bool { MANUAL.load(Ordering::Relaxed) }
+pub fn set_manual(app: &AppHandle, on: bool) {
+  MANUAL.store(on, Ordering::Relaxed);
+  let _ = app.emit(MANUAL_EVENT, on);
+}
 
 // La case « Écoute du micro » du menu (main.rs) : « repose-toi » la décoche pour que le menu dise la vérité.
 pub struct ListenItem(pub CheckMenuItem<tauri::Wry>);
@@ -26,6 +36,8 @@ pub fn parse(text: &str) -> Option<Control> {
     all if all.iter().all(|w| matches!(*w, "stop" | "stoppe")) => Some(Control::Stop),
     ["repose" | "reposes" | "repos", "toi"] => Some(Control::Rest),
     ["fin", "de", "mission"] => Some(Control::Quit),
+    ["mode", "manuel"] => Some(Control::Manual(true)),
+    ["fin", "du", "mode", "manuel"] => Some(Control::Manual(false)),
     _ => None,
   }
 }
@@ -47,6 +59,10 @@ pub fn apply(control: Control, app: &AppHandle, dir: &Path) -> Option<String> {
       crate::ambient::set_enabled(false);
       if let Some(item) = app.try_state::<crate::ambient::AmbientItem>() { let _ = item.0.set_checked(false); }
       Some("D'accord, je me repose.".into())
+    }
+    Control::Manual(on) => {
+      set_manual(app, on);
+      Some(if on { "Mode manuel." } else { "Fin du mode manuel." }.into())
     }
     Control::Quit => {
       crate::speech::stop_speaking();
@@ -77,8 +93,15 @@ mod tests {
   }
 
   #[test]
+  fn manual_mode_is_the_whole_phrase_and_ends_with_its_own_phrase() {
+    for text in ["mode manuel", "Mode manuel.", "MODE MANUEL !"] { assert_eq!(parse(text), Some(Control::Manual(true)), "{text}"); }
+    for text in ["fin du mode manuel", "Fin du mode manuel.", "FIN DU MODE MANUEL !"] { assert_eq!(parse(text), Some(Control::Manual(false)), "{text}"); }
+    for text in ["passe en mode manuel", "mode manuel blender", "fin du mode"] { assert_eq!(parse(text), None, "{text}"); }
+  }
+
+  #[test]
   fn a_word_inside_another_sentence_is_not_a_command() {
-    for text in ["", "ne stop pas la musique", "stop la musique", "je me repose", "repose le verre", "la fin de la mission", "fin de mission accomplie", "pause", "ferme blender"] {
+    for text in ["","ne stop pas la musique", "stop la musique", "je me repose", "repose le verre", "la fin de la mission", "fin de mission accomplie", "pause", "ferme blender"] {
       assert_eq!(parse(text), None, "{text}");
     }
   }
