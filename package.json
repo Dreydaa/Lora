@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-mediapipe.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copy-mediapipe.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
@@ -28,6 +30,7 @@
   },
   "dependencies": {
     "@ai-sdk/groq": "^4.0.46",
+    "@mediapipe/tasks-vision": "1.2.2",
     "@notionhq/client": "^4.0.2",
     "@tauri-apps/api": "^2.12.1",
     "@tauri-apps/plugin-opener": "^2.2.6",
