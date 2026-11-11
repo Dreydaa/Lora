@@ -5,6 +5,7 @@ mod audio;
 mod claude;
 mod control;
 mod desk;
+mod gesture;
 mod greeting;
 mod levels;
 mod listen;
@@ -167,8 +168,25 @@ fn create_widget(app: &tauri::App) -> tauri::Result<()> {
 }
 
 #[tauri::command]
+fn manual_mode() -> bool { control::manual() }
+
+#[tauri::command]
 fn set_widget(app: AppHandle, visible: bool) {
   if let Some(window) = app.get_webview_window(WIDGET_LABEL) { let _ = if visible { window.show() } else { window.hide() }; }
+}
+
+// Fenêtre TEMPORAIRE de l'étape 12 (src/features/hands) : l'image de la caméra avec les os des mains par-dessus, pour régler le détecteur.
+// Créée à la demande (menu de la zone de notification ou argument --hands) et détruite à sa fermeture : la caméra s'éteint avec elle.
+const HANDS_LABEL: &str = "hands";
+
+fn show_hands(app: &AppHandle) {
+  if let Some(window) = app.get_webview_window(HANDS_LABEL) { let _ = window.show(); let _ = window.set_focus(); return; }
+  let app = app.clone();
+  // Créée hors du fil de l'événement : sous Windows, construire une fenêtre depuis un gestionnaire synchrone peut bloquer.
+  thread::spawn(move || {
+    if let Err(e) = WebviewWindowBuilder::new(&app, HANDS_LABEL, WebviewUrl::App("index.html".into()))
+      .title("Løra : mains (aperçu temporaire)").inner_size(1280.0, 760.0).center().build() { eprintln!("[mains] fenêtre impossible : {e}"); }
+  });
 }
 
 fn show_main(app: &AppHandle) {
@@ -180,7 +198,7 @@ fn main() {
     .plugin(tauri_plugin_opener::init())
     // Lancée par Windows à l'ouverture de session avec --autostart : la fenêtre reste masquée (icône de la zone de notification).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
-    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command, speak, set_widget])
+    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command, speak, set_widget, manual_mode, gesture::blender_orbit, gesture::blender_key, gesture::blender_mouse])
     .setup(|app| {
       // Inscription au démarrage de Windows, seulement pour l'app installée : en dev, elle pointerait vers l'exécutable de debug.
       // Inscrite une seule fois par lancement sans toucher au choix de l'utilisateur (Gestionnaire des tâches > Démarrage).
@@ -198,6 +216,7 @@ fn main() {
       // Fermer la fenêtre ne fait que la masquer ; « Quitter » est le seul moyen d'arrêter vraiment Løra (et le suivi).
       // « Écoute du micro » : coupe le micro lui-même (voir listen.rs) ; l'état de départ vient de listen.json.
       create_widget(app)?;
+      if std::env::args().any(|a| a == "--hands") { show_hands(app.handle()); }
       let data_dir = app.path().app_data_dir()?;
       fs::create_dir_all(&data_dir)?;
       let listen_item = CheckMenuItem::with_id(app, "listen", "Écoute du micro (« Løra, … »)", true, listen::enabled_in_config(&data_dir), None::<&str>)?;
@@ -209,6 +228,7 @@ fn main() {
         &MenuItem::with_id(app, "show", "Afficher Løra", true, None::<&str>)?,
         &listen_item,
         &ambient_item,
+        &MenuItem::with_id(app, "hands", "Aperçu des mains (temporaire)", true, None::<&str>)?,
         &MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?,
       ])?;
       let _tray = tauri::tray::TrayIconBuilder::with_id("lora")
@@ -219,6 +239,7 @@ fn main() {
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| match event.id.as_ref() {
           "show" => show_main(app),
+          "hands" => show_hands(app),
           // La case se coche toute seule au clic : on relit son état pour que le micro suive.
           "listen" => listen::set_enabled(listen_item.is_checked().unwrap_or(true)),
           "ambient" => ambient::set_enabled(ambient_item.is_checked().unwrap_or(true)),

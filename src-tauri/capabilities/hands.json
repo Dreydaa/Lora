@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "hands",
+  "description": "Aperçu temporaire des mains (étape 12) : la caméra et le détecteur tournent dans la page, aucune commande Rust n'est appelée.",
+  "windows": ["hands"],
+  "permissions": ["core:default"]
+}
