@@ -13,6 +13,7 @@ const TARGET_FPS = 60; // demandé le 11/11/2026 ; la cible de 15 images/s du ch
 const CAMERA_NAME = "StreamCam"; // la caméra de l'utilisateur (Logitech StreamCam), choisie le 11/11/2026
 // 720p : plus net que 640×480 pour les doigts éloignés, sans le coût du 1080p ; la caméra donne ce qu'elle sait faire de plus proche.
 const VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } };
+const MANUAL_IDLE_MS = 60_000; // sans aucune main pendant ce temps, le mode manuel s'éteint (délai non précisé le 10/11/2026 : posé à 1 min, à ajuster)
 const COLORS = { Gauche: "#4aa8ff", Droite: "#ff9a3c" } as const;
 
 type Status = { text: string; fps: number };
@@ -91,6 +92,7 @@ export function HandsPreview() {
 
     let last = 0;
     const gestures = createGestures();
+    let lastHands = performance.now(); // dernière fois qu'une main était visible (ou que le mode manuel était éteint)
     let count = 0;
     let dropped = 0; // mains fantômes écartées depuis l'ouverture de la fenêtre
     let since = performance.now();
@@ -103,6 +105,11 @@ export function HandsPreview() {
       const detected = result.landmarks.map((points, i) => readHand(points, result.handedness[i][0].categoryName, result.handedness[i][0].score));
       const hands = dropDuplicates(detected);
       dropped += detected.length - hands.length;
+      if (hands.length || !manualRef.current) lastHands = now;
+      else if (now - lastHands > MANUAL_IDLE_MS) {
+        lastHands = now;
+        invoke("set_manual", { on: false }).catch(() => {});
+      }
       // Gestes (rotate, scaling) : seulement en mode manuel ; hors du mode, reset() lâche le clic molette ou annule un scaling en cours.
       const out = manualRef.current ? gestures.update(hands, now) : gestures.reset(now);
       out.orbit.forEach(sendOrbit);

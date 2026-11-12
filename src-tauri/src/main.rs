@@ -170,6 +170,10 @@ fn create_widget(app: &tauri::App) -> tauri::Result<()> {
 #[tauri::command]
 fn manual_mode() -> bool { control::manual() }
 
+// Retour automatique au profil de base quand la page des mains ne voit plus de mains depuis un moment.
+#[tauri::command]
+fn set_manual(app: AppHandle, on: bool) { control::set_manual(&app, on); }
+
 #[tauri::command]
 fn set_widget(app: AppHandle, visible: bool) {
   if let Some(window) = app.get_webview_window(WIDGET_LABEL) { let _ = if visible { window.show() } else { window.hide() }; }
@@ -198,7 +202,7 @@ fn main() {
     .plugin(tauri_plugin_opener::init())
     // Lancée par Windows à l'ouverture de session avec --autostart : la fenêtre reste masquée (icône de la zone de notification).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
-    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command, speak, set_widget, manual_mode, gesture::blender_orbit, gesture::blender_key, gesture::blender_mouse])
+    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command, speak, set_widget, manual_mode, set_manual, gesture::blender_orbit, gesture::blender_key, gesture::blender_mouse])
     .setup(|app| {
       // Inscription au démarrage de Windows, seulement pour l'app installée : en dev, elle pointerait vers l'exécutable de debug.
       // Inscrite une seule fois par lancement sans toucher au choix de l'utilisateur (Gestionnaire des tâches > Démarrage).

@@ -32,8 +32,9 @@ export function createRotate() {
     const actions: OrbitAction[] = [];
 
     if (!locked) {
-      // Deux paumes vers la caméra = scaling, pas rotate : la droite ne doit pas montrer sa paume.
-      if (!clutch || !right || right.palm === "paume") { since = undefined; return actions; }
+      // Deux paumes vers la caméra = scaling, pas rotate : la droite ne doit pas montrer sa paume. Main gauche ouverte (3 doigts ou plus) :
+      // la paume d'un poing est instable et armait le rotate juste après une validation du scaling.
+      if (!clutch || left.fingers < 3 || !right || right.palm === "paume") { since = undefined; return actions; }
       since ??= now;
       if (now - since < HOLD_MS) return actions;
       locked = true;
