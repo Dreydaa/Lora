@@ -28,6 +28,17 @@ describe("rotate", () => {
     expect(rotate.update([clutch(), thumbAt(0.5)], 300)).toEqual([{ phase: "start" }]);
   });
 
+  it("un poing gauche (paume instable) n'embraye pas, la main ouverte (3 doigts ou plus) oui", () => {
+    const fist = { ...clutch(), fingers: 0 };
+    const rotate = createRotate();
+    rotate.update([fist, thumbAt(0.5)], 0);
+    expect(rotate.update([fist, thumbAt(0.5)], 1000)).toEqual([]);
+    const three = { ...clutch(), fingers: 3 };
+    const open = createRotate();
+    open.update([three, thumbAt(0.5)], 0);
+    expect(open.update([three, thumbAt(0.5)], 300)).toEqual([{ phase: "start" }]);
+  });
+
   it("deux paumes vers la caméra, c'est le scaling : pas de rotate", () => {
     const rotate = createRotate();
     const both = [clutch(), hand("Droite", "paume")];

@@ -10,14 +10,14 @@ use std::{
 use windows::{
   core::PWSTR,
   Win32::{
-    Foundation::CloseHandle,
+    Foundation::{CloseHandle, RECT},
     System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION},
     UI::{
       Input::KeyboardAndMouse::{
         SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEINPUT,
         MOUSE_EVENT_FLAGS, VIRTUAL_KEY,
       },
-      WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId},
+      WindowsAndMessaging::{GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId, SetCursorPos},
     },
   },
 };
@@ -57,6 +57,16 @@ fn blender_in_front() -> bool {
 fn key(code: u16) {
   let event = |flags| INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VIRTUAL_KEY(code), wScan: 0, dwFlags: flags, time: 0, dwExtraInfo: 0 } } };
   unsafe { SendInput(&[event(Default::default()), event(KEYEVENTF_KEYUP)], std::mem::size_of::<INPUT>() as i32) };
+}
+
+// « Løra, centre le curseur » : la souris au centre de la fenêtre Blender, seulement si Blender est au premier plan (sinon on ne touche à rien).
+// Sert à poser le curseur dans la vue 3D, à l'écart du pivot de l'objet, avant un scaling. Rend vrai si le curseur a bougé.
+pub fn center_cursor() -> bool {
+  if !blender_in_front() { return false; }
+  unsafe {
+    let mut rect = RECT::default();
+    GetWindowRect(GetForegroundWindow(), &mut rect).is_ok() && SetCursorPos((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2).is_ok()
+  }
 }
 
 // Plus de nouvelles de la page depuis 1 s (fenêtre fermée, plantage) : on relâche le clic molette et on annule un scaling en suspens.

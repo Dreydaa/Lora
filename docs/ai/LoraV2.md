@@ -165,7 +165,7 @@ Le but est de voir en direct si le suivi est fiable avant de construire les gest
 |---|---|---|
 | **Rotate** | Main gauche ouverte, paume face caméra = embrayage. Main droite : le **bout du pouce** sert de repère, son déplacement (relatif, entre deux images) fait tourner la vue. Pose de la main droite libre, sauf paume face caméra. | Clic molette maintenu + déplacement |
 | **Zoom** | Inchangé (voir plus haut) : deux mains face à face, dos qui s'écartent = zoom avant, paumes qui se rapprochent = zoom arrière, proportionnel, cliquet. | Molette |
-| **Scaling** | Deux **paumes face caméra** = activation. Doigts levés de la **main gauche** (pouce ignoré) : 1 = axe X, 2 = axe Y, 3 = axe Z, aucun (main entièrement ouverte) = scaling général. L'écart entre les poignets donne le facteur. | `S`, puis `X`/`Y`/`Z`, mouvement de souris, `Entrée` pour valider ; `Échap` si le suivi est perdu |
+| **Scaling** | Deux **paumes face caméra** = activation. Doigts levés de la **main gauche** (pouce ignoré) : 1 = axe X, 2 = axe Y, 3 = axe Z, aucun (main entièrement ouverte) = scaling général. L'écart entre les poignets donne le facteur. | `S`, puis `X`/`Y`/`Z`, mouvement de souris, `Entrée` pour valider (**deux poings fermés tenus 0,25 s**, décidé le 12/11/2026) ; `Échap` si le suivi est perdu |
 
 Règles de détection :
 - **Séparer les gestes** : zoom = paumes face à face (normales opposées) ; scaling = les deux paumes vers la caméra ; rotate = seulement la gauche vers la caméra. Chaque geste doit être tenu environ 300 ms avant de se déclencher, et une fois engagé il reste verrouillé jusqu'à ce que la main gauche se baisse (pas de bascule rotate → scaling en cours de route).
