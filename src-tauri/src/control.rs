@@ -13,7 +13,7 @@ const QUIT_SPEECH_SECS: u64 = 10; // on ne laisse pas Løra ouverte parce que sa
 const MANUAL_EVENT: &str = "lora://manual"; // charge utile : true = mode manuel actif
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum Control { Stop, Rest, Quit, Manual(bool) }
+pub enum Control { Stop, Rest, Quit, Manual(bool), CenterCursor }
 
 // Profil de gestes actif : faux = commandes de base, vrai = profil Blender. Une seule table à la fois (voir LoraV2.md, chantier 9).
 static MANUAL: AtomicBool = AtomicBool::new(false);
@@ -38,6 +38,7 @@ pub fn parse(text: &str) -> Option<Control> {
     ["fin", "de", "mission"] => Some(Control::Quit),
     ["mode", "manuel"] => Some(Control::Manual(true)),
     ["fin", "du", "mode", "manuel"] => Some(Control::Manual(false)),
+    ["centre" | "centrer", "le", "curseur"] | ["centre" | "centrer", "curseur"] | ["centre" | "centrer", "la", "souris"] => Some(Control::CenterCursor),
     _ => None,
   }
 }
@@ -60,6 +61,7 @@ pub fn apply(control: Control, app: &AppHandle, dir: &Path) -> Option<String> {
       if let Some(item) = app.try_state::<crate::ambient::AmbientItem>() { let _ = item.0.set_checked(false); }
       Some("D'accord, je me repose.".into())
     }
+    Control::CenterCursor => Some(if crate::gesture::center_cursor() { "Curseur centré." } else { "Blender n'est pas au premier plan." }.into()),
     Control::Manual(on) => {
       set_manual(app, on);
       Some(if on { "Mode manuel." } else { "Fin du mode manuel." }.into())
@@ -97,6 +99,14 @@ mod tests {
     for text in ["mode manuel", "Mode manuel.", "MODE MANUEL !"] { assert_eq!(parse(text), Some(Control::Manual(true)), "{text}"); }
     for text in ["fin du mode manuel", "Fin du mode manuel.", "FIN DU MODE MANUEL !"] { assert_eq!(parse(text), Some(Control::Manual(false)), "{text}"); }
     for text in ["passe en mode manuel", "mode manuel blender", "fin du mode"] { assert_eq!(parse(text), None, "{text}"); }
+  }
+
+  #[test]
+  fn centering_the_cursor_is_the_whole_phrase() {
+    for text in ["centre le curseur", "Centre le curseur.", "centrer le curseur", "centre curseur", "centre la souris", "CENTRE LE CURSEUR !"] {
+      assert_eq!(parse(text), Some(Control::CenterCursor), "{text}");
+    }
+    for text in ["centre", "centre le texte", "centre le curseur dans blender", "ne centre pas le curseur"] { assert_eq!(parse(text), None, "{text}"); }
   }
 
   #[test]
