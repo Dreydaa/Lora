@@ -7,6 +7,8 @@ use std::{
   thread,
   time::{Duration, SystemTime, UNIX_EPOCH},
 };
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use crate::control::CameraCommand;
 use windows::{
   core::PWSTR,
   Win32::{
@@ -57,6 +59,50 @@ fn blender_in_front() -> bool {
 fn key(code: u16) {
   let event = |flags| INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VIRTUAL_KEY(code), wScan: 0, dwFlags: flags, time: 0, dwExtraInfo: 0 } } };
   unsafe { SendInput(&[event(Default::default()), event(KEYEVENTF_KEYUP)], std::mem::size_of::<INPUT>() as i32) };
+}
+
+// --- caméra des gestes ------------------------------------------------------------------------------------------------------------
+// Éteinte par défaut : pas de fenêtre des mains = pas de caméra (la page ouvre la caméra en se chargeant et la rend en la quittant).
+// « allume la caméra » crée la fenêtre CACHÉE (la caméra tourne, les gestes marchent, rien n'est affiché) ; « affiche la caméra » la montre (et
+// allume la caméra si besoin) ; « cache la caméra » la masque (la caméra reste allumée) ; « éteins la caméra » la détruit, la caméra s'éteint.
+// La croix de la fenêtre ne fait que la masquer (main.rs : toutes les fenêtres se masquent à la fermeture).
+const HANDS_LABEL: &str = "hands";
+
+pub fn camera_is_on(app: &AppHandle) -> bool { app.get_webview_window(HANDS_LABEL).is_some() }
+
+// Rend la phrase à dire.
+pub fn camera(app: &AppHandle, command: CameraCommand) -> &'static str {
+  let window = app.get_webview_window(HANDS_LABEL);
+  match command {
+    CameraCommand::On | CameraCommand::Show => {
+      let show = command == CameraCommand::Show;
+      if let Some(window) = window {
+        if !show { return "La caméra est déjà allumée."; }
+        let _ = window.show();
+        let _ = window.set_focus();
+        return "Voilà la caméra.";
+      }
+      let app = app.clone();
+      // Créée hors du fil courant : sous Windows, construire une fenêtre depuis un gestionnaire synchrone peut bloquer.
+      thread::spawn(move || {
+        if let Err(e) = WebviewWindowBuilder::new(&app, HANDS_LABEL, WebviewUrl::App("index.html".into()))
+          .title("Løra : caméra et mains").inner_size(1280.0, 760.0).center().visible(show).focused(show).build() { eprintln!("[mains] fenêtre impossible : {e}"); }
+      });
+      if show { "J'allume la caméra et je l'affiche." } else { "Caméra allumée." }
+    }
+    CameraCommand::Hide => match window {
+      Some(window) => { let _ = window.hide(); "Caméra masquée." }
+      None => "La caméra est éteinte.",
+    },
+    CameraCommand::Off => match window {
+      Some(window) => {
+        let _ = window.destroy();
+        crate::control::set_manual(app, false); // sans caméra, le mode manuel n'a plus d'objet
+        "Caméra éteinte."
+      }
+      None => "La caméra est déjà éteinte.",
+    },
+  }
 }
 
 // « Løra, centre le curseur » : la souris au centre de la fenêtre Blender, seulement si Blender est au premier plan (sinon on ne touche à rien).
