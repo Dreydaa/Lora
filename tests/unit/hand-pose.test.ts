@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boundingBox, dropDuplicates, palmRatio, palmView, raisedFingers, readHand, sideOf, type Point } from "../../src/features/hands/handPose";
+import { boundingBox, dropDuplicates, isPointing, palmRatio, palmView, raisedFingers, readHand, sideOf, type Point } from "../../src/features/hands/handPose";
 
 // Main synthétique, poignet en bas (0.5, 0.9). Main droite de l'utilisateur, paume vers la caméra, vue sur l'image brute :
 // l'index est à droite de l'image (x 0.6) et l'auriculaire à gauche (x 0.4). `up` = doigts levés parmi index, majeur, annulaire, auriculaire.
@@ -79,6 +79,14 @@ describe("handPose", () => {
     const left = readHand(hand([true, true, true, true]), "Left", 0.9);
     const right = readHand(hand([true, true, true, true]).map((p) => ({ x: p.x + 0.18, y: p.y })), "Right", 0.9);
     expect(dropDuplicates([left, right])).toHaveLength(2);
+  });
+
+  it("isPointing : seul l'index levé, les trois autres doigts repliés", () => {
+    expect(isPointing(hand([true, false, false, false]))).toBe(true);
+    expect(isPointing(hand([true, true, false, false]))).toBe(false);
+    expect(isPointing(hand([true, true, true, true]))).toBe(false);
+    expect(isPointing(hand([false, true, false, false]))).toBe(false); // le majeur seul n'est pas un index pointé
+    expect(isPointing(hand([false, false, false, false]))).toBe(false);
   });
 
   it("readHand assemble le tout", () => {

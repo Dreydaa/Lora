@@ -202,7 +202,7 @@ fn main() {
     .plugin(tauri_plugin_opener::init())
     // Lancée par Windows à l'ouverture de session avec --autostart : la fenêtre reste masquée (icône de la zone de notification).
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
-    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command, speak, set_widget, manual_mode, set_manual, gesture::blender_orbit, gesture::blender_key, gesture::blender_mouse])
+    .invoke_handler(tauri::generate_handler![app_usage, window_visible, run_command, speak, set_widget, manual_mode, set_manual, gesture::blender_orbit, gesture::blender_key, gesture::blender_mouse, gesture::blender_wheel])
     .setup(|app| {
       // Inscription au démarrage de Windows, seulement pour l'app installée : en dev, elle pointerait vers l'exécutable de debug.
       // Inscrite une seule fois par lancement sans toucher au choix de l'utilisateur (Gestionnaire des tâches > Démarrage).

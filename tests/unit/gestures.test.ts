@@ -51,6 +51,44 @@ describe("gestures", () => {
     for (const t of [316, 500]) expect(g.update(rotatePose(), t).orbit).toEqual([]);
   });
 
+  // Zoom : les deux index pointés (index plus loin du poignet que son articulation du milieu, les autres doigts repliés).
+  const pointingHand = (side: "Gauche" | "Droite", wristX: number): HandReading => {
+    const h = hand(side, "profil", 1, { x: wristX, y: 0.7 });
+    h.points[9] = { x: wristX, y: 0.5 };
+    [[6, 8, true], [10, 12, false], [14, 16, false], [18, 20, false]].forEach(([pip, tip, up]) => {
+      h.points[pip as number] = { x: wristX, y: 0.54 };
+      h.points[tip as number] = { x: wristX, y: up ? 0.4 : 0.62 };
+    });
+    return h;
+  };
+  const zoomPose = () => [pointingHand("Gauche", 0.7), pointingHand("Droite", 0.3)];
+
+  it("le zoom s'arme sur deux mains face à face, et il est affiché comme tel", () => {
+    const g = createGestures();
+    g.update(zoomPose(), 0);
+    expect(g.update(zoomPose(), 150).view).toMatchObject({ gesture: "zoom", phase: "arming", clutch: ["Gauche", "Droite"] });
+    expect(g.update(zoomPose(), 300).view).toMatchObject({ gesture: "zoom", phase: "engaged" });
+  });
+
+  it("scaling embrayé : le zoom ne s'arme pas, même si les mains passent en pose de zoom", () => {
+    const g = createGestures();
+    g.update(scalePose(), 0);
+    g.update(scalePose(), 300);
+    g.update(zoomPose(), 400);
+    expect(g.update(zoomPose(), 1500).view.gesture).toBe("scaling");
+  });
+
+  it("zoom en cours : ni rotate ni scaling ne peuvent s'armer", () => {
+    const g = createGestures();
+    g.update(zoomPose(), 0);
+    g.update(zoomPose(), 300);
+    for (const t of [400, 1000]) {
+      const out = g.update(rotatePose(), t);
+      expect(out.orbit).toEqual([]);
+      expect(out.scale).toEqual([]);
+    }
+  });
+
   it("reset lâche ce qui est en cours : clic molette pour le rotate, Échap pour le scaling", () => {
     const rotating = createGestures();
     rotating.update(rotatePose(), 0);
