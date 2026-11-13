@@ -43,8 +43,10 @@ export function createRotate() {
       return [{ phase: "start" }];
     }
 
-    // Verrouillé jusqu'à ce que la main gauche se baisse : pas de bascule vers un autre geste en cours de route.
-    if (clutch) lostAt = undefined;
+    // Verrouillé jusqu'à ce que la main gauche se baisse ou que les deux poings se ferment (aucun doigt levé aux deux mains, comme la validation
+    // du scaling) : pas de bascule vers un autre geste en cours de route.
+    const fists = left?.fingers === 0 && right?.fingers === 0;
+    if (clutch && !fists) lostAt = undefined;
     else {
       lostAt ??= now;
       if (now - lostAt >= RELEASE_MS) { locked = false; forget(); return [{ phase: "end" }]; }
