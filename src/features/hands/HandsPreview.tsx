@@ -2,10 +2,12 @@ import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
-import { dropDuplicates, readHand, THUMB_TIP, type HandReading } from "./handPose";
+import { dropDuplicates, INDEX_TIP, readHand, THUMB_TIP, type HandReading } from "./handPose";
+import { createHandFilter } from "./handFilter";
 import { createGestures, type GestureView } from "./gestures";
 import type { OrbitAction } from "./rotateGesture";
 import type { ScaleAction } from "./scaleGesture";
+import type { ZoomAction } from "./zoomGesture";
 
 // Aperçu de contrôle du détecteur de mains (étape 12, `?hands`) : l'image de la caméra en miroir, un point par articulation, un bâton par
 // segment, un carré par main (bleu = gauche, orange = droite). Tout est local : le modèle et le moteur WASM viennent de public/, aucune image ne sort.
@@ -31,6 +33,11 @@ function sendScale(action: ScaleAction) {
   else if (action.phase === "axis") call("blender_key", { name: action.key });
   else if (action.phase === "move") call("blender_mouse", { dx: action.dx, dy: 0 });
   else call("blender_key", { name: action.phase === "confirm" ? "enter" : "esc" });
+}
+
+// Zoom : des crans de molette dans Blender (positif = zoom avant), mêmes garde-fous côté Rust.
+function sendZoom(action: ZoomAction) {
+  invoke("blender_wheel", { notches: action.notches }).catch(() => {});
 }
 
 export function HandsPreview() {
@@ -75,7 +82,9 @@ export function HandsPreview() {
         video.srcObject = stream;
         await video.play();
         const wasm = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
-        const options = { runningMode: "VIDEO" as const, numHands: 2 };
+        // Seuils de confiance relevés (0,5 par défaut) : moins de fausses mains sur le visage et le décor (13/11/2026). shortcut: posés avant mesure,
+        // trop hauts ils font rater de vraies mains en faible lumière ; à régler avec les scores affichés.
+        const options = { runningMode: "VIDEO" as const, numHands: 2, minHandDetectionConfidence: 0.7, minHandPresenceConfidence: 0.7, minTrackingConfidence: 0.6 };
         try {
           landmarker = await HandLandmarker.createFromOptions(wasm, { ...options, baseOptions: { modelAssetPath: "/models/hand_landmarker.task", delegate: "GPU" } });
         } catch {
@@ -92,6 +101,7 @@ export function HandsPreview() {
 
     let last = 0;
     const gestures = createGestures();
+    const filter = createHandFilter();
     let lastHands = performance.now(); // dernière fois qu'une main était visible (ou que le mode manuel était éteint)
     let count = 0;
     let dropped = 0; // mains fantômes écartées depuis l'ouverture de la fenêtre
@@ -103,8 +113,9 @@ export function HandsPreview() {
       last = now;
       const result = landmarker!.detectForVideo(video, now);
       const detected = result.landmarks.map((points, i) => readHand(points, result.handedness[i][0].categoryName, result.handedness[i][0].score));
-      const hands = dropDuplicates(detected);
-      dropped += detected.length - hands.length;
+      const deduped = dropDuplicates(detected);
+      dropped += detected.length - deduped.length;
+      const { kept: hands, rejected } = filter.update(deduped, now); // fausses mains : score trop bas ou vues trop peu longtemps
       if (hands.length || !manualRef.current) lastHands = now;
       else if (now - lastHands > MANUAL_IDLE_MS) {
         lastHands = now;
@@ -114,7 +125,8 @@ export function HandsPreview() {
       const out = manualRef.current ? gestures.update(hands, now) : gestures.reset(now);
       out.orbit.forEach(sendOrbit);
       out.scale.forEach(sendScale);
-      draw(ctx, video, hands, out.view, manualRef.current);
+      out.zoom.forEach(sendZoom);
+      draw(ctx, video, hands, rejected, out.view, manualRef.current);
       count++;
       if (now - since >= 1000) {
         const fps = Math.round((count * 1000) / (now - since));
@@ -153,7 +165,7 @@ export function HandsPreview() {
 // Image en miroir (comme un miroir : ta main droite est à droite à l'écran) ; les textes restent à l'endroit.
 const PHASE_COLOR = { idle: "#8a93a6", arming: "#ffc247", engaged: "#3ddc84" } as const; // libre, armement, embrayé
 
-function draw(ctx: CanvasRenderingContext2D, video: HTMLVideoElement, hands: HandReading[], view: GestureView, manual: boolean) {
+function draw(ctx: CanvasRenderingContext2D, video: HTMLVideoElement, hands: HandReading[], rejected: HandReading[], view: GestureView, manual: boolean) {
   const { width: w, height: h } = ctx.canvas;
   const px = (x: number) => (1 - x) * w;
   const py = (y: number) => y * h;
@@ -162,6 +174,18 @@ function draw(ctx: CanvasRenderingContext2D, video: HTMLVideoElement, hands: Han
   ctx.scale(-1, 1);
   ctx.drawImage(video, 0, 0, w, h);
   ctx.restore();
+
+  // Mains rejetées par le filtre (score trop bas, vues trop peu longtemps) : cadre gris pointillé avec leur score, pour régler les seuils.
+  for (const hand of rejected) {
+    ctx.save();
+    ctx.strokeStyle = ctx.fillStyle = "#8a93a6";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.strokeRect(px(hand.box.x + hand.box.w), py(hand.box.y), hand.box.w * w, hand.box.h * h);
+    ctx.font = "22px system-ui";
+    ctx.fillText(`rejetée · ${hand.side} · score ${hand.score.toFixed(2)}`, px(hand.box.x + hand.box.w), py(hand.box.y + hand.box.h) + 24);
+    ctx.restore();
+  }
 
   for (const hand of hands) {
     const color = COLORS[hand.side];
@@ -189,7 +213,7 @@ function draw(ctx: CanvasRenderingContext2D, video: HTMLVideoElement, hands: Han
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, hand.box.w * w, hand.box.h * h);
     ctx.font = "bold 30px system-ui";
-    ctx.fillText(`${hand.side} · ${hand.palm} (${hand.ratio.toFixed(2)}) · ${hand.fingers} doigt(s)`, x, Math.max(32, y - 10));
+    ctx.fillText(`${hand.side} · ${hand.palm} (${hand.ratio.toFixed(2)}) · ${hand.fingers} doigt(s) · ${hand.score.toFixed(2)}`, x, Math.max(32, y - 10));
 
     // Main d'embrayage : contour épais de la couleur de la phase (pointillé pendant l'armement, plein une fois embrayé).
     if (view.phase !== "idle" && view.clutch.includes(hand.side)) {
@@ -215,30 +239,32 @@ function draw(ctx: CanvasRenderingContext2D, video: HTMLVideoElement, hands: Han
     ctx.arc(px(right.points[THUMB_TIP].x), py(right.points[THUMB_TIP].y), 18, 0, Math.PI * 2);
     ctx.stroke();
   }
-  if (view.phase === "engaged" && view.gesture === "scaling" && left && right) {
+  if (view.phase === "engaged" && (view.gesture === "scaling" || view.gesture === "zoom") && left && right) {
+    // Scaling : entre les poignets ; zoom : entre les bouts des deux index (la distance mesurée).
+    const at = view.gesture === "zoom" ? INDEX_TIP : 0;
     ctx.strokeStyle = PHASE_COLOR.engaged;
     ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.moveTo(px(left.points[0].x), py(left.points[0].y));
-    ctx.lineTo(px(right.points[0].x), py(right.points[0].y));
+    ctx.moveTo(px(left.points[at].x), py(left.points[at].y));
+    ctx.lineTo(px(right.points[at].x), py(right.points[at].y));
     ctx.stroke();
   }
 
   // Panneau des entrées de commandes : mode, état de l'embrayage, commande en cours.
   const lines = [
     manual ? "Mode manuel · profil Blender" : "Mode de base · gestes Blender inactifs (dis « Løra, mode manuel »)",
-    view.phase === "engaged" ? `EMBRAYÉ · ${view.gesture === "scaling" ? "SCALING" : "ROTATE"}` : view.phase === "arming" ? `Embrayage : armement ${view.gesture === "scaling" ? "scaling" : "rotate"} ${Math.round(view.progress * 100)} %` : "Embrayage : libre",
+    view.phase === "engaged" ? `EMBRAYÉ · ${view.gesture?.toUpperCase()}` : view.phase === "arming" ? `Embrayage : armement ${view.gesture} ${Math.round(view.progress * 100)} %` : "Embrayage : libre",
     view.phase === "engaged" ? view.detail : "",
   ];
   const height = lines[2] ? 118 : 86;
   ctx.fillStyle = "rgba(0,0,0,.65)";
   ctx.fillRect(16, h - height - 16, 760, height);
-  ctx.fillStyle = PHASE_COLOR[manual ? view.phase : "idle"];
+  ctx.fillStyle = PHASE_COLOR[view.phase];
   ctx.fillRect(16, h - height - 16, 8, height);
   ctx.fillStyle = "#e8ecf4";
   ctx.font = "22px system-ui";
   ctx.fillText(lines[0], 38, h - height + 14);
-  ctx.fillStyle = PHASE_COLOR[manual ? view.phase : "idle"];
+  ctx.fillStyle = PHASE_COLOR[view.phase];
   ctx.font = "bold 30px system-ui";
   ctx.fillText(lines[1], 38, h - height + 52);
   if (lines[2]) {

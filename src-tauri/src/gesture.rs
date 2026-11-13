@@ -14,7 +14,7 @@ use windows::{
     System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION},
     UI::{
       Input::KeyboardAndMouse::{
-        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEINPUT,
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_WHEEL, MOUSEINPUT,
         MOUSE_EVENT_FLAGS, VIRTUAL_KEY,
       },
       WindowsAndMessaging::{GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId, SetCursorPos},
@@ -97,6 +97,28 @@ pub fn blender_key(name: &str) -> bool {
   true
 }
 
+// Une molette de souris tourne par crans de 120 (WHEEL_DELTA de Windows) ; positif = vers l'avant, Blender zoome en avant. Plafonné : un saut du
+// suivi ne doit pas envoyer des dizaines de crans d'un coup.
+const WHEEL_DELTA: i32 = 120;
+const MAX_NOTCHES: i32 = 20;
+fn wheel_delta(notches: i32) -> i32 { notches.clamp(-MAX_NOTCHES, MAX_NOTCHES) * WHEEL_DELTA }
+
+fn send_wheel(notches: i32) {
+  let input = INPUT {
+    r#type: INPUT_MOUSE,
+    Anonymous: INPUT_0 { mi: MOUSEINPUT { dx: 0, dy: 0, mouseData: wheel_delta(notches) as u32, dwFlags: MOUSEEVENTF_WHEEL, time: 0, dwExtraInfo: 0 } },
+  };
+  unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
+}
+
+// Zoom à deux mains : des crans de molette dans Blender, sous les mêmes garde-fous (mode manuel, Blender au premier plan). Rend vrai si envoyé.
+#[tauri::command]
+pub fn blender_wheel(notches: i32) -> bool {
+  if notches == 0 || !crate::control::manual() || !blender_in_front() { return false; }
+  send_wheel(notches);
+  true
+}
+
 // Déplacement relatif de la souris, sans bouton (le facteur du scaling suit la distance entre le curseur et le pivot de l'objet).
 #[tauri::command]
 pub fn blender_mouse(dx: i32, dy: i32) -> bool {
@@ -131,6 +153,15 @@ pub fn blender_orbit(phase: &str, dx: i32, dy: i32) -> bool {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn the_wheel_turns_by_notches_of_120_and_is_capped() {
+    assert_eq!(wheel_delta(1), 120);
+    assert_eq!(wheel_delta(-3), -360);
+    assert_eq!(wheel_delta(500), 20 * 120);
+    assert_eq!(wheel_delta(-500), -20 * 120);
+    assert_eq!(wheel_delta(0), 0);
+  }
 
   #[test]
   fn only_the_six_gesture_keys_exist() {

@@ -87,6 +87,27 @@ describe("rotate", () => {
     expect(rotate.update([thumbAt(0.5)], 750)).toEqual([{ phase: "end" }]);
   });
 
+  it("deux poings fermés valident : le clic molette est lâché après 250 ms, même si la paume gauche sort « paume »", () => {
+    const rotate = engaged();
+    const fists = [{ ...clutch(), fingers: 0 }, { ...thumbAt(0.5), fingers: 0 }];
+    expect(rotate.update(fists, 340)).toEqual([]);
+    expect(rotate.update(fists, 589)).toEqual([]);
+    expect(rotate.update(fists, 590)).toEqual([{ phase: "end" }]);
+  });
+
+  it("un seul poing, ou des poings qui s'ouvrent avant 250 ms, ne lâchent rien", () => {
+    const rotate = engaged();
+    const oneFist = [clutch(), { ...thumbAt(0.5), fingers: 0 }];
+    expect(rotate.update(oneFist, 340)).toEqual([]);
+    expect(rotate.update(oneFist, 2000)).toEqual([]);
+    const fists = [{ ...clutch(), fingers: 0 }, { ...thumbAt(0.5), fingers: 0 }];
+    expect(rotate.update(fists, 2100)).toEqual([]);
+    expect(rotate.update([clutch(), thumbAt(0.5)], 2300)).toEqual([]); // rouvertes : le compte repart de zéro
+    expect(rotate.update(fists, 2400)).toEqual([]);
+    expect(rotate.update(fists, 2649)).toEqual([]);
+    expect(rotate.update(fists, 2650)).toEqual([{ phase: "end" }]);
+  });
+
   it("après la fin, il faut tenir de nouveau 300 ms", () => {
     const rotate = engaged();
     rotate.update([], 400);
