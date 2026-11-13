@@ -5,6 +5,7 @@ export type Side = "Gauche" | "Droite";
 
 export const WRIST = 0;
 export const THUMB_TIP = 4;
+export const INDEX_TIP = 8;
 const INDEX_MCP = 5;
 const PINKY_MCP = 17;
 // [articulation du milieu (PIP), bout] de l'index, du majeur, de l'annulaire et de l'auriculaire (le pouce est ignoré).
@@ -36,8 +37,13 @@ export function palmView(ratio: number, side: Side): Palm {
 }
 
 // Un doigt est levé si son bout est plus loin du poignet que son articulation du milieu : vrai quelle que soit l'inclinaison de la main.
-export function raisedFingers(points: Point[]): number {
-  return FINGERS.filter(([pip, tip]) => dist(points[tip], points[WRIST]) > dist(points[pip], points[WRIST])).length;
+const fingersUp = (points: Point[]) => FINGERS.map(([pip, tip]) => dist(points[tip], points[WRIST]) > dist(points[pip], points[WRIST]));
+export const raisedFingers = (points: Point[]): number => fingersUp(points).filter(Boolean).length;
+
+// L'index seul est levé (majeur, annulaire et auriculaire repliés) : le geste du zoom.
+export function isPointing(points: Point[]): boolean {
+  const [index, middle, ring, pinky] = fingersUp(points);
+  return index && !middle && !ring && !pinky;
 }
 
 export function boundingBox(points: Point[]) {
