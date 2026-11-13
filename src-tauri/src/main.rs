@@ -179,20 +179,6 @@ fn set_widget(app: AppHandle, visible: bool) {
   if let Some(window) = app.get_webview_window(WIDGET_LABEL) { let _ = if visible { window.show() } else { window.hide() }; }
 }
 
-// Fenêtre TEMPORAIRE de l'étape 12 (src/features/hands) : l'image de la caméra avec les os des mains par-dessus, pour régler le détecteur.
-// Créée à la demande (menu de la zone de notification ou argument --hands) et détruite à sa fermeture : la caméra s'éteint avec elle.
-const HANDS_LABEL: &str = "hands";
-
-fn show_hands(app: &AppHandle) {
-  if let Some(window) = app.get_webview_window(HANDS_LABEL) { let _ = window.show(); let _ = window.set_focus(); return; }
-  let app = app.clone();
-  // Créée hors du fil de l'événement : sous Windows, construire une fenêtre depuis un gestionnaire synchrone peut bloquer.
-  thread::spawn(move || {
-    if let Err(e) = WebviewWindowBuilder::new(&app, HANDS_LABEL, WebviewUrl::App("index.html".into()))
-      .title("Løra : mains (aperçu temporaire)").inner_size(1280.0, 760.0).center().build() { eprintln!("[mains] fenêtre impossible : {e}"); }
-  });
-}
-
 fn show_main(app: &AppHandle) {
   if let Some(window) = app.get_webview_window("main") { let _ = window.show(); let _ = window.set_focus(); let _ = window.emit(VISIBILITY_EVENT, true); }
 }
@@ -220,7 +206,9 @@ fn main() {
       // Fermer la fenêtre ne fait que la masquer ; « Quitter » est le seul moyen d'arrêter vraiment Løra (et le suivi).
       // « Écoute du micro » : coupe le micro lui-même (voir listen.rs) ; l'état de départ vient de listen.json.
       create_widget(app)?;
-      if std::env::args().any(|a| a == "--hands") { show_hands(app.handle()); }
+      // Aides de développement : la caméra et la fenêtre des mains sont éteintes par défaut, la voix les allume (control.rs).
+      if std::env::args().any(|a| a == "--hands") { gesture::camera(app.handle(), control::CameraCommand::Show); }
+      else if std::env::args().any(|a| a == "--camera") { gesture::camera(app.handle(), control::CameraCommand::On); }
       let data_dir = app.path().app_data_dir()?;
       fs::create_dir_all(&data_dir)?;
       let listen_item = CheckMenuItem::with_id(app, "listen", "Écoute du micro (« Løra, … »)", true, listen::enabled_in_config(&data_dir), None::<&str>)?;
@@ -232,7 +220,6 @@ fn main() {
         &MenuItem::with_id(app, "show", "Afficher Løra", true, None::<&str>)?,
         &listen_item,
         &ambient_item,
-        &MenuItem::with_id(app, "hands", "Aperçu des mains (temporaire)", true, None::<&str>)?,
         &MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?,
       ])?;
       let _tray = tauri::tray::TrayIconBuilder::with_id("lora")
@@ -243,7 +230,6 @@ fn main() {
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| match event.id.as_ref() {
           "show" => show_main(app),
-          "hands" => show_hands(app),
           // La case se coche toute seule au clic : on relit son état pour que le micro suive.
           "listen" => listen::set_enabled(listen_item.is_checked().unwrap_or(true)),
           "ambient" => ambient::set_enabled(ambient_item.is_checked().unwrap_or(true)),

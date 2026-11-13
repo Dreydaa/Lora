@@ -12,8 +12,12 @@ use tauri::{menu::CheckMenuItem, AppHandle, Emitter, Manager};
 const QUIT_SPEECH_SECS: u64 = 10; // on ne laisse pas Løra ouverte parce que sa dernière phrase traîne
 const MANUAL_EVENT: &str = "lora://manual"; // charge utile : true = mode manuel actif
 
+// Caméra des gestes (étape 12) : éteinte par défaut, fenêtre cachée par défaut (voir gesture::camera).
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum Control { Stop, Rest, Quit, Manual(bool), CenterCursor }
+pub enum CameraCommand { On, Off, Show, Hide }
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum Control { Stop, Rest, Quit, Manual(bool), CenterCursor, Camera(CameraCommand) }
 
 // Profil de gestes actif : faux = commandes de base, vrai = profil Blender. Une seule table à la fois (voir LoraV2.md, chantier 9).
 static MANUAL: AtomicBool = AtomicBool::new(false);
@@ -39,6 +43,18 @@ pub fn parse(text: &str) -> Option<Control> {
     ["mode", "manuel"] => Some(Control::Manual(true)),
     ["fin", "du", "mode", "manuel"] => Some(Control::Manual(false)),
     ["centre" | "centrer", "le", "curseur"] | ["centre" | "centrer", "curseur"] | ["centre" | "centrer", "la", "souris"] => Some(Control::CenterCursor),
+    [verb, "la", "camera"] | [verb, "camera"] => camera_command(verb).map(Control::Camera),
+    _ => None,
+  }
+}
+
+// « allume / éteins / affiche / cache la caméra » (accents et casse déjà ignorés par parse).
+fn camera_command(verb: &str) -> Option<CameraCommand> {
+  match verb {
+    "allume" | "allumer" | "active" | "activer" => Some(CameraCommand::On),
+    "eteins" | "eteint" | "eteindre" | "desactive" | "desactiver" | "coupe" | "couper" => Some(CameraCommand::Off),
+    "affiche" | "afficher" | "montre" | "montrer" => Some(CameraCommand::Show),
+    "cache" | "cacher" | "masque" | "masquer" => Some(CameraCommand::Hide),
     _ => None,
   }
 }
@@ -62,9 +78,11 @@ pub fn apply(control: Control, app: &AppHandle, dir: &Path) -> Option<String> {
       Some("D'accord, je me repose.".into())
     }
     Control::CenterCursor => Some(if crate::gesture::center_cursor() { "Curseur centré." } else { "Blender n'est pas au premier plan." }.into()),
+    Control::Camera(command) => Some(crate::gesture::camera(app, command).into()),
     Control::Manual(on) => {
       set_manual(app, on);
-      Some(if on { "Mode manuel." } else { "Fin du mode manuel." }.into())
+      // Sans caméra les gestes ne font rien : on le dit plutôt que de laisser croire que le mode marche.
+      Some(if !on { "Fin du mode manuel." } else if crate::gesture::camera_is_on(app) { "Mode manuel." } else { "Mode manuel, mais la caméra est éteinte : dis allume la caméra." }.into())
     }
     Control::Quit => {
       crate::speech::stop_speaking();
@@ -107,6 +125,15 @@ mod tests {
       assert_eq!(parse(text), Some(Control::CenterCursor), "{text}");
     }
     for text in ["centre", "centre le texte", "centre le curseur dans blender", "ne centre pas le curseur"] { assert_eq!(parse(text), None, "{text}"); }
+  }
+
+  #[test]
+  fn the_camera_commands_are_the_whole_phrase_in_any_writing() {
+    for text in ["allume la caméra", "Allume la caméra.", "active la caméra", "allume caméra", "ALLUME LA CAMERA !"] { assert_eq!(parse(text), Some(Control::Camera(CameraCommand::On)), "{text}"); }
+    for text in ["éteins la caméra", "Éteins la caméra.", "désactive la caméra", "coupe la caméra", "eteins la camera"] { assert_eq!(parse(text), Some(Control::Camera(CameraCommand::Off)), "{text}"); }
+    for text in ["affiche la caméra", "Affiche la caméra.", "montre la caméra", "affiche caméra"] { assert_eq!(parse(text), Some(Control::Camera(CameraCommand::Show)), "{text}"); }
+    for text in ["cache la caméra", "Cache la caméra.", "masque la caméra"] { assert_eq!(parse(text), Some(Control::Camera(CameraCommand::Hide)), "{text}"); }
+    for text in ["la caméra", "allume la lumière", "allume la caméra du salon", "ne coupe pas la caméra", "prends une photo avec la caméra", "centre la caméra"] { assert_eq!(parse(text), None, "{text}"); }
   }
 
   #[test]
