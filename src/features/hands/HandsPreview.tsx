@@ -64,6 +64,10 @@ export function HandsPreview() {
     let landmarker: HandLandmarker | undefined;
     let frame = 0;
     let stopped = false;
+    const release = () => {
+      landmarker?.close();
+      stream?.getTracks().forEach((track) => track.stop());
+    };
 
     async function start() {
       try {
@@ -90,7 +94,8 @@ export function HandsPreview() {
         } catch {
           landmarker = await HandLandmarker.createFromOptions(wasm, { ...options, baseOptions: { modelAssetPath: "/models/hand_landmarker.task", delegate: "CPU" } });
         }
-        if (stopped) return;
+        // Démonté pendant le chargement : le nettoyage est déjà passé, il faut libérer ici la caméra et le détecteur ouverts depuis.
+        if (stopped) return release();
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         loop();
@@ -143,8 +148,7 @@ export function HandsPreview() {
       const end = gestures.reset(performance.now());
       end.orbit.forEach(sendOrbit);
       end.scale.forEach(sendScale);
-      landmarker?.close();
-      stream?.getTracks().forEach((track) => track.stop());
+      release();
     };
   }, []);
 

@@ -178,7 +178,7 @@ mod tests {
     ] } }).to_string()).unwrap();
     assert_eq!(run("passe en mode test", &dir, &apps).as_deref(), Some("Go."), "la phrase de départ est rendue tout de suite");
     for _ in 0..100 { // les étapes tournent sur un autre fil
-      if fs::read_to_string(&log).map_or(false, |s| s.lines().count() >= 3) { break; }
+      if fs::read_to_string(&log).is_ok_and(|s| s.lines().count() >= 3) { break; }
       thread::sleep(Duration::from_millis(100));
     }
     let lines: Vec<String> = fs::read_to_string(&log).unwrap_or_default().lines().map(|l| l.trim().to_string()).collect();

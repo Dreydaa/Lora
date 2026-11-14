@@ -657,7 +657,7 @@ mod tests {
       let (file, expected) = item.split_once('|').unwrap();
       let bytes = fs::read(file).unwrap();
       let rate = u32::from_le_bytes(bytes[24..28].try_into().unwrap());
-      let speech: Vec<f32> = bytes[44..].chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / i16::MAX as f32).collect();
+      let speech: Vec<f32> = bytes[44..].as_chunks::<2>().0.iter().map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / i16::MAX as f32).collect();
       let tape: Vec<f32> = [vec![0.0; rate as usize * 2], speech, vec![0.0; rate as usize * 2]].concat();
       let mut seg = Segmenter::new(rate, 0.02);
       let utterances: Vec<Vec<f32>> = tape.chunks(1000).flat_map(|c| seg.push(c)).collect();
@@ -680,7 +680,7 @@ mod tests {
   fn real_pipeline() {
     let bytes = fs::read(std::env::var("LORA_TEST_SPEECH_WAV").unwrap()).unwrap();
     let rate = u32::from_le_bytes(bytes[24..28].try_into().unwrap());
-    let speech: Vec<f32> = bytes[44..].chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / i16::MAX as f32).collect();
+    let speech: Vec<f32> = bytes[44..].as_chunks::<2>().0.iter().map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / i16::MAX as f32).collect();
     let tape: Vec<f32> = [vec![0.0; rate as usize], speech, vec![0.0; rate as usize * 2]].concat();
     let mut seg = Segmenter::new(rate, 0.02);
     let utterances: Vec<Vec<f32>> = tape.chunks(1000).flat_map(|c| seg.push(c)).collect();
