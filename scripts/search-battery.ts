@@ -93,7 +93,7 @@ const CASES: Case[] = [
   { id: "capitale", prompt: "Quelle est la capitale de l'Australie ?", expectSearch: false, check: (a) => (/Canberra/i.test(a.text) ? null : "mauvaise réponse") },
   { id: "calcul", prompt: "Combien font 17 fois 23 ?", expectSearch: false, check: (a) => (/391/.test(a.text) ? null : "mauvaise réponse") },
   { id: "date", prompt: "On est quel jour aujourd'hui ?", expectSearch: false,
-    check: (a) => { const d = Number(todayInParis().slice(8)); return new RegExp(`\\b${d}\\b`).test(a.text) && /octobre/i.test(a.text) ? null : `date fausse (attendu le ${d} octobre)`; } },
+    check: (a) => { const d = Number(todayInParis().slice(8)); const month = new Intl.DateTimeFormat("fr-FR", { month: "long", timeZone: "Europe/Paris" }).format(new Date()); return new RegExp(`\\b${d}\\b`).test(a.text) && new RegExp(month, "i").test(a.text) ? null : `date fausse (attendu le ${d} ${month})`; } },
   // Pièges : ce qui n'existe pas ou pas encore ne doit pas être inventé
   { id: "futur", prompt: "Cherche qui a gagné la Coupe du monde de football 2030", expectSearch: "either", check: (a) => (HEDGE.test(a.text) ? null : "annonce peut-être un vainqueur d'un événement futur") },
   { id: "inconnu", prompt: "Cherche la biographie de Zorblax Quentinelli, le célèbre pianiste", expectSearch: "either", check: (a) => (HEDGE.test(a.text) ? null : "invente peut-être une biographie") },

@@ -74,7 +74,7 @@ fn mark_english(text: &str, names: &[String]) -> String {
   while i < chars.len() {
     let word_start = i == 0 || !chars[i - 1].is_alphanumeric();
     let hit = if word_start {
-      names.iter().find(|n| lower[i..].starts_with(n.as_slice()) && lower.get(i + n.len()).map_or(true, |c| !c.is_alphanumeric()))
+      names.iter().find(|n| lower[i..].starts_with(n.as_slice()) && lower.get(i + n.len()).is_none_or(|c| !c.is_alphanumeric()))
     } else { None };
     match hit {
       Some(n) => { out.push(ENGLISH_START); out.extend(&chars[i..i + n.len()]); out.push(ENGLISH_END); i += n.len(); }
@@ -138,7 +138,7 @@ fn start(exe: &Path, model: &Path, dir: &Path) -> std::io::Result<Piper> {
   thread::spawn(|| loop { // rend la mémoire quand on ne s'en sert plus
     thread::sleep(Duration::from_secs(60));
     let mut slot = PIPER.lock().unwrap_or_else(|e| e.into_inner());
-    if slot.as_ref().map_or(true, |p| p.last_used.elapsed() >= Duration::from_secs(IDLE_SECS)) { *slot = None; return; }
+    if slot.as_ref().is_none_or(|p| p.last_used.elapsed() >= Duration::from_secs(IDLE_SECS)) { *slot = None; return; }
   });
   Ok(Piper { child, stdin, wavs, last_used: Instant::now() })
 }
@@ -149,7 +149,7 @@ fn synthesize(exe: &Path, model: &Path, dir: &Path, text: &str) -> std::io::Resu
   let line = format!("{}\n", text.replace(['\r', '\n'], " "));
   let mut slot = PIPER.lock().unwrap_or_else(|e| e.into_inner());
   for _ in 0..2 {
-    if slot.as_mut().map_or(true, |p| !matches!(p.child.try_wait(), Ok(None))) { *slot = Some(start(exe, model, dir)?); }
+    if slot.as_mut().is_none_or(|p| !matches!(p.child.try_wait(), Ok(None))) { *slot = Some(start(exe, model, dir)?); }
     let piper = slot.as_mut().expect("Piper lancé juste au-dessus");
     while piper.wavs.try_recv().is_ok() {} // un WAV resté d'une phrase précédente ne doit pas passer pour celui-ci
     if piper.stdin.write_all(line.as_bytes()).and_then(|_| piper.stdin.flush()).is_ok() {

@@ -78,6 +78,16 @@ export async function askLora(chatId: number, input: string, spoken = false, voi
     throw new Error(`askLora: input must be a non-empty string, got ${typeof input}`);
   }
 
+  // Réponse directe (météo, conversion, présence du PC…) fabriquée par le code, sans modèle ni jeton ; null = la phrase continue vers le modèle.
+  const direct = await quickAnswer(input);
+  if (direct !== null) {
+    await appendToHistory(chatId, [
+      { role: "user", content: input },
+      { role: "assistant", content: direct },
+    ]);
+    return { text: direct, toolCalls: [] };
+  }
+
   const models = [...new Set([process.env.GROQ_MODEL ?? DEFAULT_MODEL, FALLBACK_MODEL])].map((id) => resolveModel(id));
   // La fonction Edge est coupée (504) si elle ne répond pas en 25 s : mieux vaut échouer à 20 s et prévenir que se faire couper et rejouer.
   // Un seul délai pour les deux essais (avec puis sans recherche).
