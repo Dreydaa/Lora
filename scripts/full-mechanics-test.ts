@@ -44,7 +44,7 @@ async function main() {
   }
 
   const ambiguousTitle = `[TEST] idée rig avancé ${Date.now()}`;
-  const idea2 = await addIdea(ambiguousTitle, "Petit").catch(() => null);
+  await addIdea(ambiguousTitle, "Petit").catch(() => null);
   const foundAmbiguous = await findIdeaByTitle(`[TEST] idée rig`);
   record("findIdeaByTitle sur préfixe commun retourne une page (pas de crash)", !!foundAmbiguous);
 
