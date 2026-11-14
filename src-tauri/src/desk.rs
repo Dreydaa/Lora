@@ -97,7 +97,7 @@ fn screen_time(text: &str, apps_file: &Path, usage: &crate::Usage, now: DateTime
     let total: u64 = day.values().sum();
     let Some((top, top_secs)) = day.iter().max_by_key(|(_, s)| **s) else { return Some(format!("Je n'ai encore rien noté {label}.")) };
     let mut said = format!("{label}, {} d'écran, surtout sur {top} ({}).", spent(total), spent(*top_secs));
-    said.get_mut(..1).map(|first| first.make_ascii_uppercase());
+    if let Some(first) = said.get_mut(..1) { first.make_ascii_uppercase() }
     return Some(said);
   }
   let name = name.join(" ");

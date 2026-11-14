@@ -64,7 +64,7 @@ fn app_usage(state: State<UsageState>) -> Usage {
 
 // Applique une mesure : l'application au premier plan gagne SAMPLE_SECS (Løra elle-même et l'inactivité ne comptent pas).
 fn track(usage: &Mutex<Usage>, own_pid: u64) -> bool {
-  if user_idle::UserIdle::get_time().map_or(false, |t| t.as_seconds() >= IDLE_SECS) { return false; }
+  if user_idle::UserIdle::get_time().is_ok_and(|t| t.as_seconds() >= IDLE_SECS) { return false; }
   let Ok(win) = active_win_pos_rs::get_active_window() else { return false };
   if win.process_id == own_pid { return false; }
   let Some(app) = win.process_path.file_stem().map(|s| s.to_string_lossy().to_lowercase()) else { return false };
@@ -308,7 +308,7 @@ fn main() {
         let mut ticks = 0u64;
         loop {
           thread::sleep(Duration::from_secs(SAMPLE_SECS));
-          if track(&state.data, own_pid) { ticks += 1; if ticks % SAVE_EVERY == 0 { state.save(); } }
+          if track(&state.data, own_pid) { ticks += 1; if ticks.is_multiple_of(SAVE_EVERY) { state.save(); } }
         }
       });
       Ok(())

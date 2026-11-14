@@ -28,7 +28,7 @@ describe("repli quand la recherche web échoue", () => {
 
   it("réessaie sans la recherche et prévient le modèle qu'elle est indisponible", async () => {
     generateText.mockRejectedValueOnce(searchRejected).mockResolvedValueOnce(answer("Je ne peux pas chercher pour l'instant."));
-    const { text } = await askLora(1, "Cherche le cours du Bitcoin");
+    const { text } = await askLora(1, "Cherche une recette de crêpes");
     expect(text).toBe("Je ne peux pas chercher pour l'instant.");
     expect(generateText).toHaveBeenCalledTimes(2);
     const retry = generateText.mock.calls[1][0];
@@ -38,7 +38,7 @@ describe("repli quand la recherche web échoue", () => {
 
   it("lève l'erreur si le second essai échoue aussi", async () => {
     generateText.mockRejectedValue(searchRejected);
-    await expect(askLora(1, "Cherche le cours du Bitcoin")).rejects.toThrow(/search/);
+    await expect(askLora(1, "Cherche une recette de crêpes")).rejects.toThrow(/search/);
     expect(generateText).toHaveBeenCalledTimes(2);
   });
 

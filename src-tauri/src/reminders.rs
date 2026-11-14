@@ -118,7 +118,7 @@ fn parse(text: &str) -> Option<Ask> {
   if has(&["rappelle", "rappeler", "rappel"]) {
     let g = group(&words).filter(|g| g.secs > 0)?;
     let before = g.start.checked_sub(1).map(|i| words[i]);
-    let clock = (g.first_unit == 3600 && g.secs % 60 == 0 && g.secs / 3600 < 24).then(|| ((g.secs / 3600) as u32, (g.secs % 3600 / 60) as u32));
+    let clock = (g.first_unit == 3600 && g.secs % 60 == 0 && g.secs / 3600 < 24).then_some(((g.secs / 3600) as u32, (g.secs % 3600 / 60) as u32));
     let when = match (before, clock) { (Some("dans"), _) | (_, None) => When::In(g.secs), (_, Some((h, m))) => When::At(h, m) };
     let connector = g.start.checked_sub(1).filter(|_| matches!(before, Some("dans" | "a")));
     let skip = |i: usize| (g.start..g.end).contains(&i) || Some(i) == connector || matches!(words[i], "rappelle" | "rappeler" | "rappel") || (words[i] == "moi" && i > 0 && matches!(words[i - 1], "rappelle" | "rappeler"));

@@ -51,7 +51,7 @@ fn app_names(apps_file: &Path) -> Vec<String> {
 pub fn sync_apps(url: &str, key: &str, apps_file: &Path, last: &mut Option<Vec<String>>) -> Result<(), String> {
   let names = app_names(apps_file);
   if last.as_ref() == Some(&names) { return Ok(()); }
-  http_agent().post(format!("{url}/api/protocol")).header("x-dashboard-key", key).send_json(&json!({ "apps": names }))
+  http_agent().post(format!("{url}/api/protocol")).header("x-dashboard-key", key).send_json(json!({ "apps": names }))
     .map_err(|e| format!("envoi de la liste des applications échoué : {e}"))?;
   *last = Some(names);
   Ok(())
@@ -63,14 +63,14 @@ const PRESENCE_EVERY: u32 = 4;
 static POLLS: AtomicU32 = AtomicU32::new(0);
 
 fn poll_url(url: &str, poll: u32) -> String {
-  if poll % PRESENCE_EVERY == 0 { format!("{url}/api/protocol?presence=1") } else { format!("{url}/api/protocol") }
+  if poll.is_multiple_of(PRESENCE_EVERY) { format!("{url}/api/protocol?presence=1") } else { format!("{url}/api/protocol") }
 }
 
 // « Envoie-moi ça sur Telegram » : le texte part au backend (POST /api/send), qui le poste dans le seul chat autorisé. C'est tout ce que ce
 // canal fait dans ce sens ; rien ne descend vers le PC en dehors des protocoles ci-dessus.
 pub fn send_text(dir: &Path, text: &str) -> Result<(), String> {
   let (url, key) = config(&dir.join("agent.json")).ok_or("remplis api_url et api_key dans agent.json")?;
-  http_agent().post(format!("{url}/api/send")).header("x-dashboard-key", key).send_json(&json!({ "text": text })).map(|_| ()).map_err(|e| match e {
+  http_agent().post(format!("{url}/api/send")).header("x-dashboard-key", key).send_json(json!({ "text": text })).map(|_| ()).map_err(|e| match e {
     ureq::Error::StatusCode(401) => "le backend refuse la clé de agent.json".to_string(),
     ureq::Error::StatusCode(400) => "le backend refuse ce texte (vide ou trop long)".to_string(),
     ureq::Error::StatusCode(502) => "Telegram ne répond pas".to_string(),
