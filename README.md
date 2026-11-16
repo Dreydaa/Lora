@@ -1,115 +1,244 @@
 # Løra
 
-Assistant personnel piloté par Telegram, pour un unique utilisateur, doublé d'une application de bureau Windows. Løra aide à garder une discipline de travail sur son projet en cours, avec une seule personnalité (« Friday »).
+**English** · [Français](README.fr.md)
 
-> Løra s'appelait Soza jusqu'au 05/11/2026. Quelques identifiants techniques gardent l'ancien nom (dossier de données `com.soza.assistant`, URL Vercel, planifications QStash, dépôt) : voir « Renommage » dans `docs/ai/STATUS-V2.md`.
+A personal assistant driven by **Telegram**, for a single user, paired with a **Windows desktop app** (voice, command bar, hand gestures). Løra helps you keep a work discipline on your current projects, with one personality ("Friday"), and uses **Notion as the source of truth** for all your data (ideas, agenda, milestones, daily reviews, settings).
 
-Notion est la source de vérité pour toutes les données (idées, agenda, jalons, progression, réglages). Løra ne fait qu'y lire et écrire.
+> Løra was called *Soza* until 2026-11-05. A few technical identifiers kept the old name on purpose (app data folder `com.soza.assistant`, QStash schedule ids, repository name) — see "Renaming" in [`docs/ai/STATUS-V2.md`](docs/ai/STATUS-V2.md).
 
-## Comment ça marche
+## Read this first
 
-1. **Telegram** reçoit un message → `api/telegram-webhook.ts` valide le `chat_id` autorisé et publie immédiatement le job dans **QStash** (aucune tâche longue n'est exécutée dans le webhook lui-même).
-2. **QStash** livre le job à `api/qstash-worker.ts`, qui appelle le modèle (Groq, via le Vercel AI SDK) avec un jeu de tools (`lib/ai/tools.ts`) capables de lire/écrire dans Notion : créer une idée, ajouter un rendez-vous ou un shift à l'agenda, changer le statut d'un projet, enregistrer le bilan du jour, mettre Løra en pause quelques jours, changer l'heure du briefing, etc.
-3. Deux **crons QStash** déclenchent le briefing du matin (`api/cron-morning.ts`) et le bilan du soir (`api/cron-evening.ts`) aux horaires configurés dans la base Notion **Løra Réglages**. Chaque texte est rédigé par le modèle avec la personnalité de Løra (le soir : la journée, le prochain jalon, l'agenda, puis la question du bilan) ; une version courte est gardée dans Redis pour le dashboard.
-4. Une **mémoire courte durée** (Redis, ~10 messages / 6h) permet de garder le contexte d'une conversation Telegram sans tout réinjecter depuis Notion à chaque message.
-5. Un **dashboard Tauri** (app de bureau) joue une intro en particules (un ruban de Möbius se forme), puis affiche ces mêmes données en lecture dans un tableau de bord en verre liquide (`api/dashboard.ts` agrège Notion). Il n'écrit pas dans Notion : tout se pilote par la conversation Telegram. Côté Rust, l'app mesure le temps passé par application (les données restent sur la machine), démarre avec Windows et se réduit dans la zone de notification ; `npm run tauri build` produit un installeur Windows (NSIS).
-6. Une **pause de plusieurs jours** (« je prends mon week-end ») suspend le briefing et le bilan, et le briefing de reprise n'en fait pas un reproche.
-7. **Plusieurs projets en parallèle** : le bilan du soir enregistre sur lesquels l'utilisateur a avancé, le briefing du soir donne le prochain jalon de chaque projet en cours.
-8. **Recherche web** (Telegram) : pour une question extérieure ou récente, le modèle utilise la recherche intégrée de Groq et répond en deux ou trois phrases ; si la recherche échoue, il réessaie sans elle.
-9. **Protocoles** : le message exact « Protocole 7E3A » est reconnu par le worker (jamais par le modèle) ; le PC récupère le protocole via `api/protocol.ts`, exécute ses étapes (ouvrir des applications) et le résultat revient sur Telegram.
-10. **Barre de commande `Ctrl+K`** (app de bureau seulement) : ouvrir ou fermer une application d'une liste blanche, régler le volume, piloter la musique (Spotify : « mets <titre> »), lire la batterie de la souris (ces commandes locales marchent sans réseau) ; toute autre phrase (briefing, agenda, idées, météo, recherche, calcul, avis) part au backend `api/ask`, même cerveau que Telegram. Chaque réponse est dite à voix haute avec la voix de Løra (Piper, en local ; repli sur la voix de Windows). Un hook « Claude Code a terminé » (`say.txt`, dossier de données) la fait aussi parler d'elle-même ; un second hook (`claude-last.json`) lui permet de lire la dernière réponse de Claude Code (« lis la réponse de Claude », en local) puis d'écrire dans la session VS Code la phrase dictée après « écris », de la relire (« relis le message ») et de l'envoyer seulement si tu réponds « oui » (voir `docs/ai/STATUS-V2.md`, étape 13).
-11. **Mot d'activation « Løra »** (app de bureau, micro) : Whisper (whisper.cpp) tourne en local sur la carte graphique ; une phrase qui commence par « Løra » est traitée comme une phrase tapée dans `Ctrl+K` et la réponse est dite. Avant toute écriture dans Notion, Løra demande confirmation. « Løra, stop » coupe sa parole (compris aussi pendant qu'elle parle), « Løra, repose-toi » arrête l'écoute (réveil par la case du menu de la zone de notification), « Løra, fin de mission » ferme l'application. L'écoute se coupe depuis le menu de la zone de notification ; elle demande Whisper installé à la main (voir `docs/ai/STATUS-V2.md`). Le ruban se réduit pendant qu'elle écoute et se déforme en étoile quand elle parle. Essayé avec la vraie voix de l'utilisateur le 05/11/2026.
+- **Self-hosted, single user.** There is no hosted version. You create your own Notion workspace, Telegram bot, Upstash and Groq accounts, and deploy your own backend on Vercel. All of them have a free tier that is enough for personal use.
+- **The assistant speaks French.** The personality prompt (`lib/ai/prompts/friday.ts`), briefings, voice and wake word are French, and dates use the `Europe/Paris` time zone. Changing the language means rewriting that prompt and a few strings; it is not a setting.
+- **The desktop app is Windows-only** (Windows 10/11, Rust + Tauri). The backend and the Telegram part work without it.
+- **It started as a personal project** and was built around one person's setup (a Parsec/VS Code "protocol", the Brave browser, Blender gestures…). Everything personal is either configurable in a local file or isolated in one place listed in [Customizing](#customizing).
+- Some features (wake word, voice, hand gestures) were only tried on the author's machine (Windows 11, NVIDIA GPU, one webcam). Expect to tweak things.
+
+## What it does
+
+**On Telegram (works with your PC off)**
+
+- Understands natural language and acts in Notion through AI tool calls: create an idea (size and notes decided by the model), add an appointment or a work shift to the agenda, change a project's status, create/validate milestones, record the daily review, pause Løra for a few days ("I'm taking my weekend"), change the briefing time…
+- **Morning briefing** (weather, agenda over 7 days, yesterday's review, news from your RSS feeds) and **evening review** (the day, next milestone of each running project, agenda, then the review question), at times you can change by chat. Triggered by QStash schedules.
+- **Several projects in parallel**: the evening review records which ones you worked on.
+- **Web search** for outside or recent questions (Groq's built-in search; retries without it on failure).
+- **Direct answers without the model** for simple things (weather, unit conversions, countdowns, titles…) to save tokens.
+- **Protocols**: the exact message `Protocole 7E3A` runs a named sequence (e.g. open apps on your PC); the PC fetches it and reports the result back on Telegram. The trigger is matched by code, never by the model.
+
+**On the desktop app (Windows)**
+
+- A "liquid glass" dashboard in front of a Möbius ribbon made of particles (three.js), showing your Notion data read-only, plus screen time per application (measured locally, never uploaded).
+- **`Ctrl+K` command bar**: open/close allow-listed apps, set the volume, control music (Spotify), read the mouse battery — all of these work offline; any other sentence goes to the backend (`api/ask`), the same brain as Telegram.
+- **Voice**: every answer is spoken (Piper locally if installed, otherwise the Windows voice). A **wake word "Løra"** with **local speech recognition** (whisper.cpp, nothing leaves the PC). Writing to Notion requires a spoken confirmation. "Løra, stop" cuts her off, "Løra, repose-toi" stops listening, "Løra, fin de mission" quits.
+- **Hand gestures** (MediaPipe, local; camera off by default and switched on by voice): a "manual mode" for Blender — rotate, zoom with two index fingers, scale, validate with two fists.
+- Tray icon, start with Windows, optional work "modes" (open apps + web pages + a liked Spotify song), spontaneous speech (appointments, mouse battery, back-pain break), optional Claude Code hooks (she reads out Claude Code's last answer).
+
+## How it works
+
+```
+ Telegram ──► api/telegram-webhook ──► QStash ──► api/qstash-worker ──► Groq (tool calls) ──► Notion
+ (chat_id checked)   (never runs long tasks)        (the long job)                              │
+                                                                                                ▼
+ QStash schedules ──► api/cron-morning / api/cron-evening ──► Telegram + short copy in Redis ◄──┘
+                                                                         │
+ Desktop app (Tauri) ◄── api/dashboard · api/ask · api/protocol ◄────────┘
+```
+
+1. Telegram sends the message to `api/telegram-webhook.ts`, which checks the webhook secret and the allowed `chat_id`, then publishes a job to **QStash** immediately. No long task ever runs inside the webhook.
+2. QStash delivers it to `api/qstash-worker.ts`, which calls the model (Groq, through the Vercel AI SDK) with tools (`lib/ai/tools.ts`) that read and write Notion.
+3. Two **QStash schedules** trigger the morning briefing and the evening review at the times stored in the Notion *Løra Réglages* database.
+4. **Redis (Upstash)** holds a short conversation memory (~10 messages / 6 h), the last briefing and the current pause.
+5. The **Tauri desktop app** reads `api/dashboard` and talks to `api/ask`; its Rust side handles everything local (apps, volume, music, microphone, voice, camera).
 
 ## Stack
 
-- **Backend** : fonctions Vercel (Edge Runtime) en TypeScript, `@upstash/qstash`, `@upstash/redis`, `@notionhq/client`.
-- **IA** : Groq via `ai` (Vercel AI SDK) + `zod` pour la validation des paramètres de tool calls.
-- **Frontend / dashboard** : React + Vite, three.js pour le ruban en particules, packagé en application de bureau avec Tauri (`src-tauri/`, Rust : suivi du temps d'écran, zone de notification, démarrage automatique, commandes locales : applications, volume, musique, batterie de la souris, agent de protocoles, voix de sortie avec Piper, écoute du micro avec Whisper local, widget de bureau, parole spontanée).
-- **Tests** : Vitest (unitaires, intégration, régression, acceptation dans un vrai navigateur via Playwright) et `cargo test` pour le Rust.
+- **Backend**: Vercel Functions (Edge Runtime) in TypeScript, `@upstash/qstash`, `@upstash/redis`, `@notionhq/client`.
+- **AI**: Groq via `ai` (Vercel AI SDK), `zod` for tool-call parameters. Default model `openai/gpt-oss-120b`, fallback `openai/gpt-oss-20b`.
+- **Desktop**: React 18 + Vite + three.js, packaged with Tauri 2 (Rust).
+- **Local voice/vision**: whisper.cpp (speech recognition), Piper (speech synthesis), MediaPipe (hands).
+- **Tests**: Vitest (unit, integration, regression, browser acceptance with Playwright) and `cargo test`.
 
-## Structure du repo
+## Requirements
 
-```
-api/                  Endpoints Vercel : webhook Telegram, worker QStash, crons matin/soir, dashboard, protocole (agent du PC), ask (phrases de l'app, réponse dite)
-lib/
-  ai/                 Client IA, prompt de personnalité unique (friday.ts), définition des tools
-  notion/             Accès aux bases Notion (agenda, idées, jalons, progression, réglages)
-  integrations/       Telegram, QStash, météo, actualités
-  briefing.ts         Construction du briefing du matin (bilan d'hier, agenda à 7 jours, pause)
-  protocols.ts        Protocoles (7E3A…) : déclencheur strict et définition des étapes
-  date.ts             Dates et fuseau Europe/Paris (Vercel tourne en UTC)
-  memory.ts           Redis : mémoire courte durée, dernier briefing, pause en cours
-src/                  Dashboard Tauri (React)
-  features/           glass (bento en verre), widgets, calendar, intro et particles (ruban de Möbius), hub…
-src-tauri/            Application de bureau (Rust) : fenêtre, temps d'écran, zone de notification, démarrage automatique ; commandes locales dans `apps.rs`, `system.rs` (volume, musique, batterie), `spotify.rs` et `protocol.rs` ; voix de sortie dans `speech.rs` (Piper), écoute du micro et mot d'activation dans `listen.rs` (Whisper), commandes de contrôle dans `control.rs`, modes de travail dans `modes.rs`, lien avec Claude Code dans `claude.rs`, analyse audio du ruban dans `levels.rs`, parole spontanée dans `ambient.rs`
-tests/                unit, integration, regression, acceptance (+ helpers : faux Notion, faux Redis, réseau bloqué)
-scripts/              Setup et migration Notion/QStash, test contre les vraies APIs (`full-mechanics-test.ts`), batteries contre le vrai modèle (`search-battery.ts`, `projects-battery.ts`), essai de bout en bout des protocoles (`protocol-e2e.ts`)
-docs/
-  ai/                 Contexte et état d'avancement à l'usage de l'assistant IA
-  product/            Schéma Notion, notes d'UI
-```
-
-## Configuration
-
-Variables d'environnement attendues (voir `.env`) :
-
-| Groupe | Variables |
+| For | You need |
 | --- | --- |
-| App | `APP_URL`, `CRON_SECRET` |
-| Groq | `GROQ_API_KEY`, `GROQ_MODEL` |
-| Notion | `NOTION_TOKEN`, `NOTION_AGENDA_DATABASE_ID`, `NOTION_IDEAS_DATABASE_ID`, `NOTION_MILESTONES_DATABASE_ID`, `NOTION_PROGRESS_DATABASE_ID`, `NOTION_SETTINGS_DATABASE_ID` |
-| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_ALLOWED_CHAT_ID` |
-| QStash | `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `QSTASH_DEV` |
-| Redis | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
-| Dashboard | `DASHBOARD_API_KEY` (serveur), `VITE_DASHBOARD_API_KEY` et `VITE_API_URL` (embarquées dans le build de l'app) |
-| Divers | `NEWS_RSS_URL_TECH`, `NEWS_RSS_URL_FASHION`, `WEATHER_LAT`, `WEATHER_LON` |
+| Everything | Node.js 20 or newer (developed on Node 24), npm, Git |
+| Backend | Free accounts: [Vercel](https://vercel.com), [Groq](https://console.groq.com), [Notion](https://www.notion.so), [Upstash](https://console.upstash.com) (QStash **and** Redis), and a Telegram account |
+| Desktop app | Windows 10/11, [Rust](https://rustup.rs) (MSVC toolchain), Visual Studio Build Tools with the "Desktop development with C++" workload, WebView2 (already in Windows 11) — see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) |
+| Local speech recognition (optional) | An NVIDIA GPU is what was tested (CUDA build of whisper.cpp), about 2 GB of disk |
+| Hand gestures (optional) | A webcam |
+| Browser acceptance tests (optional) | Edge or Chrome installed (or `CHROMIUM_PATH`) |
 
-Setup Notion détaillé dans `docs/product/NOTION-SCHEMA.md`.
+## Getting started
 
-**Fichiers locaux de l'application de bureau**, dans `%APPDATA%\com.soza.assistant\` (créés vides au premier lancement, relus à chaque commande, jamais versionnés) :
-
-| Fichier | Contenu |
-| --- | --- |
-| `apps.json` | Liste blanche des applications que `Ctrl+K` et les protocoles peuvent ouvrir ou fermer : `{ "nom": "chemin\\vers\\app.exe" }`. Rien d'autre ne peut être lancé. |
-| `spotify.json` | `client_id` et `client_secret` d'une application Spotify (gratuite) pour chercher un morceau par son nom ; sans eux, la recherche s'ouvre dans Spotify sans lire. |
-| `agent.json` | `api_url` et `api_key` (mêmes valeurs que `VITE_API_URL` et `VITE_DASHBOARD_API_KEY`) pour que le PC récupère les protocoles. |
-| `modes.json` | Modes de travail (« mode créatif », « mode dev ») : pour chacun, une phrase de départ et des étapes (`open` une application de `apps.json`, `browse` des pages web dans Brave, `liked_song` un titre au hasard parmi tes titres likés). Créé avec deux modes de départ. |
-| `spotify-token.json` | Jeton de renouvellement de ton compte Spotify, créé par « connecte Spotify » (lecture de tes titres likés seulement) ; le supprimer déconnecte. |
-| `voice.json` | Voix de sortie : `volume` (0 à 1) et `english` (noms d'applications dits avec l'accent anglais). Le moteur (Piper compilé et modèle de voix) est dans `%APPDATA%\lora-voice\piper\` et `%APPDATA%\lora-voice\` (hors du dossier de données, voir `STATUS-V2.md`), à installer à la main, hors du dépôt. |
-| `listen.json` | Écoute du micro : `enabled`, `wake` (orthographes du mot d'activation), `threshold`, `command_secs`, `log` (**`true` écrit tout ce qui est entendu en clair** dans `listen.log` : seulement pour régler). Whisper (`%APPDATA%\lora-voice\whisper\`) s'installe à la main. |
-
-## Commandes
+### 1. Get the code
 
 ```bash
-npm run dev                        # dashboard Tauri en dev (Vite)
-npm run build                      # tsc --noEmit + build Vite
-npm run tauri dev                  # application de bureau en développement (Tauri)
-npm run tauri build                # installeur Windows : src-tauri/target/release/bundle/nsis/
-
-npm test                           # tests rapides : unit + integration + regression (moins de 1 s)
-npm run test:acceptance            # scénarios dans un vrai navigateur (~2 min)
-npm run test:rust                  # tests Rust
-npm run test:all                   # tout enchaîner
-npm run test:live                  # test contre les vraies APIs (à lancer à la main)
-npm run test:search                # batterie de la recherche web contre le vrai Groq (~220 000 jetons : une fois par jour au plus)
-npm run test:projects              # batterie des briefings multi-projets contre le vrai Groq (~160 000 jetons : une fois par jour au plus)
-npm run test:protocol              # essai de bout en bout des protocoles (faux Redis/Telegram/QStash, vrais processus ; voir STATUS-V2.md, étape 8)
-
-npm run notion:check               # vérifie la connexion Notion
-npm run notion:create              # crée les bases Notion (Agenda, Idées, Jalons, Progression)
-npm run notion:create-settings     # crée la base Løra Réglages
-npm run notion:migrate-agenda-type # migration du champ Type sur Agenda
-npm run notion:categories-cleanup  # nettoyage des catégories Notion
-
-npm run qstash:setup-schedules     # configure les schedules QStash (briefing/bilan)
+git clone https://github.com/Dreydaa/Soza.git
+cd Soza
+npm install
+cp .env.example .env     # PowerShell: Copy-Item .env.example .env
 ```
 
-Les tests (`npm test`, `test:acceptance`, `test:rust`) n'utilisent jamais le `.env` ni de vrais services : variables factices, et tout appel réseau non prévu fait échouer le test. Seuls `npm run test:live` (`scripts/full-mechanics-test.ts`) et les deux batteries `test:search` / `test:projects` (vrai Groq ; la seconde simule Notion et Redis) appellent de vraies APIs, à la main.
+Fill `.env` as you go through the next steps. Never commit it (it is git-ignored). Every variable is explained in [`.env.example`](.env.example). **No space after the `=`.**
 
-## État du projet
+### 2. Create the accounts and keys
 
-**La V1 est terminée (09/10/2026).** Voir [`docs/ai/STATUS.md`](docs/ai/STATUS.md) (section « Clôture de la V1 ») pour ce qui est livré, ce qui a été vérifié et ce qui ne l'a pas été. **La V2 est en cours** (démarrée le 12/10/2026, une pull request par étape) : les étapes 0 à 7 sont faites (finition de la V1, lancer et fermer des applications, recherche web, volume / musique / batterie de la souris, plusieurs projets en parallèle) ; l'étape 8 (moteur de protocoles) est faite avec le protocole 7E3A, essayé en réel (2B et 6H9K reportés) ; les étapes 9 (voix : Løra parle avec Piper, mot d'activation et reconnaissance avec Whisper), 10 (agent résident et widget de bureau) et 13 (commandes vocales élargies) sont validées par l'utilisateur (08/11/2026) ; l'étape 11 (« qu'est-ce que je regarde ? ») est abandonnée (08/11/2026, code retiré) ; l'étape 12 (gestes de la main) est cochée le 13/11/2026 sur décision de l'utilisateur : détecteur de mains local (MediaPipe), mode manuel Blender à la voix (rotate, zoom aux deux index, scaling, validation aux deux poings), caméra éteinte et fenêtre cachée par défaut, allumées à la voix (« allume la caméra », « affiche la caméra ») ; le scroll, le son et le déplacement de fenêtre aux gestes sont abandonnés. L'étape 8 (protocoles 2B et 6H9K) est en pause. Hors liste, Løra prend la parole d'elle-même (rendez-vous, batterie de la souris, pause pour le dos) et les « broutilles » vocales sont faites : l'utilisateur les déclare finies le 13/11/2026 (sa parole, essais réels non rejoués). L'avancement, ce qui est vérifié et ce qui ne l'est pas : [`docs/ai/STATUS-V2.md`](docs/ai/STATUS-V2.md) ; la vision et la liste des étapes : [`docs/ai/LoraV2.md`](docs/ai/LoraV2.md).
+| Service | What to do | Variables |
+| --- | --- | --- |
+| **Groq** | Create an API key. | `GROQ_API_KEY` (optionally `GROQ_MODEL`) |
+| **Notion** | Create an *internal integration*, create an empty page "Løra", share it with the integration (`…` → *Connections*). | `NOTION_TOKEN`, `NOTION_PARENT_PAGE_ID` |
+| **Telegram** | Talk to [@BotFather](https://t.me/BotFather) → `/newbot`. Send any message to your bot, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `message.chat.id`. | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_CHAT_ID`, and a random `TELEGRAM_WEBHOOK_SECRET` (letters, digits, `_`, `-`) |
+| **Upstash QStash** | Copy the token and the two signing keys. | `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`; keep `QSTASH_DEV=false` |
+| **Upstash Redis** | Create a database, copy the REST URL and token. | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
+| **Your own secrets** | Generate long random strings, e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. | `CRON_SECRET`, `DASHBOARD_API_KEY`, and the same value as `DASHBOARD_API_KEY` in `VITE_DASHBOARD_API_KEY` |
+| **Optional** | Your coordinates and RSS feeds for the briefing. | `WEATHER_LAT`, `WEATHER_LON`, `NEWS_RSS_URL_TECH`, `NEWS_RSS_URL_FASHION` |
 
-## Journal de construction
+### 3. Create the Notion databases
 
-[`docs/portfolio/BUILD-LOG.md`](docs/portfolio/BUILD-LOG.md) raconte comment le projet a été conçu : architecture, choix techniques et leurs raisons, bugs rencontrés, évolution du design — matière première pour une présentation portfolio.
+```bash
+npm run notion:check             # checks the connection and the shared page
+npm run notion:create            # creates Agenda, Ideas, Milestones, Progress
+npm run notion:create-settings   # creates the "Løra Réglages" database
+```
+
+Copy the database ids printed by these scripts into `NOTION_AGENDA_DATABASE_ID`, `NOTION_IDEAS_DATABASE_ID`, `NOTION_MILESTONES_DATABASE_ID`, `NOTION_PROGRESS_DATABASE_ID` and `NOTION_SETTINGS_DATABASE_ID`. The schema is documented in [`docs/product/NOTION-SCHEMA.md`](docs/product/NOTION-SCHEMA.md).
+
+### 4. Deploy the backend on Vercel
+
+```bash
+npx vercel                # link the project (first time)
+```
+
+Add **all the variables of `.env` except the `VITE_*` ones** in *Project → Settings → Environment Variables* (or with `npx vercel env add`; paste values without spaces), then:
+
+```bash
+npx vercel --prod
+```
+
+Set `APP_URL` to your **stable production domain** (e.g. `https://your-app.vercel.app`), not the per-deployment URL: QStash delivers jobs there, and Vercel's Deployment Protection answers `401` on per-deployment URLs. Redeploy after changing it.
+
+### 5. Plug Telegram and QStash
+
+```bash
+curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+  -d "url=https://your-app.vercel.app/api/telegram-webhook" \
+  -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+
+npm run qstash:setup-schedules   # creates the morning-briefing and evening-review schedules
+```
+
+Send a message to your bot ("add an idea: …"). You should get an answer. Messages from any other chat are silently ignored.
+
+### 6. Build the desktop app (Windows, optional)
+
+1. In `.env`, set `VITE_API_URL` to your production URL and `VITE_DASHBOARD_API_KEY` to the same value as `DASHBOARD_API_KEY`. They are **embedded in the build**.
+2. In [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json), replace the backend origin in the `connect-src` of **both** `csp` and `devCsp` with your own URL. The Content-Security-Policy is deliberately strict: if you forget this, the app can't reach your backend.
+3. Run it:
+
+```bash
+npm run tauri dev      # development
+npm run tauri build    # Windows installer (NSIS): src-tauri/target/release/bundle/nsis/
+```
+
+4. On first launch the app creates its local files in `%APPDATA%\com.soza.assistant\` (see [Local files](#local-files)). Fill in `agent.json` (`api_url` and `api_key`: same values as `VITE_API_URL` and `VITE_DASHBOARD_API_KEY`) so the PC can fetch protocols, and `apps.json` with the apps Løra may open.
+
+> **Don't share a build or an installer made with your `.env`**: your dashboard key is inside.
+
+### 7. Optional local voice
+
+Løra speaks with the Windows voice out of the box. For the rest, put the files in `%APPDATA%\lora-voice\` (a sibling of the data folder, so uninstalling the app can't delete them):
+
+- **Speech recognition + wake word**: `whisper\whisper-server.exe` and its DLLs from a [whisper.cpp release](https://github.com/ggml-org/whisper.cpp/releases) (the author used `b5454`, `whisper-bin-win-cuda-12.4.0-x64.zip`), and the model `whisper\ggml-large-v3-turbo-q5_0.bin` from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp). Without them, listening simply doesn't start. Only the CUDA build was tested.
+- **Better voice (Piper)**: `piper\piper.exe` (a Piper 1.x build that reads UTF-8 and supports `--output-dir`; the old C++ build doesn't work) and a French voice model named `fr_FR-soza-medium.onnx` with its `.onnx.json`. The author's own voice model is **not** distributed. Details and pitfalls: [`docs/ai/STATUS-V2.md`](docs/ai/STATUS-V2.md), step 9. Without Piper, the Windows voice is used.
+
+## Local files
+
+Created empty on first launch in `%APPDATA%\com.soza.assistant\`, re-read on every command, **never versioned**:
+
+| File | Content |
+| --- | --- |
+| `apps.json` | Allow-list of apps that `Ctrl+K` and protocols may open or close: `{ "name": "C:\\path\\to\\app.exe" }`. Nothing else can be launched. |
+| `agent.json` | `api_url` and `api_key`, so the PC can fetch protocols. |
+| `spotify.json` | `client_id` / `client_secret` of a (free) Spotify app, to search a track by name. Without them, the search opens in Spotify without playing. |
+| `spotify-token.json` | Refresh token created by "connecte Spotify" (liked songs, read-only). Deleting it disconnects. |
+| `modes.json` | Work modes ("mode créatif", "mode dev"): a trigger phrase and steps (`open` an app, `browse` web pages, `liked_song`). Created with two starter modes. |
+| `voice.json` | `volume` (0–1) and `english` (app names pronounced with an English accent). |
+| `listen.json` | `enabled`, `wake` (spellings of the wake word), `threshold`, `command_secs`, `log` (**`true` writes everything heard, in clear text,** to `listen.log`: only for tuning). |
+
+## Customizing
+
+| What | Where |
+| --- | --- |
+| Personality, tone, allowed nicknames ("Boss", "patron", "chef") | `lib/ai/prompts/friday.ts` |
+| Protocols (`Protocole 7E3A` opens Parsec + VS Code; `2B` and `6H9K` are empty) | `lib/protocols.ts` |
+| Time zone (`Europe/Paris`) | `lib/date.ts`, `lib/integrations/qstash.ts`, `lib/notion/agenda.ts`, `lib/ai/client.ts` |
+| Briefing times | Ask Løra in chat ("briefing at 7:30"), or edit the *Løra Réglages* database |
+| Notion categories / logos | `lib/types.ts` (`CATEGORIES`) |
+| Wake word spellings, volume, allowed apps | the local files above |
+
+## Commands
+
+```bash
+npm run dev                 # dashboard in the browser (Vite)
+npm run build               # tsc --noEmit + Vite build
+npm run tauri dev           # desktop app in development
+npm run tauri build         # Windows installer
+
+npm test                    # fast: unit + integration + regression (a few seconds)
+npm run test:acceptance     # scenarios in a real browser (~2 min)
+npm run test:rust           # Rust tests
+npm run test:all            # everything above
+
+npm run test:live           # real APIs (Notion, Groq…), run by hand
+npm run test:search         # web-search battery on real Groq (~220,000 tokens)
+npm run test:projects       # multi-project briefings on real Groq (~160,000 tokens)
+npm run test:protocol       # protocols end to end (fake Redis/Telegram/QStash)
+```
+
+The regular tests (`npm test`, `test:acceptance`, `test:rust`) **never use your `.env` or any real service**: fake variables, and any unexpected network call fails the test. Only `test:live`, `test:search` and `test:projects` call real APIs, and each of the two batteries can use up a free Groq daily quota in one run.
+
+Two one-off Notion migrations also exist: `notion:migrate-agenda-type` and `notion:categories-cleanup`.
+
+## Repository layout
+
+```
+api/            Vercel endpoints: Telegram webhook, QStash worker, morning/evening crons, dashboard, protocol, ask
+lib/            Backend logic: ai/ (client, personality, tools), notion/, integrations/ (Telegram, QStash, weather, news),
+                briefing, protocols, quick answers, dates, Redis memory
+src/            Desktop front end (React): glass dashboard, calendar, particle intro, hands, widget
+src-tauri/      Rust app: window, screen time, tray, local commands (apps, volume, music, battery), voice (Piper),
+                microphone + wake word (Whisper), gestures, work modes, Claude Code link
+tests/          unit, integration, regression, acceptance (+ fake Notion/Redis, blocked network)
+scripts/        Notion/QStash setup and migrations, live batteries
+docs/           ai/ (status and plans), product/ (Notion schema, UI), portfolio/ (build log)
+```
+
+## Security and privacy
+
+- The Telegram webhook checks the **secret token** and the **`chat_id`** before doing anything; other chats are ignored. Long tasks are published to QStash, never run in the webhook.
+- Crons and the worker accept only a valid **QStash signature** (or `Bearer CRON_SECRET` for manual triggers). The dashboard, `ask` and `protocol` endpoints require the `x-dashboard-key` header.
+- It is a **single-user** design: one shared dashboard key, no user accounts. Treat that key like a password, and never publish an app build that contains it.
+- Secrets live only in environment variables. No `.env` file was ever committed to this repository.
+- Screen time, the allow-list and local voice stay **on your PC**. Speech recognition is local (the server listens on `127.0.0.1` only). The camera is off by default and processed locally.
+- To report a vulnerability, please use GitHub's private "Report a vulnerability" form (Security tab) rather than a public issue.
+
+## Project status and documentation
+
+V1 (cloud + dashboard) was declared finished on 2026-10-09; V2 (local voice, gestures…) on 2026-11-14 after a final review. The "protocols" step (2B and 6H9K) is on hold. The detailed, dated status — what is done, measured, and what was never verified live — is in:
+
+- [`docs/ai/STATUS-V2.md`](docs/ai/STATUS-V2.md): V2 progress (current)
+- [`docs/ai/LoraV2.md`](docs/ai/LoraV2.md): vision, design decisions, to-do list
+- [`docs/ai/STATUS.md`](docs/ai/STATUS.md): V1 history
+- [`docs/product/NOTION-SCHEMA.md`](docs/product/NOTION-SCHEMA.md) and [`docs/product/UI.md`](docs/product/UI.md): Notion schema, UI notes
+- [`docs/portfolio/BUILD-LOG.md`](docs/portfolio/BUILD-LOG.md): how it was designed (architecture, choices and their reasons, bugs, design evolution)
+
+These documents are written in French.
+
+## Contributing
+
+Issues and pull requests are welcome, but this is a personal project: no support or response time is promised. Before a PR, run `npm test`, `npm run build` and, if you touched Rust, `npm run test:rust`. Keep secrets out of commits, and never put real tokens in tests.
+
+## License
+
+[MIT](LICENSE). Third-party components keep their own licenses: MediaPipe (Apache-2.0), whisper.cpp (MIT), Piper and its voice models (check the license of the model you use), three.js (MIT), Tauri (MIT/Apache-2.0), Simple Icons (CC0).
