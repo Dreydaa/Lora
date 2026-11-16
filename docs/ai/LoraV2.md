@@ -10,7 +10,7 @@ L'utilisateur tient bien sa cadence de travail ces derniers temps (au moins une 
 
 ## Principe directeur : local plutôt que cloud (décidé 01/10/2026)
 
-La V1 est entièrement cloud (Vercel + Notion + Telegram). La V2 **penche vers le local** : Notion reste la source de vérité seulement pour ce qui doit rester accessible à distance (suivi de projet, agenda — relu localement aussi, mais pas dupliqué en écriture). Tout le reste (config, défauts, logique d'action sur la machine) vit en local, sur le PC d'Alan, pas dans Notion. Ça implique un **agent résident local**, probablement intégré au Tauri existant côté Rust — rien de ce qui suit (contrôle d'apps, volume, périphériques) ne peut tourner sur l'infra Vercel actuelle, qui n'a aucun accès à la machine physique.
+La V1 est entièrement cloud (Vercel + Notion + Telegram). La V2 **penche vers le local** : Notion reste la source de vérité seulement pour ce qui doit rester accessible à distance (suivi de projet, agenda — relu localement aussi, mais pas dupliqué en écriture). Tout le reste (config, défauts, logique d'action sur la machine) vit en local, sur le PC de l’utilisateur, pas dans Notion. Ça implique un **agent résident local**, probablement intégré au Tauri existant côté Rust — rien de ce qui suit (contrôle d'apps, volume, périphériques) ne peut tourner sur l'infra Vercel actuelle, qui n'a aucun accès à la machine physique.
 
 ## Deux pipelines de déclenchement (décidé 01/10/2026)
 
