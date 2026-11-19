@@ -108,7 +108,7 @@ pub fn start(app: AppHandle, dir: PathBuf) {
     if already_greeted(&dir, &day, slot(hour)) { return; }
 
     let body = fetch_dashboard(&dir);
-    if body.as_ref().map_or(false, |b| crate::ambient::paused(b, &day)) { return; }
+    if body.as_ref().is_some_and(|b| crate::ambient::paused(b, &day)) { return; }
     let roll = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.subsec_micros() as usize);
     let text = compose(body.as_ref().unwrap_or(&Value::Null), hour, roll);
 

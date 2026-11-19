@@ -25,7 +25,7 @@ const TAIL_BYTES: u64 = 4 * 1024 * 1024; // la fin de la conversation suffit ; u
 const SPOKEN_CHARS: usize = 600; // une lecture dépasse vite la minute : on s'arrête à la fin d'une phrase avant cette taille
 const TYPED_CHARS: usize = 2000;
 
-fn fold(text: &str) -> String {
+pub(crate) fn fold(text: &str) -> String {
   text.to_lowercase().chars().map(|c| match c { 'é' | 'è' | 'ê' | 'ë' => 'e', 'à' | 'â' | 'ä' => 'a', 'î' | 'ï' => 'i', 'ô' | 'ö' => 'o', 'ù' | 'û' | 'ü' => 'u', 'ç' => 'c', c => c }).collect()
 }
 pub(crate) fn words(text: &str) -> Vec<String> {
@@ -98,7 +98,7 @@ fn tail(path: &Path) -> std::io::Result<String> {
   file.read_to_end(&mut bytes)?;
   let text = String::from_utf8_lossy(&bytes).into_owned();
   // Départ au milieu du fichier : la première ligne est coupée, on la jette.
-  Ok(if start > 0 { text.splitn(2, '\n').nth(1).unwrap_or("").to_string() } else { text })
+  Ok(if start > 0 { text.split_once('\n').map(|x| x.1).unwrap_or("").to_string() } else { text })
 }
 
 // Le texte devient de la parole : pas de code, de tableau ni d'adresse ; une pause après chaque ligne ; coupé à la fin d'une phrase.
@@ -109,7 +109,7 @@ pub fn for_speech(text: &str) -> String {
     let line = raw.trim();
     if line.starts_with("```") { in_code = !in_code; continue; }
     if in_code || line.is_empty() || line.starts_with('|') { continue; }
-    let mut line = line.trim_start_matches(|c: char| matches!(c, '#' | '-' | '*' | '>' | ' ')).to_string();
+    let mut line = line.trim_start_matches(['#', '-', '*', '>', ' ']).to_string();
     while let Some(i) = line.find("](") { // [texte](adresse) -> [texte]
       match line[i..].find(')') { Some(j) => line.replace_range(i + 1..i + j + 1, ""), None => break }
     }
@@ -161,7 +161,7 @@ struct Draft { text: String, project: String, at: Instant }
 pub struct State { armed: Option<Instant>, draft: Option<Draft>, asked: Option<Instant> }
 
 impl State {
-  fn armed(&self) -> bool { self.armed.map_or(false, |t| t.elapsed() < Duration::from_secs(ARM_SECS)) }
+  fn armed(&self) -> bool { self.armed.is_some_and(|t| t.elapsed() < Duration::from_secs(ARM_SECS)) }
   fn draft(&self) -> Option<&Draft> { self.draft.as_ref().filter(|d| d.at.elapsed() < Duration::from_secs(DRAFT_SECS)) }
 }
 
@@ -182,7 +182,7 @@ fn write_text(dir: &Path, state: &mut State, text: &str, io: &Io) -> String {
   if text.is_empty() { return "Je n'ai rien entendu à écrire.".into(); }
   let stop = match read_stop(dir) { Ok(s) => s, Err(e) => return e };
   // Un message déjà dans la zone de saisie (même projet, pas envoyé) : la suite s'y ajoute, séparée par une espace.
-  let continues = state.draft().map_or(false, |d| d.project == stop.target.project);
+  let continues = state.draft().is_some_and(|d| d.project == stop.target.project);
   let typed = if continues { format!(" {text}") } else { text.to_string() };
   match (io.type_text)(&stop.target, &typed) {
     Ok(()) => {
@@ -217,7 +217,7 @@ fn send(dir: &Path, state: &mut State, io: &Io) -> String {
 // None = pas pour nous (la phrase part alors au backend comme d'habitude).
 fn run_with(text: &str, dir: &Path, state: &mut State, io: &Io) -> Option<String> {
   // « Je l'envoie ? » : seule la phrase d'après compte. Autre chose qu'un oui ou un non : la question est oubliée, rien n'est envoyé.
-  if state.asked.take().map_or(false, |t| t.elapsed() < Duration::from_secs(CONFIRM_SECS)) {
+  if state.asked.take().is_some_and(|t| t.elapsed() < Duration::from_secs(CONFIRM_SECS)) {
     match confirmation(text) {
       Some(true) => return Some(send(dir, state, io)),
       Some(false) => return Some("D'accord, je ne l'envoie pas. Le message reste dans la zone de saisie.".into()),
@@ -225,7 +225,7 @@ fn run_with(text: &str, dir: &Path, state: &mut State, io: &Io) -> Option<String
     }
   }
   if wants_reread(text) { return Some(reread(state)); }
-  let recent = read_stop(dir).map_or(false, |s| s.age < Duration::from_secs(RECENT_SECS));
+  let recent = read_stop(dir).is_ok_and(|s| s.age < Duration::from_secs(RECENT_SECS));
   if wants_reading(text, recent) { return Some(read_aloud(dir, state)); }
   let dictated = dictation(text)?;
   if !state.armed() { return None; }
@@ -251,7 +251,7 @@ pub fn is_vscode_window(title: &str, project: &str) -> bool {
 type Hwnd = *mut c_void;
 
 #[repr(C)]
-struct KeyInput { kind: u32, _pad1: u32, vk: u16, scan: u16, flags: u32, time: u32, _pad2: u32, extra: usize, _tail: [u8; 8] } // INPUT de Windows (40 octets sur 64 bits)
+pub(crate) struct KeyInput { kind: u32, _pad1: u32, vk: u16, scan: u16, flags: u32, time: u32, _pad2: u32, extra: usize, _tail: [u8; 8] } // INPUT de Windows (40 octets sur 64 bits)
 
 #[link(name = "user32")]
 extern "system" {
@@ -302,15 +302,15 @@ fn bring_to_front(hwnd: Hwnd) -> bool {
   }
 }
 
-fn key(vk: u16, scan: u16, flags: u32) -> KeyInput { KeyInput { kind: 1, _pad1: 0, vk, scan, flags, time: 0, _pad2: 0, extra: 0, _tail: [0; 8] } }
+pub(crate) fn key(vk: u16, scan: u16, flags: u32) -> KeyInput { KeyInput { kind: 1, _pad1: 0, vk, scan, flags, time: 0, _pad2: 0, extra: 0, _tail: [0; 8] } }
 
-fn unicode_keys(text: &str) -> Vec<KeyInput> {
+pub(crate) fn unicode_keys(text: &str) -> Vec<KeyInput> {
   const UNICODE: u32 = 0x4; // KEYEVENTF_UNICODE : le caractère lui-même, sans touche du clavier (accents, « ø », émojis)
   const KEYUP: u32 = 0x2;
   text.encode_utf16().flat_map(|unit| [0, KEYUP].map(|up| key(0, unit, UNICODE | up))).collect()
 }
 
-fn send_keys(keys: &[KeyInput]) -> Result<(), String> {
+pub(crate) fn send_keys(keys: &[KeyInput]) -> Result<(), String> {
   for chunk in keys.chunks(400) {
     let sent = unsafe { SendInput(chunk.len() as u32, chunk.as_ptr(), std::mem::size_of::<KeyInput>() as i32) };
     if sent as usize != chunk.len() { return Err("Windows a bloqué la saisie (fenêtre lancée en administrateur ?)".into()); }
@@ -536,8 +536,7 @@ mod tests {
   #[test]
   fn a_failed_send_is_said_and_keeps_the_message() {
     let dir = setup("sendfail");
-    let mut state = State::default();
-    state.armed = Some(Instant::now());
+    let mut state = State { armed: Some(Instant::now()), ..State::default() };
     run_with("écris ajoute un test", &dir, &mut state, &io(typed_ok, sent_never)).unwrap();
     run_with("relis le message", &dir, &mut state, &io(typed_never, sent_never)).unwrap();
     let said = run_with("oui", &dir, &mut state, &io(typed_never, sent_err)).unwrap();

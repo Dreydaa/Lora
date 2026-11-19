@@ -1,5 +1,6 @@
 import { notion } from "./client";
 import type { Category, Milestone } from "../types";
+import { pickByTitle, type TitleMatch } from "./match";
 
 const database = () => {
   if (!process.env.NOTION_MILESTONES_DATABASE_ID) throw new Error("NOTION_MILESTONES_DATABASE_ID is missing");
@@ -39,6 +40,13 @@ export async function createMilestone(title: string, dueDate: string, ideaPageId
 }
 
 const setStatus = (pageId: string, name: string) => notion().pages.update({ page_id: pageId, properties: { Statut: { select: { name } } } });
+
+// Valide UN jalon, désigné par son titre (« valide le jalon maquette ») ; plusieurs qui collent ou aucun : rien n'est validé, les candidats sont rendus.
+export async function completeMilestoneByTitle(title: string): Promise<TitleMatch<Milestone>> {
+  const found = pickByTitle(await getMilestones(), title);
+  if (found.match) await setStatus(found.match.id, "Validé");
+  return found;
+}
 
 // Valide tous les jalons encore ouverts (« À faire » ou « Manqué ») liés à cette idée : les relances du 18/10 en ont créé plusieurs.
 // Retourne leur nombre, 0 si aucun n'est lié (jalons créés avant l'ajout de la relation "Idée liée").

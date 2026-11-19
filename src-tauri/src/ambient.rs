@@ -223,7 +223,7 @@ fn roll() -> usize {
 
 // Plein écran (jeu, vidéo), présentation : Windows dit qu'il ne faut pas déranger.
 fn screen_busy() -> bool {
-  unsafe { SHQueryUserNotificationState() }.map_or(false, |s| matches!(s.0, 2..=4))
+  unsafe { SHQueryUserNotificationState() }.is_ok_and(|s| matches!(s.0, 2..=4))
 }
 
 fn fetch_agenda(url: &str, key: &str) -> Result<Value, String> {
@@ -260,7 +260,7 @@ pub fn start(app: AppHandle, dir: PathBuf) {
       let idle_secs = user_idle::UserIdle::get_time().map_or(0, |t| t.as_seconds());
 
       // Le backend est lu même sans l'événement « agenda » : c'est de lui que vient la pause de plusieurs jours.
-      if last_agenda.map_or(true, |t| now.duration_since(t) >= AGENDA_EVERY) {
+      if last_agenda.is_none_or(|t| now.duration_since(t) >= AGENDA_EVERY) {
         last_agenda = Some(now);
         if let Some((url, key)) = crate::protocol::config(&dir.join("agent.json")) {
           match fetch_agenda(&url, &key) {
@@ -270,7 +270,7 @@ pub fn start(app: AppHandle, dir: PathBuf) {
         }
       }
       // Souris éteinte ou en veille : la lecture échoue, on n'y touche pas pendant que l'utilisateur est parti.
-      if cfg.battery && idle_secs < crate::IDLE_SECS && last_mouse.map_or(true, |t| now.duration_since(t) >= MOUSE_EVERY) {
+      if cfg.battery && idle_secs < crate::IDLE_SECS && last_mouse.is_none_or(|t| now.duration_since(t) >= MOUSE_EVERY) {
         last_mouse = Some(now);
         state.mouse = crate::system::mouse_battery_level().ok();
       }

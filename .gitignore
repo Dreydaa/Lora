@@ -6,6 +6,8 @@ dist/
 .vercel/
 src-tauri/target/
 src-tauri/gen/
+# Moteur WASM de MediaPipe, copié depuis node_modules par scripts/copy-mediapipe.mjs
+public/mediapipe/
 coverage/
 playwright-report/
 test-results/
@@ -14,8 +16,6 @@ test-results/
 .DS_Store
 Thumbs.db
 
-.vercel
-.env*
 
 # Config locale de Claude Code (hooks, lancement) : propre a chaque poste
 .claude/

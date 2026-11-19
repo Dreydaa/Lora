@@ -5,6 +5,7 @@ import { loraTools } from "./tools";
 import { pickTools } from "./tool-routing";
 import { getHistory, appendToHistory } from "../memory";
 import { todayInParis } from "../date";
+import { quickAnswer } from "../quick-answers";
 
 const DOUBT_INSTRUCTION = `
 Quand l'utilisateur mentionne quelque chose qui pourrait être une idée de projet ou un jalon, n'utilise create_idea ou create_milestone que si tu es raisonnablement sûr que c'est son intention. Si c'est ambigu, n'appelle pas l'outil — pose d'abord une question courte pour confirmer.`;
@@ -15,7 +16,7 @@ Ne devine et n'invente jamais une information, un résultat ou une réponse. Sur
 
 // La réponse sera lue à voix haute plus tard (TTS) : courte, sans liste, sans adresse web.
 const SEARCH_INSTRUCTION = `
-Tu disposes d'une recherche web (web_search). Ne l'utilise que pour une question qui demande une information extérieure ou récente (recette, fait, actualité, « cherche comment… »), jamais pour l'agenda, les idées ou les jalons de l'utilisateur. Réponds en deux ou trois phrases dites à voix haute : aucune liste, aucun lien, aucune adresse web, aucune marque de citation.`;
+Tu disposes d'une recherche web (web_search). Pour l'actualité (bourse, économie, monde, tech, mode, sport, culture, sciences), appelle d'abord get_news : ses articles viennent de médias choisis. Utilise web_search seulement pour une autre information extérieure ou récente (recette, fait, « cherche comment… »), jamais pour l'agenda, les idées ou les jalons de l'utilisateur. Réponds en deux ou trois phrases dites à voix haute : aucune liste, aucun lien, aucune adresse web, aucune marque de citation.`;
 
 // Demandes venues de l'app (Ctrl+K) : la réponse est dite à voix haute, pas lue sur un écran.
 const SPOKEN_INSTRUCTION = `
@@ -23,7 +24,7 @@ Cette réponse sera dite à voix haute par la voix de Løra : tutoiement toujour
 
 // Phrase venue du micro : la reconnaissance vocale se trompe (« Blender » devient « Blondet »), une mauvaise écriture dans Notion se paie.
 const VOICE_INSTRUCTION = `
-Cette demande vient de la reconnaissance vocale, qui peut se tromper. Avant toute écriture (create_idea, update_idea_notes, update_idea_status, create_milestone, complete_project, add_agenda_item, add_shift_schedule, update_briefing_schedule, set_break, cancel_break, record_progress), reformule en une phrase ce que tu vas enregistrer et demande « je le fais ? » ; n'appelle l'outil qu'après un « oui » explicite au message suivant. Les lectures et les réponses n'ont pas besoin de confirmation.`;
+Cette demande vient de la reconnaissance vocale, qui peut se tromper. Avant toute écriture (create_idea, update_idea_notes, update_idea_status, create_milestone, complete_project, add_agenda_item, update_agenda_item, delete_agenda_item, complete_milestone, add_quick_note, add_shift_schedule, update_briefing_schedule, set_break, cancel_break, record_progress), reformule en une phrase ce que tu vas enregistrer et demande « je le fais ? » ; n'appelle l'outil qu'après un « oui » explicite au message suivant. Les lectures et les réponses n'ont pas besoin de confirmation.`;
 
 // Sans la date du jour, le modèle ne peut pas convertir « demain » ou « ce week-end » en dates réelles pour les outils.
 function dateInstruction() {
@@ -75,6 +76,16 @@ export async function askLora(chatId: number, input: string, spoken = false, voi
   }
   if (typeof input !== "string" || input.trim().length === 0) {
     throw new Error(`askLora: input must be a non-empty string, got ${typeof input}`);
+  }
+
+  // Réponse directe (météo, conversion, présence du PC…) fabriquée par le code, sans modèle ni jeton ; null = la phrase continue vers le modèle.
+  const direct = await quickAnswer(input);
+  if (direct !== null) {
+    await appendToHistory(chatId, [
+      { role: "user", content: input },
+      { role: "assistant", content: direct },
+    ]);
+    return { text: direct, toolCalls: [] };
   }
 
   const models = [...new Set([process.env.GROQ_MODEL ?? DEFAULT_MODEL, FALLBACK_MODEL])].map((id) => resolveModel(id));

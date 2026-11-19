@@ -7,14 +7,18 @@ type ToolGroup = { tools: string[]; pattern: RegExp };
 
 const GROUPS: ToolGroup[] = [
   {
-    tools: ["create_idea", "update_idea_notes", "update_idea_status"],
+    tools: ["create_idea", "update_idea_notes", "update_idea_status", "add_quick_note"],
     pattern: /\bidee|projet|\bnotes?\b|statut|archiv|abandon|en cours|brute|\bapp\b|\bsite\b|\bjeu\b|logiciel|concept/,
   },
   {
     tools: ["complete_project", "suggest_projects"],
     pattern: /termin|\bfini|livr|boucl|finalis|complet|achev|valide|propos|sugger|quoi (faire|commencer)|commenc|demarr|prochain projet|suivant/,
   },
-  { tools: ["create_milestone", "list_milestones"], pattern: /jalon|echeance|deadline|milestone|etape|objectif/ },
+  { tools: ["create_milestone", "list_milestones", "complete_milestone"], pattern: /jalon|echeance|deadline|milestone|etape|objectif/ },
+  // Modifier ou supprimer une entrée de l'agenda (« décale mon rendez-vous d'une heure », « supprime le dentiste »).
+  { tools: ["update_agenda_item", "delete_agenda_item"], pattern: /decal|deplace|report|repouss|retard|recul|modifi|chang|supprim|efface|enleve|retire|renomm|annul/ },
+  // « Que devrais-je faire maintenant ? » : agenda, jalon et projets d'un coup.
+  { tools: ["get_what_to_do_now"], pattern: /que (devrais|dois|puis|peux)[- ]?je faire|quoi faire|par quoi (commencer|je commence)|je fais quoi|maintenant/ },
   {
     tools: ["add_agenda_item"],
     pattern:
@@ -27,7 +31,8 @@ const GROUPS: ToolGroup[] = [
   // Un merci peut appeler une suggestion (« merci » après un briefing) : les lectures suffisent, pas tous les outils.
   { tools: ["list_ideas", "list_milestones", "get_agenda"], pattern: /\bmerci|\bthanks?\b/ },
   { tools: ["get_weather"], pattern: /meteo|temps (fait|il)|pluie|pleu|temperature|degres|soleil|parapluie|chaud|froid/ },
-  { tools: ["get_last_progress"], pattern: /bilan|hier|derniere? (fois|seance|session)|avance/ },
+  { tools: ["get_news"], pattern: /\bactus?\b|actualite|news|nouvelles|infos?\b|journal|bourse|cac ?40|marches?\b|economi|monde|tech|\bmode\b|sport|cultur|scienc/ },
+  { tools: ["get_last_progress", "get_week_progress"], pattern: /bilan|hier|derniere? (fois|seance|session)|avance|semaine/ },
   { tools: ["set_break", "cancel_break"], pattern: /pause|vacance|week-?end|repos|conge|ne (vais|travaille|bosse)|pas (bosser|travailler)|jusqu.a|reprend|annule/ },
   {
     tools: ["get_settings"],

@@ -2,7 +2,7 @@ import { Client } from "@upstash/qstash";
 import type { WorkerJob } from "../types";
 
 function baseUrl() {
-  // APP_URL doit pointer vers le domaine stable de prod (ex: https://soza-blond.vercel.app),
+  // APP_URL doit pointer vers le domaine stable de prod (ex: https://your-app.vercel.app),
   // pas vers VERCEL_URL (URL spécifique au déploiement, change à chaque déploiement et
   // est protégée par Vercel Deployment Protection — QStash reçoit un 401 dessus).
   return process.env.APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);

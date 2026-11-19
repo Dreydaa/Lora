@@ -7,8 +7,8 @@
   "app": {
     "windows": [{ "title": "Løra", "width": 1440, "height": 1024, "resizable": false, "maximizable": false, "center": true }],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://soza-blond.vercel.app https://api.open-meteo.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'",
-      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:1420 http://localhost:1420 ipc: http://ipc.localhost https://soza-blond.vercel.app https://api.open-meteo.com; object-src 'none'; base-uri 'self'; form-action 'none'"
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://soza-blond.vercel.app https://api.open-meteo.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:1420 http://localhost:1420 ipc: http://ipc.localhost https://soza-blond.vercel.app https://api.open-meteo.com; object-src 'none'; base-uri 'self'; form-action 'none'"
     }
   },
   "bundle": { "active": true, "targets": ["nsis"], "windows": { "nsis": { "installerHooks": "windows/hooks.nsh" } }, "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"] }

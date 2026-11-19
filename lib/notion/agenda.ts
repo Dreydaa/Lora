@@ -1,6 +1,7 @@
 import { notion } from "./client";
 import type { AgendaItem, AgendaType, Category } from "../types";
 import { addDays, todayInParis } from "../date";
+import { pickByTitle } from "./match";
 
 const db = () => {
   if (!process.env.NOTION_AGENDA_DATABASE_ID) throw new Error("NOTION_AGENDA_DATABASE_ID is missing");
@@ -92,6 +93,44 @@ export async function addAgendaItem(
       ...(category ? { Catégorie: { select: { name: category } } } : {}),
     },
   });
+}
+
+// Décale une date de `minutes`, en heure du mur : Notion rend « 2026-11-12T14:30:00.000+01:00 », on réécrit « 2026-11-12T15:30 » (le fuseau Paris est
+// remis par toDateProperty, comme à la création). Lue comme de l'UTC, l'heure du mur ne glisse jamais. Une date sans heure ne bouge que par jours entiers.
+export function shiftIso(iso: string, minutes: number): string {
+  if (!iso.includes("T")) {
+    if (minutes % 1440 !== 0) throw new Error("Cette entrée n'a pas d'heure : elle ne se décale que de jours entiers");
+    return addDays(iso.slice(0, 10), minutes / 1440);
+  }
+  const moved = new Date(`${iso.slice(0, 16)}:00Z`);
+  moved.setUTCMinutes(moved.getUTCMinutes() + minutes);
+  return moved.toISOString().slice(0, 16);
+}
+
+export type AgendaLookup = { item: AgendaItem } | { candidates: AgendaItem[] };
+
+// L'entrée à venir (hors Shift, non faite) que l'utilisateur désigne par son titre ; sans titre, la prochaine. Plusieurs qui collent, ou aucune :
+// `candidates` (vide si aucune), jamais de choix au hasard.
+export async function findAgendaItem(title?: string): Promise<AgendaLookup> {
+  const items = await getUpcomingAgenda(false, 30);
+  if (!title?.trim()) return items[0] ? { item: items[0] } : { candidates: [] };
+  const found = pickByTitle(items, title);
+  return found.match ? { item: found.match } : { candidates: found.candidates };
+}
+
+export async function updateAgendaItem(id: string, changes: { title?: string; start?: string; end?: string | null }) {
+  await notion().pages.update({
+    page_id: id,
+    properties: {
+      ...(changes.title ? { Titre: { title: [{ text: { content: changes.title } }] } } : {}),
+      ...(changes.start ? { Date: { date: toDateProperty(changes.start, changes.end ?? undefined) } } : {}),
+    },
+  });
+}
+
+// Archivée, pas détruite : Notion la garde dans la corbeille de la page pendant 30 jours.
+export async function deleteAgendaItem(id: string) {
+  await notion().pages.update({ page_id: id, archived: true });
 }
 
 const WEEKDAY_INDEX: Record<string, number> = {
