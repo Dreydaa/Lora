@@ -18,7 +18,7 @@ A personal assistant driven by **Telegram**, for a single user, paired with a **
 
 **On Telegram (works with your PC off)**
 
-- Understands natural language and acts in Notion through AI tool calls: create an idea (size and notes decided by the model), add an appointment or a work shift to the agenda, change a project's status, create/validate milestones, record the daily review, pause Løra for a few days ("I'm taking my weekend"), change the briefing time…
+- Understands natural language and acts in Notion through AI tool calls: start a project (size and notes decided by the model), add an appointment or a work shift to the agenda, change a project's status, create/validate milestones, record the daily review, pause Løra for a few days ("I'm taking my weekend"), change the briefing time…
 - **Morning briefing** (weather, agenda over 7 days, yesterday's review, news from your RSS feeds) and **evening review** (the day, next milestone of each running project, agenda, then the review question), at times you can change by chat. Triggered by QStash schedules.
 - **Several projects in parallel**: the evening review records which ones you worked on.
 - **Web search** for outside or recent questions (Groq's built-in search; retries without it on failure).
@@ -128,7 +128,7 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
 npm run qstash:setup-schedules   # creates the morning-briefing and evening-review schedules
 ```
 
-Send a message to your bot ("add an idea: …"). You should get an answer. Messages from any other chat are silently ignored.
+Send a message to your bot ("add a project: …", with the details). You should get an answer. Messages from any other chat are silently ignored.
 
 ### 6. Build the desktop app (Windows, optional)
 

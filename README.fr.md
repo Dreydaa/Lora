@@ -18,7 +18,7 @@ Un assistant personnel piloté par **Telegram**, pour un seul utilisateur, doubl
 
 **Sur Telegram (marche PC éteint)**
 
-- Comprend le langage naturel et agit dans Notion par des appels d'outils IA : créer une idée (taille et notes décidées par le modèle), ajouter un rendez-vous ou un shift à l'agenda, changer le statut d'un projet, créer ou valider des jalons, enregistrer le bilan du jour, mettre Løra en pause quelques jours (« je prends mon week-end »), changer l'heure du briefing…
+- Comprend le langage naturel et agit dans Notion par des appels d'outils IA : démarrer un projet (taille et notes décidées par le modèle), ajouter un rendez-vous ou un shift à l'agenda, changer le statut d'un projet, créer ou valider des jalons, enregistrer le bilan du jour, mettre Løra en pause quelques jours (« je prends mon week-end »), changer l'heure du briefing…
 - **Briefing du matin** (météo, agenda sur 7 jours, bilan d'hier, actualités de tes flux RSS) et **bilan du soir** (la journée, le prochain jalon de chaque projet en cours, l'agenda, puis la question du bilan), à des horaires modifiables en discutant. Déclenchés par des planifications QStash.
 - **Plusieurs projets en parallèle** : le bilan du soir enregistre sur lesquels tu as avancé.
 - **Recherche web** pour une question extérieure ou récente (recherche intégrée de Groq ; nouvel essai sans elle en cas d'échec).
@@ -128,7 +128,7 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
 npm run qstash:setup-schedules   # crée les planifications du briefing du matin et du bilan du soir
 ```
 
-Envoie un message à ton bot (« ajoute une idée : … »). Tu dois recevoir une réponse. Les messages de tout autre chat sont ignorés en silence.
+Envoie un message à ton bot (« ajoute un projet : … », avec les détails). Tu dois recevoir une réponse. Les messages de tout autre chat sont ignorés en silence.
 
 ### 6. Construire l'application de bureau (Windows, facultatif)
 
