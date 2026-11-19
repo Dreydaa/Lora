@@ -11,8 +11,8 @@ const GROUPS: ToolGroup[] = [
     pattern: /\bidee|projet|\bnotes?\b|statut|archiv|abandon|en cours|brute|\bapp\b|\bsite\b|\bjeu\b|logiciel|concept/,
   },
   {
-    tools: ["complete_project", "suggest_projects"],
-    pattern: /termin|\bfini|livr|boucl|finalis|complet|achev|valide|propos|sugger|quoi (faire|commencer)|commenc|demarr|prochain projet|suivant/,
+    tools: ["complete_project"],
+    pattern: /termin|\bfini|livr|boucl|finalis|complet|achev|valide/,
   },
   { tools: ["create_milestone", "list_milestones", "complete_milestone"], pattern: /jalon|echeance|deadline|milestone|etape|objectif/ },
   // Modifier ou supprimer une entrée de l'agenda (« décale mon rendez-vous d'une heure », « supprime le dentiste »).

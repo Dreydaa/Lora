@@ -8,7 +8,7 @@ import { todayInParis } from "../date";
 import { quickAnswer } from "../quick-answers";
 
 const DOUBT_INSTRUCTION = `
-Quand l'utilisateur mentionne quelque chose qui pourrait être une idée de projet ou un jalon, n'utilise create_idea ou create_milestone que si tu es raisonnablement sûr que c'est son intention. Si c'est ambigu, n'appelle pas l'outil — pose d'abord une question courte pour confirmer.`;
+Quand l'utilisateur mentionne quelque chose qui pourrait être un nouveau projet à démarrer ou un jalon, n'utilise create_idea ou create_milestone que si tu es raisonnablement sûr que c'est son intention. Si c'est ambigu, n'appelle pas l'outil — pose d'abord une question courte pour confirmer.`;
 
 // Un modèle comble les trous par du plausible : l'aveu d'ignorance est demandé explicitement, partout.
 const HONESTY_INSTRUCTION = `
@@ -46,10 +46,6 @@ export function resolveModel(id = process.env.GROQ_MODEL ?? DEFAULT_MODEL) {
 }
 
 const isRateLimited = (error: unknown) => (error as { statusCode?: number } | null)?.statusCode === 429;
-
-// Une fois un outil exécuté, le modèle n'a plus qu'à confirmer : lui renvoyer tous les outils coûte ~2 400 jetons pour rien.
-// suggest_projects reste disponible pour l'enchaînement « projet terminé, voici trois idées ».
-const FOLLOW_UP_TOOLS = ["suggest_projects"] as const;
 
 // Repli quand la recherche a échoué : sans consigne, le modèle répondrait de mémoire à une question d'actualité.
 const NO_SEARCH_INSTRUCTION = `
@@ -107,7 +103,8 @@ export async function askLora(chatId: number, input: string, spoken = false, voi
       abortSignal,
       maxRetries: 0,
       stopWhen: isStepCount(4),
-      prepareStep: ({ stepNumber }) => (stepNumber > 0 ? { activeTools: [...FOLLOW_UP_TOOLS] } : undefined),
+      // Une fois un outil exécuté, le modèle n'a plus qu'à confirmer : lui renvoyer les outils coûte ~2 400 jetons pour rien.
+      prepareStep: ({ stepNumber }) => (stepNumber > 0 ? { activeTools: [] } : undefined),
       onStepFinish: (step) => {
         if (step.toolCalls.length > 0) localToolRan = true;
       },

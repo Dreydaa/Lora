@@ -1,6 +1,6 @@
 // Batterie de test complète des mécaniques Løra — utilise les vraies APIs (Notion, Redis, Groq).
 // Toutes les données créées sont préfixées "[TEST]" pour pouvoir être nettoyées ensuite.
-import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose } from "../lib/notion/idees";
+import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes } from "../lib/notion/idees";
 import { createMilestone, completeMilestoneForIdea, getMilestones } from "../lib/notion/milestones";
 import { addAgendaItem, addShiftSchedule, getUpcomingAgenda } from "../lib/notion/agenda";
 import { getLatestProgress, saveProgress } from "../lib/notion/progress";
@@ -68,10 +68,6 @@ async function main() {
     const completed = await completeMilestoneForIdea(idea.id);
     record("completeMilestoneForIdea valide le jalon lié", completed >= 1, `${completed} jalon(s)`);
   }
-
-  console.log("\n=== 2. suggest_projects (normal + fallback) ===");
-  const suggestions = await getIdeasToPropose();
-  record("getIdeasToPropose retourne des suggestions", Array.isArray(suggestions), `${suggestions.length} suggestion(s)`);
 
   console.log("\n=== 3. Agenda ===");
   const agendaTitle = `[TEST] rdv ${Date.now()}`;

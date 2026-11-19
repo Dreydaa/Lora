@@ -64,12 +64,12 @@ describe("limite par minute : modèle suivant au lieu d'attendre", () => {
 });
 
 describe("second appel d'une action : seulement la confirmation", () => {
-  it("le premier appel a tous les outils, les suivants seulement suggest_projects", async () => {
+  it("le premier appel a tous les outils, les suivants aucun", async () => {
     generateText.mockResolvedValueOnce(answer("ok"));
     await askLora(1, "salut");
     const { prepareStep } = generateText.mock.calls[0][0];
     expect(prepareStep({ stepNumber: 0 })).toBeUndefined();
-    expect(prepareStep({ stepNumber: 1 })).toEqual({ activeTools: ["suggest_projects"] });
-    expect(prepareStep({ stepNumber: 3 })).toEqual({ activeTools: ["suggest_projects"] });
+    expect(prepareStep({ stepNumber: 1 })).toEqual({ activeTools: [] });
+    expect(prepareStep({ stepNumber: 3 })).toEqual({ activeTools: [] });
   });
 });

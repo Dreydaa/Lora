@@ -1,7 +1,7 @@
 // lib/ai/tools.ts
 import { tool } from "ai";
 import { z } from "zod";
-import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getIdeasToPropose, getProjectsInProgress, getAllIdeas, resolveProjectNames } from "../notion/idees";
+import { addIdea, findIdeaByTitle, completeIdea, setIdeaStatus, updateIdeaNotes, getProjectsInProgress, getAllIdeas, resolveProjectNames } from "../notion/idees";
 import { CATEGORIES } from "../types";
 import { createMilestone, completeMilestoneByTitle, completeMilestoneForIdea, getMilestones } from "../notion/milestones";
 import { addAgendaItem, addShiftSchedule, deleteAgendaItem, findAgendaItem, getAgendaOn, getUpcomingAgenda, shiftIso, updateAgendaItem } from "../notion/agenda";
@@ -36,7 +36,7 @@ async function finishProject(projectTitle: string) {
 export const loraTools = {
   create_idea: tool({
     description:
-      "Enregistre une idée dans Notion. Estime toi-même la taille selon l'ampleur réelle, sans jamais la demander (sauf si l'utilisateur l'a précisée : respecte son choix). Rédige dans `notes` une synthèse complète, pas un résumé de quelques lignes : le fond (objectif, portée, enjeux, éléments clés) et la forme (structure, étapes, composants évoqués), assez riche pour comprendre l'idée plus tard sans la conversation. N'invente aucun fait : organise et clarifie seulement.",
+      "Démarre un nouveau projet dans Notion (statut « En cours »), à partir des détails donnés par l'utilisateur. Estime toi-même la taille selon l'ampleur réelle, sans jamais la demander (sauf si l'utilisateur l'a précisée : respecte son choix). Rédige dans `notes` une synthèse complète, pas un résumé de quelques lignes : le fond (objectif, portée, enjeux, éléments clés) et la forme (structure, étapes, composants évoqués), assez riche pour comprendre le projet plus tard sans la conversation. N'invente aucun fait : organise et clarifie seulement.",
     inputSchema: z.object({
       title: z.string(),
       size: z
@@ -53,17 +53,17 @@ export const loraTools = {
         .enum(["Brute", "En cours", "Archivée"])
         .nullish()
         .describe(
-          "Seulement si l'utilisateur précise un statut de départ (« ajoute ce projet et marque-le en cours »). Sinon vide : l'idée est créée « Brute ».",
+          "Seulement si l'utilisateur précise un autre statut de départ. Sinon vide : le projet est créé « En cours ».",
         ),
       category,
     }),
     execute: async ({ title, size, notes, statut, category }) => {
-      const finalStatut = statut ?? undefined;
+      const finalStatut = statut ?? "En cours";
       console.log("[tool] create_idea →", { title, size, statut: finalStatut, category, notesLength: notes.length });
       if (!title) throw new Error("create_idea: title is required");
       const page = await addIdea(title, size, notes, finalStatut, category ?? undefined);
-      console.log("[tool] ✅ idée créée :", page.id);
-      return { success: true, title, size, statut: finalStatut ?? "Brute", pageId: page.id };
+      console.log("[tool] ✅ projet créé :", page.id);
+      return { success: true, title, size, statut: finalStatut, pageId: page.id };
     },
   }),
 
@@ -125,17 +125,6 @@ export const loraTools = {
     execute: async ({ projectTitle }) => {
       console.log("[tool] complete_project →", { projectTitle });
       return finishProject(projectTitle);
-    },
-  }),
-
-  suggest_projects: tool({
-    description:
-      "Propose 3 idées à commencer, une par taille (Grand/Moyen/Petit), les plus anciennes d'abord ; sans idée disponible pour une taille, les 3 plus anciennes toutes tailles. À utiliser après qu'un projet vient d'être marqué terminé, ou sur demande.",
-    inputSchema: z.object({}),
-    execute: async () => {
-      console.log("[tool] suggest_projects");
-      const suggestions = await getIdeasToPropose();
-      return { suggestions };
     },
   }),
 
